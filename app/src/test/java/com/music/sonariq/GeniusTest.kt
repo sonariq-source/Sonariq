@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Ignore
 import org.junit.Test
 
 class GeniusTest {
@@ -107,6 +108,7 @@ class GeniusTest {
         assertEquals("Line 3", lines[5].text)
     }
 
+    @Ignore("Live external integration test: hits genius.com, flaky/blocked in CI. Run manually.")
     @Test
     fun `live genius search and scraping test with noisy titles`() = kotlinx.coroutines.runBlocking {
         println("--- TEST 1: Queen - Bohemian Rhapsody (Official Video) ---")
