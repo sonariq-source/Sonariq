@@ -22,7 +22,9 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -473,8 +475,8 @@ private fun SonariqApp(
     val hazeState = remember { HazeState() }
     // Recording the backdrop layer costs a draw pass, so it only runs when a
     // liquid-glass surface (the nav bar or artwork-page back button) can sample it.
-    // Sonariq redesign: use the new matte dock/navigation layout instead of the legacy floating-glass shell.
-    val glassActive = false
+    // Joel: liquid glass is the default — the navigation menu is all liquid.
+    val glassActive = true
     // "Reduce dynamic blur" keeps the glass bar's *shape* — the folding
     // now-playing-and-tabs component is a layout, not an effect, and dropping
     // back to the two stacked bars would be answering a question about material
@@ -2604,18 +2606,41 @@ private fun SonariqApp(
                         val initialIsTab = initialState.startsWith(TAB_KEY) || initialState == "library_show_all"
                         when {
                             tabSwap || libraryShowAllSwap -> {
-                                (fadeIn(tween(220)) + scaleIn(tween(260), initialScale = 0.96f)) togetherWith
-                                    (fadeOut(tween(160)) + scaleOut(tween(200), targetScale = 0.98f))
+                                // Directional bloom: tabs slide with the travel
+                                // direction, wrapped in a soft scale + fade. A
+                                // spring gives it that liquid, alive feel.
+                                val from = initialState.removePrefix(TAB_KEY).toIntOrNull() ?: 0
+                                val to = targetState.removePrefix(TAB_KEY).toIntOrNull() ?: 0
+                                val dir = if (to > from) 1 else -1
+                                val spring = spring<Float>(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMedium,
+                                )
+                                (slideInHorizontally(animationSpec = spring) { dir * it / 5 } +
+                                    fadeIn(tween(280)) + scaleIn(spring, initialScale = 0.94f)) togetherWith
+                                    (slideOutHorizontally(animationSpec = spring) { -dir * it / 6 } +
+                                        fadeOut(tween(220)) + scaleOut(tween(240), targetScale = 0.97f))
                             }
                             targetIsModal && !initialIsModal -> {
-                                (slideInVertically(tween(320, easing = FastOutSlowInEasing)) { it / 3 } +
-                                    fadeIn(tween(240))) togetherWith
-                                    (fadeOut(tween(200)) + scaleOut(tween(240), targetScale = 0.97f))
+                                // Liquid rise: the modal springs up from the
+                                // bottom with a soft overshoot, like surfacing
+                                // through glass.
+                                val rise = spring<Float>(
+                                    dampingRatio = Spring.DampingRatioLowBouncy,
+                                    stiffness = Spring.StiffnessMediumLow,
+                                )
+                                (slideInVertically(animationSpec = rise) { it / 2 } +
+                                    fadeIn(tween(280))) togetherWith
+                                    (fadeOut(tween(220)) + scaleOut(tween(260), targetScale = 0.96f))
                             }
                             initialIsModal && !targetIsModal -> {
-                                (fadeIn(tween(240)) + scaleIn(tween(260), initialScale = 0.97f)) togetherWith
-                                    (slideOutVertically(tween(300, easing = FastOutSlowInEasing)) { it / 3 } +
-                                        fadeOut(tween(220)))
+                                val sink = spring<Float>(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMedium,
+                                )
+                                (fadeIn(tween(260)) + scaleIn(tween(280), initialScale = 0.96f)) togetherWith
+                                    (slideOutVertically(animationSpec = sink) { it / 2 } +
+                                        fadeOut(tween(240)))
                             }
                             initialIsTab && !targetIsTab -> {
                                 (slideInHorizontally(tween(320, easing = FastOutSlowInEasing)) { it / 4 } +
