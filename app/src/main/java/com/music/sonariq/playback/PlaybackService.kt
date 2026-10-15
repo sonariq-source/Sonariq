@@ -788,6 +788,16 @@ class PlaybackService : MediaLibraryService() {
     private var serviceLyricsJob: Job? = null
     private var serviceLyrics: List<LyricLine>? = null
     private var lastPublishedSubtitle: String? = null
+    /**
+     * The raw text of the lyric line currently shown (or to be shown) on the
+     * lock screen notification. Null whenever there is no active line — no
+     * lyrics loaded, a gap between lines, or synced lyrics off. Read by
+     * [LockscreenLyricsNotificationProvider] on every notification build;
+     * only written from [updateLyricSubtitle], which is the single place
+     * lyric position is resolved, so the notification stays throttled to
+     * line changes.
+     */
+    private var lastPublishedLyricLine: String? = null
     private var lyricsTickerJob: Job? = null
 
     /**
@@ -1245,12 +1255,24 @@ class PlaybackService : MediaLibraryService() {
         QualityUpgrade.forgetLastSession()
 
         setMediaNotificationProvider(
-            DefaultMediaNotificationProvider.Builder(this)
-                .setChannelId(CHANNEL_ID)
-                .setChannelName(R.string.playback_channel_name)
-                .build()
-                .apply { setSmallIcon(R.drawable.ic_notification_logo) },
+            LockscreenLyricsNotificationProvider(
+                context = this,
+                channelId = CHANNEL_ID,
+                channelNameResourceId = R.string.playback_channel_name,
+                getLyricLine = { lastPublishedLyricLine },
+            ).apply { setSmallIcon(R.drawable.ic_notification_logo) },
         )
+
+        // Toggling lock screen lyrics re-posts the notification with the
+        // correct content text immediately: blanking lastPublishedSubtitle
+        // forces updateLyricSubtitle() to publish a fresh metadata snapshot
+        // even when the lyric line itself hasn't moved.
+        scope.launch {
+            AppSettings.lockscreenLyrics.collectLatest {
+                lastPublishedSubtitle = null
+                updateLyricSubtitle()
+            }
+        }
 
         // Both the player screen and notification route their Shuffle command
         // here. Observe its state so either surface's icon follows the queue
@@ -6736,17 +6758,20 @@ class PlaybackService : MediaLibraryService() {
         val currentSong = exoPlayer.currentMediaItem?.toSong() ?: return
         val lines = serviceLyrics
         val pos = exoPlayer.currentPosition
-        val subtitleText = if (lines != null && lines.isNotEmpty() && AppSettings.syncedLyrics.value) {
-            val idx = lines.indexOfLast { it.timeMs <= pos }
-            val currentLine = lines.getOrNull(idx)
-            if (currentLine != null && !currentLine.isGap && currentLine.text.isNotBlank()) {
-                "♪ ${currentLine.text}"
-            } else {
-                currentSong.artist
-            }
+        val currentLine = if (lines != null && lines.isNotEmpty() && AppSettings.syncedLyrics.value) {
+            lines.getOrNull(lines.indexOfLast { it.timeMs <= pos })
+                ?.takeIf { !it.isGap && it.text.isNotBlank() }
+        } else {
+            null
+        }
+        val subtitleText = if (currentLine != null) {
+            "♪ ${currentLine.text}"
         } else {
             currentSong.artist
         }
+        // The notification's content text wants the bare line, not the
+        // "♪"-prefixed subtitle the other surfaces share.
+        lastPublishedLyricLine = currentLine?.text
 
         if (subtitleText != lastPublishedSubtitle) {
             lastPublishedSubtitle = subtitleText

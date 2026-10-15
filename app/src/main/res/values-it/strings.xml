@@ -882,6 +882,9 @@
     <string name="lyrics_karaoke_effects">Effetti karaoke</string>
 
     <string name="lyrics_karaoke_effects_subtitle">Evidenzia le parole una alla volta mentre vengono cantate</string>
+    <string name="lockscreen_lyrics">Lock screen lyrics</string>
+
+    <string name="lockscreen_lyrics_subtitle">Show the current lyric line on the lock screen and in the notification</string>
 
     <string name="card_plays_format">%1$s riproduzioni</string>
 
