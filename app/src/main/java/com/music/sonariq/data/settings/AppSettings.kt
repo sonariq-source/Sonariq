@@ -501,6 +501,9 @@ object AppSettings {
     /** Whether word-synced lines light word by word; off renders whole-line highlights instead. */
     val lyricsKaraokeEffects = MutableStateFlow(true)
 
+    /** Live lyric re-sync: the app hears the song and nudges the words to the actual vocals. */
+    val liveLyricSync = MutableStateFlow(true)
+
     /**
      * The Now Playing visualizer's rendering mode. Off hides the strip
      * entirely — and the capture with it.
@@ -993,6 +996,7 @@ object AppSettings {
                 .coerceIn(MIN_LYRICS_FONT_SIZE_SP, MAX_LYRICS_FONT_SIZE_SP)
         lyricsAutoScroll.value = prefs.getBoolean(KEY_LYRICS_AUTO_SCROLL, true)
         lyricsKaraokeEffects.value = prefs.getBoolean(KEY_LYRICS_KARAOKE, true)
+        liveLyricSync.value = prefs.getBoolean(KEY_LIVE_LYRIC_SYNC, true)
         visualizerStyle.value = VisualizerStyle.fromPersistedName(
             prefs.getString(KEY_VISUALIZER_STYLE, null),
         )
@@ -1537,6 +1541,12 @@ object AppSettings {
         if (lyricsKaraokeEffects.value == value) return
         lyricsKaraokeEffects.value = value
         prefs.edit().putBoolean(KEY_LYRICS_KARAOKE, value).apply()
+    }
+
+    fun setLiveLyricSync(value: Boolean) {
+        if (liveLyricSync.value == value) return
+        liveLyricSync.value = value
+        prefs.edit().putBoolean(KEY_LIVE_LYRIC_SYNC, value).apply()
     }
 
     fun setVisualizerStyle(value: VisualizerStyle) {
@@ -2323,6 +2333,7 @@ object AppSettings {
     private const val KEY_LYRICS_FONT_SIZE_SP = "lyrics_font_size_sp"
     private const val KEY_LYRICS_AUTO_SCROLL = "lyrics_auto_scroll"
     private const val KEY_LYRICS_KARAOKE = "lyrics_karaoke"
+    private const val KEY_LIVE_LYRIC_SYNC = "live_lyric_sync"
     private const val KEY_VISUALIZER_STYLE = "visualizer_style"
     private const val KEY_VISUALIZER_INTENSITY = "visualizer_intensity"
     private const val KEY_VISUALIZER_BATTERY_SAVER = "visualizer_battery_saver"

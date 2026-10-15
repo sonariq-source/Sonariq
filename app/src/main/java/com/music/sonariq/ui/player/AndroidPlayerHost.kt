@@ -211,6 +211,9 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
     // player only needs the number to draw its chip.
     override val karaokeScore: StateFlow<Int?> get() = KaraokeScorer.score
 
+    // Live lyric re-sync: the app hears the song and nudges the words.
+    override val lyricSyncOffsetMs: StateFlow<Long> get() = AudioLyricSync.offsetMs
+
     @Composable
     override fun LyricsShareSheet(
         hazeState: HazeState,

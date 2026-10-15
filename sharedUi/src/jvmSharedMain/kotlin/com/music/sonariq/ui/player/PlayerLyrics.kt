@@ -607,11 +607,17 @@ internal class LyricPlayhead(
 internal fun rememberLyricPlayhead(position: PlaybackPosition, videoId: String? = null): LyricPlayhead {
     val global = PlayerSettings.lyricsOffsetMs.collectAsStateWithLifecycle()
     val overrides = PlayerSettings.lyricsOffsetOverrides.collectAsStateWithLifecycle()
+    // Live re-sync: the app hears the song and nudges the words to the
+    // actual vocals. Added on top of the user's own offset.
+    val syncOffset = PlayerPlatform.host.lyricSyncOffsetMs.collectAsStateWithLifecycle()
     // The track's own offset when one exists, otherwise the global one. A
     // derived state rather than a value computed in composition: the playhead
     // reads it off-composition, in the frame loop and in effects.
     val offset = remember(videoId) {
-        derivedStateOf { resolveLyricsOffsetMs(overrides.value, global.value, videoId) }
+        derivedStateOf {
+            resolveLyricsOffsetMs(overrides.value, global.value, videoId) +
+                syncOffset.value.toInt()
+        }
     }
     return remember(position, offset) { LyricPlayhead(position, offset) }
 }
