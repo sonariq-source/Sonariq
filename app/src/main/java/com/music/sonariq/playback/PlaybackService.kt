@@ -876,6 +876,16 @@ class PlaybackService : MediaLibraryService() {
                 clearDiscordPresence()
                 stopLyricsTicker()
             }
+
+            // Karaoke scoring follows playback: the mic runs while the song
+            // does and rests on pause, keeping the words sung so far.
+            if (isPlaying) {
+                KaraokeScorer.onPlaybackResumed(this@PlaybackService) {
+                    exoPlayer.currentPosition
+                }
+            } else {
+                KaraokeScorer.onPlaybackPaused()
+            }
         }
 
         /**
@@ -1002,6 +1012,8 @@ class PlaybackService : MediaLibraryService() {
             val exoPlayer = player ?: return
             if (state == Player.STATE_ENDED) {
                 SleepTimer.cancel()
+                // The song is over: the score is final, the mic stops.
+                KaraokeScorer.onTrackEnded()
                 // The queue ran dry, so no transition will ever close the last
                 // track out. Without this its history entry keeps whatever
                 // watchtime the 30-second sampler happened to have reported and
@@ -6615,6 +6627,8 @@ class PlaybackService : MediaLibraryService() {
         AudioOutputStatus.reset()
         NerdStats.forgetLastSession()
         localBitrateCache.clear()
+        // The mic must never outlive the service.
+        KaraokeScorer.release()
         super.onDestroy()
     }
 
@@ -6646,6 +6660,9 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun loadLyricsForCurrentTrack() {
+        // Karaoke scoring starts over with each track: the mic stops and the
+        // score clears until the new track's lyrics arrive below.
+        KaraokeScorer.onTrackReset()
         val currentSong = player?.currentMediaItem?.toSong() ?: run {
             serviceLyrics = null
             stopLyricsTicker()
@@ -6682,6 +6699,15 @@ class PlaybackService : MediaLibraryService() {
             }
             withContext(Dispatchers.Main) {
                 serviceLyrics = lines
+                // Karaoke scoring: starts the mic when the user enabled it and
+                // this track is playing; stays silently off otherwise.
+                val exoPlayer = player
+                KaraokeScorer.onTrackLines(
+                    this@PlaybackService,
+                    lines,
+                    isPlaying = exoPlayer?.isPlaying == true,
+                    positionMs = { exoPlayer?.currentPosition ?: 0L },
+                )
                 if (player?.isPlaying == true) {
                     updateLyricSubtitle()
                 }

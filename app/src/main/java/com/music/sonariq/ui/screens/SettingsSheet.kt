@@ -1,7 +1,9 @@
 package com.music.sonariq.ui.screens
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.audiofx.AudioEffect
 import android.net.Uri
@@ -80,6 +82,7 @@ import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.SignalCellularAlt
 import androidx.compose.material.icons.rounded.SmartDisplay
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.SurroundSound
 import androidx.compose.material.icons.rounded.Tune
@@ -91,6 +94,7 @@ import androidx.compose.material.icons.rounded.Wifi
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.content.ContextCompat
 import com.music.sonariq.data.lyrics.translationLanguageName
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -892,6 +896,48 @@ fun SettingsScreen(
                     title = stringResource(R.string.karaoke_reset_key),
                     subtitle = stringResource(R.string.karaoke_reset_key_subtitle),
                     onClick = { AppSettings.setKaraokePitch(0f) },
+                )
+            }
+            // Mic-based singing score. The permission is asked for here, the
+            // moment scoring is turned on — never before. Denied, scoring
+            // stays off and the toggle with it: nothing nags.
+            val micPermissionLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission(),
+            ) { granted ->
+                if (granted) AppSettings.setKaraokeScoring(true)
+            }
+            row("karaoke scoring", "mic", "sing", "score", "voice") {
+                val scoring by AppSettings.karaokeScoring.collectAsStateWithLifecycle()
+                val enableScoring = {
+                    if (ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.RECORD_AUDIO,
+                        ) == PackageManager.PERMISSION_GRANTED
+                    ) {
+                        AppSettings.setKaraokeScoring(true)
+                    } else {
+                        micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                }
+                SettingsRow(
+                    icon = Icons.Rounded.Star,
+                    title = stringResource(R.string.karaoke_scoring),
+                    subtitle = stringResource(R.string.karaoke_scoring_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = scoring,
+                            onCheckedChange = { wanted ->
+                                if (wanted) enableScoring() else AppSettings.setKaraokeScoring(false)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = {
+                        if (scoring) AppSettings.setKaraokeScoring(false) else enableScoring()
+                    },
                 )
             }
         }

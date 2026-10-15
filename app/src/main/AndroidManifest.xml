@@ -32,6 +32,13 @@
     -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!--
+      Karaoke scoring: listens to the microphone while a song plays and scores
+      sung words against their lyric timings. Asked for only when the user
+      turns scoring on in Settings; everything else works without it.
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <!-- Reading local audio files across the device -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission

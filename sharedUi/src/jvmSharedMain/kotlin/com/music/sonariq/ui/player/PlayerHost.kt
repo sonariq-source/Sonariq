@@ -115,7 +115,16 @@ interface PlayerHost {
      */
     @Composable
     fun LyricsShareSheet(hazeState: HazeState, request: LyricsShareRequest, onDismiss: () -> Unit) = Unit
+
+    /**
+     * The live karaoke singing score 0..100, or null when scoring is off, the
+     * mic is unavailable, or the song has no lyrics. The lyrics panel draws
+     * its score chip from this; null draws nothing.
+     */
+    val karaokeScore: StateFlow<Int?> get() = NoKaraokeScore
 }
+
+private val NoKaraokeScore = MutableStateFlow<Int?>(null)
 
 private val NoCast = MutableStateFlow(CastUi())
 
