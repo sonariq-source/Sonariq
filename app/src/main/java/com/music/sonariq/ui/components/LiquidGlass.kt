@@ -81,7 +81,7 @@ private const val SURFACE_OPACITY = 0.32f
  * shader, on as many as six surfaces at once in the middle of a fold, and the
  * blur is what hides the upscale.
  */
-private const val GLASS_RESOLUTION_SCALE = 0.33f
+private const val GLASS_RESOLUTION_SCALE = 0.25f
 
 /**
  * The hairline along a bar's edge, and what stands in for the glass rim
@@ -212,7 +212,10 @@ fun Modifier.liquidGlass(shape: CornerBasedShape): Modifier {
                     refractionHeight = lensHeightPx,
                     refractionAmount = lensAmountPx,
                     depthEffect = true,
-                    chromaticAberration = true,
+                    // Chromatic aberration off: it costs a full extra render
+                    // pass for a fringe nobody sees at phone scale. The lens
+                    // bend stays — that's the visible part.
+                    chromaticAberration = false,
                 )
             }
         },

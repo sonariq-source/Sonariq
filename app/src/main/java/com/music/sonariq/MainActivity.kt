@@ -500,8 +500,11 @@ private fun SonariqApp(
     val hazeState = remember { HazeState() }
     // Recording the backdrop layer costs a draw pass, so it only runs when a
     // liquid-glass surface (the nav bar or artwork-page back button) can sample it.
-    // Joel: liquid glass is the default — the navigation menu is all liquid.
-    val glassActive = true
+    // Joel: liquid glass is the default, but the Settings toggle must work —
+    // off means the matte dock, on means the liquid glass nav. Animations stay
+    // on either way.
+    val liquidGlassEnabled by AppSettings.liquidGlass.collectAsStateWithLifecycle()
+    val glassActive = liquidGlassEnabled && isGlassSupported()
     // "Reduce dynamic blur" keeps the glass bar's *shape* — the folding
     // now-playing-and-tabs component is a layout, not an effect, and dropping
     // back to the two stacked bars would be answering a question about material
