@@ -1664,16 +1664,17 @@ fun SettingsScreen(
                             textDecoration = TextDecoration.Underline,
                         ),
                     )
-                    // GPL attribution: Sonariq is a fork of BitChord, so the
-                    // original project keeps its credit here.
-                    withLink(LinkAnnotation.Url("https://github.com/kushagrasinghx/BitChord", linkStyles)) {
-                        append("Based on BitChord")
+                    // Sonariq is now Joel's app: the credits point to the
+                    // Sonariq GitHub. GPL requires the fork credit to the
+                    // original BitChord project stays.
+                    withLink(LinkAnnotation.Url("https://github.com/sonariq-source/Sonariq", linkStyles)) {
+                        append("sonariq-source")
                     }
                     append("  ")
-                    withLink(LinkAnnotation.Url("https://github.com/kushagrasinghx", linkStyles)) {
-                        append("kushagrasinghx")
+                    withLink(LinkAnnotation.Url("https://github.com/sonariq-source", linkStyles)) {
+                        append("GitHub")
                     }
-                    append("\nGPL-3.0 · ~YouTube Music & Listen Together Backend")
+                    append("\nForked from BitChord · GPL-3.0")
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
