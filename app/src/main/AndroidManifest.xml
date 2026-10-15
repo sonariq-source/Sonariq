@@ -306,6 +306,19 @@
                 android:resource="@xml/widget_media_pill" />
         </receiver>
 
+        <!-- The lyric-peek widget: the track plus the line being sung. See MediaWidgetLyric. -->
+        <receiver
+            android:name=".widget.MediaWidgetLyric"
+            android:exported="false"
+            android:label="@string/widget_lyric_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_media_lyric" />
+        </receiver>
+
         <!-- The transport buttons. Reached only by this app's own PendingIntents. -->
         <receiver
             android:name=".widget.MediaWidgetActions"

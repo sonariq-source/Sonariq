@@ -788,6 +788,18 @@ class PlaybackService : MediaLibraryService() {
     private var serviceLyricsJob: Job? = null
     private var serviceLyrics: List<LyricLine>? = null
     private var lastPublishedSubtitle: String? = null
+    /**
+     * The lyric line last handed to the home-screen lyric widget, for change
+     * detection: the widget republishes on line change only, so a tick that
+     * lands on the same line is a no-op.
+     */
+    private var lastPublishedWidgetLyric: String? = null
+    /**
+     * The track [lastPublishedWidgetLyric] belongs to. A new track starts with
+     * no line published, so the first tick always publishes — even when the
+     * new track's first line happens to read the same as the old track's last.
+     */
+    private var lastWidgetLyricTrackId: String? = null
     private var lyricsTickerJob: Job? = null
 
     /**
@@ -5256,9 +5268,13 @@ class PlaybackService : MediaLibraryService() {
         // LikeState only knows ratings this process has seen: a fresh service
         // started from the widget or a restart has none until something seeds
         // it. Unknown is not "not liked", so keep what was last published for
-        // this same track rather than emptying a heart that was right.
+        // this same track rather than emptying a heart that was right. The same
+        // previous snapshot carries the lyric line forward, so a play or pause
+        // doesn't blank the widget's peek — and a track change gets a fresh
+        // one, with no line until the ticker's first tick.
+        val previous = MediaWidgetSnapshot.load(this).takeIf { it.mediaId == song.videoId }
         val liked = LikeState.overrides.value[song.videoId]?.let { it == LikeStatus.LIKE }
-            ?: MediaWidgetSnapshot.load(this).takeIf { it.mediaId == song.videoId }?.isLiked
+            ?: previous?.isLiked
             ?: false
         MediaWidgetSnapshot.save(
             this,
@@ -5273,8 +5289,29 @@ class PlaybackService : MediaLibraryService() {
                 hasNext = exoPlayer.hasNextMediaItem(),
                 isLiked = liked,
                 shuffleEnabled = QueueShuffle.enabled.value,
+                // The lyric widget's line, kept for this same track — a play or
+                // pause in the middle of a line must not blank it, and a track
+                // change drops it: previous is null for the new track.
+                lyricLine = previous?.lyricLine,
             ),
         )
+        MediaWidget.refresh(this)
+    }
+
+    /**
+     * Hands the current lyric line to the home-screen lyric widget.
+     *
+     * Called from [updateLyricSubtitle] on line change only — the ticker
+     * already bounds how often the line can move, so this needs no timer of
+     * its own. Guarded on the track the snapshot is for: a track change
+     * publishes a fresh snapshot first, and a late tick from the old track
+     * must not stamp its line onto the new one.
+     */
+    private fun publishWidgetLyric(line: String?) {
+        val song = player?.currentMediaItem?.toSong() ?: return
+        val current = MediaWidgetSnapshot.load(this)
+        if (current.mediaId != song.videoId) return
+        MediaWidgetSnapshot.save(this, current.copy(lyricLine = line))
         MediaWidget.refresh(this)
     }
 
@@ -6547,6 +6584,8 @@ class PlaybackService : MediaLibraryService() {
         serviceLyricsJob?.cancel()
         serviceLyricsJob = null
         serviceLyrics = null
+        lastPublishedWidgetLyric = null
+        lastWidgetLyricTrackId = null
         cancelPrefetch()
         trackAnalyzer.release()
         loudnessRetryJob?.cancel()
@@ -6710,14 +6749,13 @@ class PlaybackService : MediaLibraryService() {
         val currentSong = exoPlayer.currentMediaItem?.toSong() ?: return
         val lines = serviceLyrics
         val pos = exoPlayer.currentPosition
-        val subtitleText = if (lines != null && lines.isNotEmpty() && AppSettings.syncedLyrics.value) {
-            val idx = lines.indexOfLast { it.timeMs <= pos }
-            val currentLine = lines.getOrNull(idx)
-            if (currentLine != null && !currentLine.isGap && currentLine.text.isNotBlank()) {
-                "♪ ${currentLine.text}"
-            } else {
-                currentSong.artist
-            }
+        val currentLine = if (lines != null && lines.isNotEmpty() && AppSettings.syncedLyrics.value) {
+            lines.getOrNull(lines.indexOfLast { it.timeMs <= pos })
+        } else {
+            null
+        }
+        val subtitleText = if (currentLine != null && !currentLine.isGap && currentLine.text.isNotBlank()) {
+            "♪ ${currentLine.text}"
         } else {
             currentSong.artist
         }
@@ -6737,6 +6775,23 @@ class PlaybackService : MediaLibraryService() {
                 .buildUpon()
                 .setSubtitle(subtitleText)
                 .build()
+        }
+
+        // The lyric widget's peek follows the same line the subtitle shows,
+        // published on change only: the ticker runs every 500ms while playing,
+        // and this change check is the throttle that keeps the home screen from
+        // being repainted when the line hasn't moved. A new track resets the
+        // published line first, so its first tick always publishes — even when
+        // it happens to read the same as the old track's last line — and
+        // turning synced lyrics off clears the widget through the same path.
+        if (currentSong.videoId != lastWidgetLyricTrackId) {
+            lastWidgetLyricTrackId = currentSong.videoId
+            lastPublishedWidgetLyric = null
+        }
+        val widgetLyric = currentLine?.takeIf { !it.isGap && it.text.isNotBlank() }?.text
+        if (widgetLyric != lastPublishedWidgetLyric) {
+            lastPublishedWidgetLyric = widgetLyric
+            publishWidgetLyric(widgetLyric)
         }
     }
 
