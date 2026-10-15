@@ -27,9 +27,6 @@
 > [!IMPORTANT]
 > Sonariq is not affiliated with, endorsed by, or connected to YouTube or Google in any way. Use it at your own discretion.
 
-> [!NOTE]
-> Sonariq is an independent community fork of [BitChord](https://github.com/kushagrasinghx/BitChord) by kushagrasinghx — fully rebranded and redesigned, maintained separately. It remains free software under the GPL-3.0, with full credit to the original authors.
-
 ---
 
 <div align="center">
