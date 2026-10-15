@@ -265,7 +265,6 @@ import com.music.sonariq.ui.components.optimizedHazeEffect
 import com.music.sonariq.ui.components.topBarContentPadding
 import com.music.sonariq.ui.components.AppLanguageDialog
 import com.music.sonariq.ui.components.TranslationLanguageDialog
-import com.music.sonariq.ui.components.LyricsSourcesDialog
 import com.music.sonariq.ui.components.ServerEditorHost
 import com.music.sonariq.ui.components.UpdateAvailableDialog
 import com.music.sonariq.ui.components.WebDavConflictAlert
