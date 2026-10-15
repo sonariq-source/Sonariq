@@ -574,7 +574,7 @@ class CrossfadeController(
         // gain-notch wrapper restarted for every slider emission and sounded
         // like repeated stalls while dragging.
         for (player in listOf(active(), standby()).distinct()) {
-            player.setPlaybackSpeed(speed)
+            player.applyPlaybackTuning()
         }
     }
 

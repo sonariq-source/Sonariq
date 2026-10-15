@@ -412,6 +412,11 @@ object AppSettings {
     val activeUserPresetName = MutableStateFlow<String?>(null)
 
     val playbackSpeed = MutableStateFlow(1.0f)
+    /**
+     * Karaoke key changer: pitch shift in semitones (-6..+6), speed untouched.
+     * 0 = original key.
+     */
+    val karaokePitch = MutableStateFlow(0f)
     val themeMode = MutableStateFlow(ThemeMode.DARK)
 
     /** The accent driving the theme's primary roles; brand lime out of the box. */
@@ -937,6 +942,7 @@ object AppSettings {
             }
         accentColor.value = accentColorFromStored(prefs.getString(KEY_ACCENT_COLOR, null))
         playbackSpeed.value = prefs.getFloat(KEY_SPEED, 1.0f)
+        karaokePitch.value = prefs.getFloat(KEY_KARAOKE_PITCH, 0f)
         themeMode.value = runCatching {
             ThemeMode.valueOf(prefs.getString(KEY_THEME, null) ?: "DARK")
         }.getOrDefault(ThemeMode.DARK)
@@ -1364,6 +1370,12 @@ object AppSettings {
     fun setPlaybackSpeed(value: Float) {
         playbackSpeed.value = value
         prefs.edit().putFloat(KEY_SPEED, value).apply()
+    }
+
+    fun setKaraokePitch(semitones: Float) {
+        val clamped = semitones.coerceIn(-6f, 6f)
+        karaokePitch.value = clamped
+        prefs.edit().putFloat(KEY_KARAOKE_PITCH, clamped).apply()
     }
 
     fun setShowNerdStats(value: Boolean) {
@@ -2247,6 +2259,7 @@ object AppSettings {
     private const val KEY_EQ_USER_PRESETS = "equalizer_user_presets"
     private const val KEY_EQ_USER_PRESET_ACTIVE = "equalizer_user_preset_active"
     private const val KEY_SPEED = "playback_speed"
+    private const val KEY_KARAOKE_PITCH = "karaoke_pitch"
     private const val KEY_THEME = "theme_mode"
     private const val KEY_ACCENT_COLOR = "accent_color"
     private const val KEY_AUTOPLAY = "autoplay"

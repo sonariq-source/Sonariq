@@ -1994,7 +1994,7 @@ class PlaybackService : MediaLibraryService() {
             // The listener's speed, not the active player's: straight after an
             // Advanced Automix blend the active player is still easing off its
             // beatmatch stretch, and copying that would keep it for good.
-            standbyPlayer.setPlaybackSpeed(AppSettings.playbackSpeed.value)
+            standbyPlayer.applyPlaybackTuning()
             standbyPlayer.volume = 0f
             standbyPlayer.setMediaItems(newItems, currentIndex, alignedStartPos)
             spareLoudness().track(mediaId, nextMediaIdOf(standbyPlayer))
@@ -5646,7 +5646,7 @@ class PlaybackService : MediaLibraryService() {
      */
     private fun applySettings(player: ExoPlayer) {
         player.skipSilenceEnabled = AppSettings.skipSilence.value
-        player.setPlaybackSpeed(AppSettings.playbackSpeed.value)
+        player.applyPlaybackTuning()
         // Restore persisted shuffle and repeat states on startup. Assign both
         // values: Android can destroy and recreate the service while retaining
         // this process, so QueueShuffle's process-wide object may still hold
@@ -5996,7 +5996,14 @@ class PlaybackService : MediaLibraryService() {
             // when it restores the rate, so the change still lands.
             AppSettings.playbackSpeed.collect { speed ->
                 if (crossfade?.isTransitioning() == true) return@collect
-                crossfade?.applyPlaybackSpeed(speed) ?: eachPlayer { it.setPlaybackSpeed(speed) }
+                crossfade?.applyPlaybackSpeed(speed) ?: eachPlayer { it.applyPlaybackTuning() }
+            }
+        }
+        scope.launch {
+            // Karaoke key changer: pitch shifts live as the slider moves.
+            AppSettings.karaokePitch.collect {
+                if (crossfade?.isTransitioning() == true) return@collect
+                eachPlayer { it.applyPlaybackTuning() }
             }
         }
         scope.launch {

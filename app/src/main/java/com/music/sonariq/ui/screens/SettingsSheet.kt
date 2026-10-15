@@ -37,6 +37,8 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.Bolt
@@ -839,6 +841,57 @@ fun SettingsScreen(
                     title = equalizerTitle,
                     subtitle = stringResource(R.string.equalizer_subtitle),
                     onClick = onEqualizer,
+                )
+            }
+        }
+
+        SearchableSettingsGroup(search, header = stringResource(R.string.karaoke)) {
+            val pitch by AppSettings.karaokePitch.collectAsStateWithLifecycle()
+            row("key changer", "pitch", "semitone", "karaoke") {
+                SettingsRow(
+                    icon = Icons.Rounded.Mic,
+                    title = stringResource(R.string.karaoke_key_changer),
+                    subtitle = if (pitch == 0f) {
+                        stringResource(R.string.karaoke_key_original)
+                    } else {
+                        stringResource(
+                            R.string.karaoke_key_shifted,
+                            if (pitch > 0) "+" else "",
+                            pitch.toInt(),
+                        )
+                    },
+                    trailing = {
+                        // Inline stepper: - / value / +
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = { AppSettings.setKaraokePitch(pitch - 1f) },
+                                enabled = pitch > -6f,
+                            ) {
+                                Icon(Icons.Rounded.Remove, contentDescription = "Lower key")
+                            }
+                            Text(
+                                text = if (pitch == 0f) "0" else "${if (pitch > 0) "+" else ""}${pitch.toInt()}",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.width(40.dp),
+                                textAlign = TextAlign.Center,
+                            )
+                            IconButton(
+                                onClick = { AppSettings.setKaraokePitch(pitch + 1f) },
+                                enabled = pitch < 6f,
+                            ) {
+                                Icon(Icons.Rounded.Add, contentDescription = "Raise key")
+                            }
+                        }
+                    },
+                    onClick = { /* stepper handles it */ },
+                )
+            }
+            row("reset key", "karaoke") {
+                SettingsRow(
+                    icon = Icons.Rounded.Refresh,
+                    title = stringResource(R.string.karaoke_reset_key),
+                    subtitle = stringResource(R.string.karaoke_reset_key_subtitle),
+                    onClick = { AppSettings.setKaraokePitch(0f) },
                 )
             }
         }
