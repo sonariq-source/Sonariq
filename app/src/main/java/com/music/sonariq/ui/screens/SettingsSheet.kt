@@ -1496,8 +1496,7 @@ fun SettingsScreen(
                             updateChecking = false
                             updateCheckResult = if (AppUpdateChecker.available.value != null) {
                                 AppUpdateChecker.available.value?.version?.let { v ->
-                                    // "A new version is available: v"
-                                    context.getString(R.string.update_available) + ": " + v
+                                    context.getString(R.string.update_available, v)
                                 }
                             } else {
                                 context.getString(R.string.update_up_to_date)

@@ -166,7 +166,6 @@
     <string name="current_version">Current version</string>
     <string name="update_checking">Checking…</string>
     <string name="update_up_to_date">You have the latest version</string>
-    <string name="update_available">A new version is available</string>
     <string name="update_available_body">sonariq %1$s is available to download.</string>
     <string name="update_downloading_body">Downloading sonariq %1$s…</string>
     <string name="update_ready_body">sonariq %1$s is ready to install.</string>
