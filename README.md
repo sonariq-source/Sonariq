@@ -141,7 +141,7 @@ We welcome contributions to Sonariq! Please review our [Contributing Guide](CONT
 
 ## ⚖️ Disclaimer & Legal Notice
 
-Sonariq is an independent, community-driven third-party audio player and client — a fork of [BitChord](https://github.com/kushagrasinghx/BitChord). It is **not** associated with Google LLC, YouTube Music, Deezer, Telegram, or any of their parent companies.
+Sonariq is an independent, community-driven third-party audio player and client — a work of [BitChord](https://github.com/kushagrasinghx/BitChord). It is **not** associated with Google LLC, YouTube Music, Deezer, Telegram, or any of their parent companies.
 
 * **No Media Hosting:** Sonariq does not host, upload, or store copyrighted music files. It operates strictly as an interface to scan local device storage or stream media directly from public, public-facing, or user-authenticated APIs.
 * **Fair Use & API Usage:** This software is created solely for personal research, educational, and fair-use purposes. The user is entirely responsible for ensuring their usage aligns with their local copyright laws and YouTube Terms of Service.
