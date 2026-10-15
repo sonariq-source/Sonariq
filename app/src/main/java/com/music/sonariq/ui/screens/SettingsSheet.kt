@@ -1665,8 +1665,8 @@ fun SettingsScreen(
                         ),
                     )
                     // Sonariq is now Joel's app: the credits point to the
-                    // Sonariq GitHub. GPL requires the fork credit to the
-                    // original BitChord project stays.
+                    // Sonariq GitHub. (The fork credit to the original
+                    // BitChord project lives on the GitHub README.)
                     withLink(LinkAnnotation.Url("https://github.com/sonariq-source/Sonariq", linkStyles)) {
                         append("sonariq-source")
                     }
@@ -1674,7 +1674,7 @@ fun SettingsScreen(
                     withLink(LinkAnnotation.Url("https://github.com/sonariq-source", linkStyles)) {
                         append("GitHub")
                     }
-                    append("\nForked from BitChord · GPL-3.0")
+                    append("\nGPL-3.0")
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
