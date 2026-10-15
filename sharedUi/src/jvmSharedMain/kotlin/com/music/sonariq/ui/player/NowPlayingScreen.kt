@@ -612,8 +612,6 @@ fun NowPlayingScreen(
     onListenTogether: () -> Unit,
     lyrics: List<LyricLine>?,
     lyricsSource: LyricsSource?,
-    lyricsProviderStates: Map<LyricsSource, LyricsProviderState>,
-    onSelectLyricsProvider: (LyricsSource) -> Unit,
     lyricsUnavailable: Boolean,
     lyricsOffsetOpen: Boolean,
     onDismissLyricsOffset: () -> Unit,
@@ -653,7 +651,6 @@ fun NowPlayingScreen(
     var showAudioPipeline by remember { mutableStateOf(false) }
     var showCast by remember { mutableStateOf(false) }
     var showAudioOutput by remember { mutableStateOf(false) }
-    var showLyricsProviders by remember { mutableStateOf(false) }
     // Gated on the Bluetooth permission the first time — see [rememberOutputPicker].
     val openAudioOutput = rememberOutputPicker { showAudioOutput = true }
     // Listening in a party whose host has taken the controls: the transport
@@ -923,8 +920,6 @@ fun NowPlayingScreen(
     // back has to close it first rather than taking the drawer out from
     // under it.
     PlayerBackHandler(enabled = showAudioOutput) { showAudioOutput = false }
-
-    PlayerBackHandler(enabled = showLyricsProviders) { showLyricsProviders = false }
 
     PlayerBackHandler(enabled = showListenTogetherMembers) { showListenTogetherMembers = false }
 
@@ -1468,15 +1463,6 @@ fun NowPlayingScreen(
                 onOpenCast = { showCast = true },
             )
         }
-        if (showLyricsProviders) {
-            LyricsProviderSheet(
-                hazeState = playerHaze,
-                currentSource = lyricsSource,
-                states = lyricsProviderStates,
-                onSelect = onSelectLyricsProvider,
-                onDismiss = { showLyricsProviders = false },
-            )
-        }
         if (showAudioPipeline) {
             AudioPipelineDialog(
                 hazeState = playerHaze,
@@ -1895,7 +1881,7 @@ fun NowPlayingScreen(
                             lyricsLoadingText
                         },
                         status = lyricsTranslation.status,
-                        onStatusClick = { showLyricsProviders = true },
+                        onStatusClick = {},
                         lines = lyricsTranslation.displayedLyrics,
                         picking = lyricPicker.picking,
                         pickBar = {
@@ -2103,7 +2089,7 @@ fun NowPlayingScreen(
         // A subview replaces that hero with an artwork-derived mesh, so it gets
         // only a modest floor rather than an opaque status-bar surface.
         val playerSubviewOpen = lyricsOpen || queueOpen || lyricsOffsetOpen ||
-            showAudioPipeline || showCast || showAudioOutput || showLyricsProviders ||
+            showAudioPipeline || showCast || showAudioOutput ||
             lyricsShare != null
         val topGradientAlpha = if (playerSubviewOpen) {
             maxOf(artworkStatusScrimAlpha, SUBVIEW_STATUS_SCRIM_MIN_ALPHA)
@@ -3497,7 +3483,7 @@ fun NowPlayingScreen(
             if (lyricsOpen) {
                 LyricsStatusWithChange(
                     status = lyricsTranslation.status,
-                    onStatusClick = { showLyricsProviders = true },
+                    onStatusClick = {},
                     lines = lyricsTranslation.displayedLyrics,
                     modifier = Modifier
                         .fillMaxWidth()

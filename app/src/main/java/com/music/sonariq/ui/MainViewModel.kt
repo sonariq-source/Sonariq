@@ -310,7 +310,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private var currentLyricsRequest: LyricsRequest? = null
     private var lyricsGeneration = 0L
-    private var selectedLyricsSource: LyricsSource? = null
 
     /**
      * What the loaded lyrics are for. Both the track *and* the settings that
@@ -338,8 +337,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         album: String? = null,
         localUri: String? = null,
     ) {
+        // Fully automatic: every provider is always asked, in the built-in best
+        // order, word-sync preferred. No provider settings — it just works.
         val sources = if (AppSettings.syncedLyrics.value) {
-            AppSettings.lyricsSources.value
+            LyricsSource.entries.toSet()
         } else {
             emptySet()
         }
@@ -357,7 +358,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         lyricsGeneration += 1
         val generation = lyricsGeneration
         currentLyricsRequest = LyricsRequest(videoId, title, artist, durationMs, album)
-        selectedLyricsSource = null
         manualLyricsJobs.values.forEach(Job::cancel)
         manualLyricsJobs.clear()
         lyricsProviderResults.clear()
@@ -396,65 +396,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
             val found = LyricsRepository.lyrics(
                 videoId, title, artist, durationMs, album, sources,
-                AppSettings.lyricsSourceOrder.value, AppSettings.prioritizeSyllableSync.value,
+                LyricsSource.entries, true,
                 onSourceStarted = { source -> providerStarted(generation, source) },
                 onSourceResult = { source, result ->
                     providerFinished(generation, source, result)
                 },
                 onSourceCancelled = { source -> providerCancelled(generation, source) },
             )
-            val selected = selectedLyricsSource?.let(lyricsProviderResults::get) ?: found
-            _lyrics.value = selected?.lines
-            _lyricsSource.value = selected?.source
+            _lyrics.value = found?.lines
+            _lyricsSource.value = found?.source
             _lyricsChecked.value = true
-        }
-    }
-
-    /**
-     * Selects a provider from the player drawer. Completed hits are applied
-     * from memory; misses are inert; only an untouched provider goes online.
-     */
-    fun selectLyricsProvider(source: LyricsSource) {
-        val request = currentLyricsRequest ?: return
-        when (_lyricsProviderStates.value[source]) {
-            LyricsProviderState.FOUND -> {
-                selectedLyricsSource = source
-                lyricsProviderResults[source]?.let(::showLyricsResult)
-            }
-            LyricsProviderState.FETCHING -> {
-                // Apply it as soon as the already-running automatic attempt completes.
-                selectedLyricsSource = source
-            }
-            LyricsProviderState.NOT_FETCHED, null -> {
-                selectedLyricsSource = source
-                fetchLyricsProvider(request, lyricsGeneration, source)
-            }
-            LyricsProviderState.NOT_FOUND -> Unit
-        }
-    }
-
-    private fun fetchLyricsProvider(
-        request: LyricsRequest,
-        generation: Long,
-        source: LyricsSource,
-    ) {
-        if (manualLyricsJobs[source]?.isActive == true) return
-        manualLyricsJobs[source] = viewModelScope.launch {
-            LyricsRepository.lyrics(
-                videoId = request.videoId,
-                title = request.title,
-                artist = request.artist,
-                durationMs = request.durationMs,
-                album = request.album,
-                sources = setOf(source),
-                order = listOf(source),
-                prioritizeSyllableSync = false,
-                onSourceStarted = { provider -> providerStarted(generation, provider) },
-                onSourceResult = { provider, result ->
-                    providerFinished(generation, provider, result)
-                },
-                onSourceCancelled = { provider -> providerCancelled(generation, provider) },
-            )
         }
     }
 
@@ -475,7 +426,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         lyricsProviderResults[source] = result
         _lyricsProviderStates.update { it + (source to LyricsProviderState.FOUND) }
-        if (selectedLyricsSource == source) showLyricsResult(result)
     }
 
     private fun providerCancelled(generation: Long, source: LyricsSource) {
@@ -487,18 +437,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 states
             }
         }
-        // A tap may have selected a provider while the priority race was still
-        // using it. If that race then cancels the loser, honour the tap with a
-        // dedicated request instead of leaving the row stuck at "Fetching".
-        if (selectedLyricsSource == source) {
-            currentLyricsRequest?.let { fetchLyricsProvider(it, generation, source) }
-        }
-    }
-
-    private fun showLyricsResult(result: LyricsRepository.Result) {
-        _lyrics.value = result.lines
-        _lyricsSource.value = result.source
-        _lyricsChecked.value = true
     }
 
     private val _account = MutableStateFlow<Account?>(null)

@@ -582,7 +582,6 @@ private fun SonariqApp(
     var libraryShowAll by remember { mutableStateOf<HomeShelf?>(null) }
     var detailActiveShelf by remember { mutableStateOf<HomeShelf?>(null) }
     var librarySortMenuOpen by remember { mutableStateOf(false) }
-    var showLyricsSources by remember { mutableStateOf(false) }
     var showAppLanguage by remember { mutableStateOf(false) }
     var showTranslationLanguage by remember { mutableStateOf(false) }
     var showAccountSelector by remember { mutableStateOf(false) }
@@ -774,7 +773,6 @@ private fun SonariqApp(
     val lyrics by viewModel.lyrics.collectAsStateWithLifecycle()
     val lyricsSource by viewModel.lyricsSource.collectAsStateWithLifecycle()
     val lyricsChecked by viewModel.lyricsChecked.collectAsStateWithLifecycle()
-    val lyricsProviderStates by viewModel.lyricsProviderStates.collectAsStateWithLifecycle()
     val searchHistory by viewModel.searchHistory.collectAsStateWithLifecycle()
     val searchSuggestions by viewModel.suggestions.collectAsStateWithLifecycle()
     val searchLoadingMore by viewModel.searchLoadingMore.collectAsStateWithLifecycle()
@@ -2442,8 +2440,6 @@ private fun SonariqApp(
             },
             lyrics = lyrics,
             lyricsSource = lyricsSource,
-            lyricsProviderStates = lyricsProviderStates,
-            onSelectLyricsProvider = viewModel::selectLyricsProvider,
             lyricsUnavailable = lyricsChecked && lyrics.isNullOrEmpty(),
             lyricsOffsetOpen = showLyricsOffset,
             onDismissLyricsOffset = { showLyricsOffset = false },
@@ -2846,7 +2842,6 @@ private fun SonariqApp(
                                 replayLandingPage = ReplayStoryPage.INTRO
                                 showReplay = true
                             },
-                            onLyricsSources = { showLyricsSources = true },
                             onTranslationLanguage = { showTranslationLanguage = true },
                             onSources = {
                                 settingsSubScreen = "sources"
@@ -4872,14 +4867,6 @@ private fun SonariqApp(
                     },
                 )
             }
-        }
-
-        if (showLyricsSources) {
-            BackHandler { showLyricsSources = false }
-            LyricsSourcesDialog(
-                hazeState = hazeState,
-                onDismiss = { showLyricsSources = false },
-            )
         }
 
         if (songSortMenuOpen) {

@@ -41,8 +41,6 @@ fun LyricsSidePanel(
     position: PlaybackPosition,
     lyrics: List<LyricLine>?,
     lyricsSource: LyricsSource?,
-    lyricsProviderStates: Map<LyricsSource, LyricsProviderState>,
-    onSelectLyricsProvider: (LyricsSource) -> Unit,
     lyricsUnavailable: Boolean,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
@@ -73,7 +71,6 @@ fun LyricsSidePanel(
     )
     // The provider drawer frosts this column, not the page beside it.
     val haze = remember { HazeState() }
-    var showLyricsProviders by remember { mutableStateOf(false) }
 
     Box(modifier) {
         Box(Modifier.fillMaxSize().hazeSource(haze)) {
@@ -85,7 +82,7 @@ fun LyricsSidePanel(
                     lyricsLoadingText
                 },
                 status = lyricsTranslation.status,
-                onStatusClick = { showLyricsProviders = true },
+                onStatusClick = {},
                 lines = lyricsTranslation.displayedLyrics,
                 romanizationToggle = {
                     RomanizationToggleButton(
@@ -128,15 +125,6 @@ fun LyricsSidePanel(
                     )
                 }
             }
-        }
-        if (showLyricsProviders) {
-            LyricsProviderSheet(
-                hazeState = haze,
-                currentSource = lyricsSource,
-                states = lyricsProviderStates,
-                onSelect = onSelectLyricsProvider,
-                onDismiss = { showLyricsProviders = false },
-            )
         }
     }
 }
