@@ -1659,7 +1659,7 @@ fun SettingsScreen(
             }
             row(stringResource(R.string.device), "device", "about") {
                 SettingsRow(
-                    icon = Icons.Rounded.Smartphone,
+                    icon = Icons.Rounded.PhoneIphone,
                     title = stringResource(R.string.device),
                     subtitle = "${DeviceInfo.displayName} • Android ${DeviceInfo.androidVersion}",
                     trailing = { },
