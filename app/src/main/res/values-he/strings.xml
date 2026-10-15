@@ -541,6 +541,10 @@
     <string name="share_my_replay">שתף את ה-Replay שלי</string>
     <string name="share_your_lyrics">שליחת כרטיס המילים</string>
     <string name="share_your_replay">שתף את ה-Replay שלך</string>
+    <string name="share_stats_card">Share stats card</string>
+    <string name="stats_card_title">My Sonariq Replay</string>
+    <string name="stats_card_empty_title">Not enough listening yet</string>
+    <string name="stats_card_empty_hint">Play some music and your Replay will appear here.</string>
     <string name="tap_share_for_picture">הקש שתף כדי ליצור תמונה</string>
     <string name="top_album">אלבום מוביל</string>
     <string name="top_artist">אמן מוביל</string>

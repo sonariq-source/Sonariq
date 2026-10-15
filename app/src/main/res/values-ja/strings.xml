@@ -561,6 +561,10 @@
     <string name="share_my_replay">自分のReplayを共有</string>
     <string name="share_your_lyrics">歌詞カードを送る</string>
     <string name="share_your_replay">あなたのReplayを共有</string>
+    <string name="share_stats_card">Share stats card</string>
+    <string name="stats_card_title">My Sonariq Replay</string>
+    <string name="stats_card_empty_title">Not enough listening yet</string>
+    <string name="stats_card_empty_hint">Play some music and your Replay will appear here.</string>
     <string name="tap_share_for_picture">共有をタップして画像を作成</string>
     <string name="top_album">トップアルバム</string>
     <string name="top_artist">トップアーティスト</string>

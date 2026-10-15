@@ -598,6 +598,10 @@
     <string name="share_my_replay">Chia sẻ Replay của tôi</string>
     <string name="share_your_lyrics">Gửi thẻ lời bài hát</string>
     <string name="share_your_replay">Chia sẻ Replay của bạn</string>
+    <string name="share_stats_card">Share stats card</string>
+    <string name="stats_card_title">My Sonariq Replay</string>
+    <string name="stats_card_empty_title">Not enough listening yet</string>
+    <string name="stats_card_empty_hint">Play some music and your Replay will appear here.</string>
     <string name="tap_share_for_picture">Nhấn Chia sẻ để tạo hình ảnh</string>
     <string name="top_album">Album hàng đầu</string>
     <string name="top_artist">Nghệ sĩ hàng đầu</string>

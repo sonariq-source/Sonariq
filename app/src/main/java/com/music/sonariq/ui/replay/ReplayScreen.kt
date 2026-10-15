@@ -28,12 +28,17 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -64,7 +69,10 @@ import com.music.sonariq.ui.components.PAGE_GUTTER
 import com.music.sonariq.ui.icons.SonariqIcons
 import com.music.sonariq.ui.player.MeshGradientBackground
 import com.music.sonariq.ui.player.rememberArtworkColors
+import com.music.sonariq.ui.stats.renderStatsCard
+import com.music.sonariq.ui.stats.shareStatsCard
 import com.music.sonariq.ui.theme.AccentRed
+import kotlinx.coroutines.launch
 
 /** Whether the Replay page is being shown in dark mode (vs light). */
 @Composable
@@ -277,20 +285,70 @@ private fun Heading(state: ReplayState, onPeriodChange: (ReplayPeriod) -> Unit, 
     val textColor = if (dark) Color.White else Color.Black
     Column(Modifier.padding(horizontal = PAGE_GUTTER + 4.dp)) {
         Spacer(Modifier.height(48.dp))
-        Text(
-            text = stringResource(R.string.replay),
-            style = MaterialTheme.typography.displayLarge,
-            fontWeight = FontWeight.W800,
-            color = textColor,
-        )
-        Text(
-            text = state.summary?.localizedLabel(context) ?: state.period.localizedChip(context),
-            style = MaterialTheme.typography.titleMedium,
-            color = textColor.copy(alpha = 0.6f),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.replay),
+                    style = MaterialTheme.typography.displayLarge,
+                    fontWeight = FontWeight.W800,
+                    color = textColor,
+                )
+                Text(
+                    text = state.summary?.localizedLabel(context) ?: state.period.localizedChip(context),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = textColor.copy(alpha = 0.6f),
+                )
+            }
+            ShareStatsCardButton(period = state.period, tint = textColor)
+        }
         Spacer(Modifier.height(14.dp))
         PeriodPicker(state.period, onPeriodChange, dark)
         Spacer(Modifier.height(18.dp))
+    }
+}
+
+/**
+ * Renders the current period's Replay as a shareable picture and sends it.
+ *
+ * A direct share rather than the sheet the page's own share row opens: the
+ * card is the whole Replay at a glance, so there is nothing to preview or
+ * choose between. The spinner replaces the icon while the bitmap renders so a
+ * second tap cannot queue a second render.
+ */
+@Composable
+private fun ShareStatsCardButton(period: ReplayPeriod, tint: Color) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var rendering by remember { mutableStateOf(false) }
+    if (rendering) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(24.dp),
+            strokeWidth = 2.dp,
+            color = tint,
+        )
+    } else {
+        IconButton(
+            onClick = {
+                rendering = true
+                scope.launch {
+                    try {
+                        val bitmap = renderStatsCard(context, period)
+                        shareStatsCard(context, bitmap)
+                    } catch (_: Exception) {
+                        // Best effort: the spinner stops and the page stays as
+                        // it was, rather than surfacing a failure for a share.
+                    } finally {
+                        rendering = false
+                    }
+                }
+            },
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.IosShare,
+                contentDescription = stringResource(R.string.share_stats_card),
+                tint = tint,
+            )
+        }
     }
 }
 

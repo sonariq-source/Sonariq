@@ -561,6 +561,10 @@
     <string name="share_my_replay">Bagikan Replay saya</string>
     <string name="share_your_lyrics">Kirim kartu lirikmu</string>
     <string name="share_your_replay">Bagikan Replay Anda</string>
+    <string name="share_stats_card">Share stats card</string>
+    <string name="stats_card_title">My Sonariq Replay</string>
+    <string name="stats_card_empty_title">Not enough listening yet</string>
+    <string name="stats_card_empty_hint">Play some music and your Replay will appear here.</string>
     <string name="tap_share_for_picture">Ketuk Bagikan untuk membuat gambar</string>
     <string name="top_album">Album teratas</string>
     <string name="top_artist">Artis teratas</string>
