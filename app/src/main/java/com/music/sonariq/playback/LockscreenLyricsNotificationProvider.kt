@@ -33,10 +33,14 @@ class LockscreenLyricsNotificationProvider(
     private val getLyricLine: () -> String?,
 ) : DefaultMediaNotificationProvider(
     context,
-    DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID_PROVIDER,
+    DefaultMediaNotificationProvider.NotificationIdProvider { PLAYBACK_NOTIFICATION_ID },
     channelId,
     channelNameResourceId,
 ) {
+
+    companion object {
+        private const val PLAYBACK_NOTIFICATION_ID = 1
+    }
 
     override fun getNotificationContentText(metadata: MediaMetadata): CharSequence? {
         if (AppSettings.lockscreenLyrics.value) {
