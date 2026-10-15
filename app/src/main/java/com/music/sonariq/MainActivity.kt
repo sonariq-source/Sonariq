@@ -2612,7 +2612,7 @@ private fun SonariqApp(
                                 val from = initialState.removePrefix(TAB_KEY).toIntOrNull() ?: 0
                                 val to = targetState.removePrefix(TAB_KEY).toIntOrNull() ?: 0
                                 val dir = if (to > from) 1 else -1
-                                val spring = spring<Float>(
+                                val spring = spring<IntOffset>(
                                     dampingRatio = Spring.DampingRatioMediumBouncy,
                                     stiffness = Spring.StiffnessMedium,
                                 )
@@ -2625,7 +2625,7 @@ private fun SonariqApp(
                                 // Liquid rise: the modal springs up from the
                                 // bottom with a soft overshoot, like surfacing
                                 // through glass.
-                                val rise = spring<Float>(
+                                val rise = spring<IntOffset>(
                                     dampingRatio = Spring.DampingRatioLowBouncy,
                                     stiffness = Spring.StiffnessMediumLow,
                                 )
@@ -2634,7 +2634,7 @@ private fun SonariqApp(
                                     (fadeOut(tween(220)) + scaleOut(tween(260), targetScale = 0.96f))
                             }
                             initialIsModal && !targetIsModal -> {
-                                val sink = spring<Float>(
+                                val sink = spring<IntOffset>(
                                     dampingRatio = Spring.DampingRatioNoBouncy,
                                     stiffness = Spring.StiffnessMedium,
                                 )
