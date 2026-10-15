@@ -182,6 +182,7 @@ import com.music.sonariq.ui.theme.localizedLabel
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import java.util.Locale
+import com.music.sonariq.util.DeviceInfo
 
 /**
  * Grouped settings, in the shape phones have taught people to expect: inset
@@ -1652,6 +1653,15 @@ fun SettingsScreen(
                     icon = Icons.Rounded.Info,
                     title = currentVersionTitle,
                     subtitle = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    trailing = { },
+                    onClick = { },
+                )
+            }
+            row(stringResource(R.string.device), "device", "about") {
+                SettingsRow(
+                    icon = Icons.Rounded.Smartphone,
+                    title = stringResource(R.string.device),
+                    subtitle = "${DeviceInfo.displayName} • Android ${DeviceInfo.androidVersion}",
                     trailing = { },
                     onClick = { },
                 )

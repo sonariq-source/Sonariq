@@ -43,6 +43,7 @@ import com.music.sonariq.playback.playSongs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.music.sonariq.util.DeviceInfo
 
 /**
  * Sonariq TV home: search for music and play it. D-pad navigable —
@@ -167,6 +168,13 @@ fun TvHomeScreen(
                 }
             }
         }
+        Spacer(Modifier.height(16.dp))
+        // This TV's own identity — the model Sonariq is running on.
+        Text(
+            text = DeviceInfo.displayName,
+            fontSize = 18.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+        )
     }
 }
 
