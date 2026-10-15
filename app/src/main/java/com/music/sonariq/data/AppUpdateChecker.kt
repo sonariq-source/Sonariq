@@ -101,18 +101,26 @@ object AppUpdateChecker {
     }
 
     /**
-     * The release usually carries exactly one `.apk`; take its direct download
-     * URL. A release without one (source-only draft, renamed asset) leaves
+     * A release can carry both the phone and TV APKs. Pick the one that
+     * matches this app: the TV app takes the TV asset, everything else takes
+     * the phone one. A release without a matching `.apk` leaves
      * [UpdateInfo.apkUrl] null and the UI falls back to opening the releases
      * page as before.
      */
     private fun apkAssetUrl(release: JsonObject): String? = runCatching {
-        release["assets"]?.jsonArray
+        val apks = release["assets"]?.jsonArray
             ?.mapNotNull { it as? JsonObject }
-            ?.firstOrNull { asset ->
+            ?.filter { asset ->
                 asset["name"]?.jsonPrimitive?.contentOrNull?.endsWith(".apk", ignoreCase = true) == true &&
                     asset["state"]?.jsonPrimitive?.contentOrNull == "uploaded"
             }
+            .orEmpty()
+        val wantTv = BuildConfig.APPLICATION_ID == "com.sonariq.tv"
+        val picked = apks.firstOrNull { asset ->
+            val name = asset["name"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            name.contains("-tv", ignoreCase = true) == wantTv
+        } ?: apks.firstOrNull()
+        picked
             ?.get("browser_download_url")
             ?.jsonPrimitive
             ?.contentOrNull
