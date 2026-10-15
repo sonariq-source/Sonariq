@@ -202,20 +202,20 @@ private fun StatsCard(data: StatsCardData) {
     Box(
         Modifier
             .fillMaxSize()
-            .background(PlumBase),
+            .background(Color(0xFF0A0F0A)),
     ) {
-        // The Prism wash: coral light from the top, orchid pooling at the
-        // foot, a breath of cyan across the middle. Linear gradients need no
-        // measurement, so the backdrop is identical at any density.
+        // Sonariq green wash: lime light from the top, deep green pooling at
+        // the foot. Linear gradients need no measurement, so the backdrop is
+        // identical at any density.
         Box(
             Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Coral.copy(alpha = 0.20f),
+                            Color(0xFFA3E635).copy(alpha = 0.22f),
                             Color.Transparent,
-                            Orchid.copy(alpha = 0.16f),
+                            Color(0xFF1A2E05).copy(alpha = 0.60f),
                         ),
                     ),
                 ),
@@ -226,19 +226,19 @@ private fun StatsCard(data: StatsCardData) {
                 .background(
                     Brush.horizontalGradient(
                         listOf(
-                            Cyan.copy(alpha = 0.05f),
+                            Color(0xFFA3E635).copy(alpha = 0.06f),
                             Color.Transparent,
-                            Coral.copy(alpha = 0.07f),
+                            Color(0xFF4D7C0F).copy(alpha = 0.10f),
                         ),
                     ),
                 ),
         )
-        // The brand bar: coral into orchid into cyan, the Prism signature.
+        // The brand bar: Sonariq green, the signature.
         Box(
             Modifier
                 .fillMaxWidth()
                 .height(6.dp)
-                .background(Brush.horizontalGradient(listOf(Coral, Orchid, Cyan))),
+                .background(Brush.horizontalGradient(listOf(Color(0xFFA3E635), Color(0xFF4D7C0F)))),
         )
 
         Column(

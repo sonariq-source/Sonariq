@@ -6,21 +6,21 @@
   <!-- Sonariq mark: a waveform, the sound of the app. Replaces the old
        Spotify-derived placeholder. -->
   <path
-      android:fillColor="#FFA3E635"
+      android:fillColor="#FFFFFFFF"
       android:pathData="M14,35 L14,65 Q14,70 19,70 Q24,70 24,65 L24,35 Q24,30 19,30 Q14,30 14,35 Z"/>
   <path
-      android:fillColor="#FFA3E635"
+      android:fillColor="#FFFFFFFF"
       android:pathData="M34,25 L34,75 Q34,80 39,80 Q44,80 44,75 L44,25 Q44,20 39,20 Q34,20 34,25 Z"/>
   <path
-      android:fillColor="#FFA3E635"
+      android:fillColor="#FFFFFFFF"
       android:pathData="M54,10 L54,90 Q54,95 59,95 Q64,95 64,90 L64,10 Q64,5 59,5 Q54,5 54,10 Z"/>
   <path
-      android:fillColor="#FFA3E635"
+      android:fillColor="#FFFFFFFF"
       android:pathData="M74,22 L74,78 Q74,83 79,83 Q84,83 84,78 L84,22 Q84,17 79,17 Q74,17 74,22 Z"/>
   <path
-      android:fillColor="#FFA3E635"
+      android:fillColor="#FFFFFFFF"
       android:pathData="M94,32 L94,68 Q94,73 99,73 Q104,73 104,68 L104,32 Q104,27 99,27 Q94,27 94,32 Z"/>
   <path
-      android:fillColor="#FFA3E635"
+      android:fillColor="#FFFFFFFF"
       android:pathData="M114,40 L114,60 Q114,65 119,65 Q124,65 124,60 L124,40 Q124,35 119,35 Q114,35 114,40 Z"/>
 </vector>
