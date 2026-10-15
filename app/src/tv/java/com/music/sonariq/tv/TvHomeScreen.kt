@@ -37,7 +37,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.session.MediaController
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import com.music.sonariq.data.YtMusicRepository
 import com.music.sonariq.data.model.SearchFilter
 import com.music.sonariq.data.model.SearchResult
