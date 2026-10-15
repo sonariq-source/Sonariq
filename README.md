@@ -102,7 +102,7 @@
 Sonariq TV (`com.sonariq.tv`) plays music **on the TV itself** with a remote-friendly interface: big search, D-pad navigation, and full-screen karaoke lyrics that follow the song.
 
 > [!NOTE]
-> Sonariq TV ships as a **prerelease** on the [Releases](https://github.com/sonariq-source/Sonariq/releases) page, so the phone app's in-app updater never mistakes it for a phone update.
+> Sonariq TV ships on the same [Releases](https://github.com/sonariq-source/Sonariq/releases) page as the phone app — one release carries both APKs, and each app's in-app updater automatically picks the right one.
 
 </div>
 
