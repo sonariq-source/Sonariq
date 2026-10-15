@@ -135,29 +135,31 @@ fun shareStatsCard(context: Context, bitmap: Bitmap) {
  * from hanging the share button forever.
  */
 private suspend fun renderOffscreen(context: Context, data: StatsCardData): Bitmap {
-    val recomposer = Recomposer(coroutineContext)
-    val view = ComposeView(context)
-    val recompose = launch { recomposer.runRecomposeAndApplyChanges() }
-    try {
-        view.setParentCompositionContext(recomposer)
-        view.setContent { StatsCard(data) }
-        view.createComposition()
-        var frames = 0
-        while (view.childCount == 0 && frames < MAX_FRAMES) {
-            withFrameNanos { }
-            frames++
+    return kotlinx.coroutines.coroutineScope {
+        val recomposer = Recomposer(coroutineContext)
+        val view = ComposeView(context)
+        val recompose = launch { recomposer.runRecomposeAndApplyChanges() }
+        try {
+            view.setParentCompositionContext(recomposer)
+            view.setContent { StatsCard(data) }
+            view.createComposition()
+            var frames = 0
+            while (view.childCount == 0 && frames < MAX_FRAMES) {
+                withFrameNanos { }
+                frames++
+            }
+            val widthSpec = View.MeasureSpec.makeMeasureSpec(CARD_W, View.MeasureSpec.EXACTLY)
+            val heightSpec = View.MeasureSpec.makeMeasureSpec(CARD_H, View.MeasureSpec.EXACTLY)
+            view.measure(widthSpec, heightSpec)
+            view.layout(0, 0, CARD_W, CARD_H)
+            val bitmap = Bitmap.createBitmap(CARD_W, CARD_H, Bitmap.Config.ARGB_8888)
+            view.draw(Canvas(bitmap))
+            return@coroutineScope bitmap
+        } finally {
+            runCatching { view.disposeComposition() }
+            recompose.cancel()
+            recomposer.close()
         }
-        val widthSpec = View.MeasureSpec.makeMeasureSpec(CARD_W, View.MeasureSpec.EXACTLY)
-        val heightSpec = View.MeasureSpec.makeMeasureSpec(CARD_H, View.MeasureSpec.EXACTLY)
-        view.measure(widthSpec, heightSpec)
-        view.layout(0, 0, CARD_W, CARD_H)
-        val bitmap = Bitmap.createBitmap(CARD_W, CARD_H, Bitmap.Config.ARGB_8888)
-        view.draw(Canvas(bitmap))
-        return bitmap
-    } finally {
-        runCatching { view.disposeComposition() }
-        recompose.cancel()
-        recomposer.close()
     }
 }
 

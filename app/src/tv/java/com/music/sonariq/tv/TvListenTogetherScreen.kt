@@ -266,6 +266,9 @@ private fun TvPartyScreen(state: ListenTogether.State) {
 
     val track = state.playback.track
 
+    Column(
+        modifier = Modifier.fillMaxSize(),
+    ) {
     Text(
         text = "Party code",
         fontSize = 24.sp,
@@ -369,6 +372,7 @@ private fun TvPartyScreen(state: ListenTogether.State) {
             }
         },
     )
+    }
 }
 
 /**

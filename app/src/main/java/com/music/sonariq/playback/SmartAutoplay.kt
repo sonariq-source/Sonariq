@@ -89,7 +89,7 @@ object SmartAutoplay {
      * Predicts the most likely next songs after [current], strongest first.
      * Returns cached song info; the caller resolves full [Song] objects.
      */
-    fun predictNext(
+    internal fun predictNext(
         context: Context,
         current: Song,
         limit: Int = 5,
