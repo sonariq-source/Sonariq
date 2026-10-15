@@ -1704,6 +1704,10 @@ internal fun LyricsPanel(
     val lyricsAutoScroll by PlayerSettings.lyricsAutoScroll.collectAsStateWithLifecycle()
     val lyricsKaraokeEffects by PlayerSettings.lyricsKaraokeEffects.collectAsStateWithLifecycle()
 
+    // The live karaoke singing score 0..100, or null when scoring is off, the
+    // mic is unavailable, or the song has no lyrics. Null draws nothing.
+    val karaokeScore by PlayerPlatform.host.karaokeScore.collectAsStateWithLifecycle()
+
     val glowing = !reduceAnimation && !reduceDynamicBlur && lyricsBlur &&
         renderEffectBlurSupported
 
@@ -2381,6 +2385,19 @@ internal fun LyricsPanel(
                 .padding(top = 4.dp, start = PLAYER_GUTTER, end = PLAYER_GUTTER),
         )
     }
+
+    // The live karaoke score, top-start over the lines — the search pill owns
+    // the top end. Drawn only while the scorer has a score, which is exactly
+    // when scoring is enabled and a song with lyrics is playing. Hidden while
+    // picking, like the search: the pick bar owns the chrome then.
+    if (karaokeScore != null && !picking) {
+        KaraokeScoreChip(
+            score = karaokeScore ?: 0,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(top = 4.dp, start = PLAYER_GUTTER, end = PLAYER_GUTTER),
+        )
+    }
     }
 }
 
@@ -2525,6 +2542,33 @@ private fun LyricsSearchOverlay(
                 }
             }
         }
+    }
+}
+
+/**
+ * The live karaoke score: a small glass pill at the panel's top start, in the
+ * player's own treatment — translucent surface, hairline coral edge. The
+ * number is the share of lyric words sung so far, 0..100.
+ */
+@Composable
+private fun KaraokeScoreChip(
+    score: Int,
+    modifier: Modifier = Modifier,
+) {
+    val pill = RoundedCornerShape(20.dp)
+    Box(
+        modifier = modifier
+            .clip(pill)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
+            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f), pill)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = score.toString(),
+            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+            color = Color.White.copy(alpha = 0.92f),
+        )
     }
 }
 

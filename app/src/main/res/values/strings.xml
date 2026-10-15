@@ -160,6 +160,8 @@
     <string name="software_update">Software Update</string>
     <string name="app_updates">App updates</string>
     <string name="karaoke">Karaoke</string>
+    <string name="karaoke_scoring">Karaoke scoring</string>
+    <string name="karaoke_scoring_subtitle">Score your singing with the microphone</string>
     <string name="karaoke_key_changer">Key changer</string>
     <string name="karaoke_key_original">Original key</string>
     <string name="karaoke_key_shifted">%1$s%2$d semitones</string>

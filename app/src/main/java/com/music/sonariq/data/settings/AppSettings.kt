@@ -417,6 +417,12 @@ object AppSettings {
      * 0 = original key.
      */
     val karaokePitch = MutableStateFlow(0f)
+    /**
+     * Karaoke scoring: while a song with lyrics plays, the microphone is
+     * sampled and each lyric word whose time window carries voice energy
+     * counts as sung. Score = 100 * sung / total, live in the player.
+     */
+    val karaokeScoring = MutableStateFlow(false)
     val themeMode = MutableStateFlow(ThemeMode.DARK)
 
     /** The accent driving the theme's primary roles; brand lime out of the box. */
@@ -943,6 +949,7 @@ object AppSettings {
         accentColor.value = accentColorFromStored(prefs.getString(KEY_ACCENT_COLOR, null))
         playbackSpeed.value = prefs.getFloat(KEY_SPEED, 1.0f)
         karaokePitch.value = prefs.getFloat(KEY_KARAOKE_PITCH, 0f)
+        karaokeScoring.value = prefs.getBoolean(KEY_KARAOKE_SCORING, false)
         themeMode.value = runCatching {
             ThemeMode.valueOf(prefs.getString(KEY_THEME, null) ?: "DARK")
         }.getOrDefault(ThemeMode.DARK)
@@ -1376,6 +1383,12 @@ object AppSettings {
         val clamped = semitones.coerceIn(-6f, 6f)
         karaokePitch.value = clamped
         prefs.edit().putFloat(KEY_KARAOKE_PITCH, clamped).apply()
+    }
+
+    fun setKaraokeScoring(value: Boolean) {
+        if (karaokeScoring.value == value) return
+        karaokeScoring.value = value
+        prefs.edit().putBoolean(KEY_KARAOKE_SCORING, value).apply()
     }
 
     fun setShowNerdStats(value: Boolean) {
@@ -2260,6 +2273,7 @@ object AppSettings {
     private const val KEY_EQ_USER_PRESET_ACTIVE = "equalizer_user_preset_active"
     private const val KEY_SPEED = "playback_speed"
     private const val KEY_KARAOKE_PITCH = "karaoke_pitch"
+    private const val KEY_KARAOKE_SCORING = "karaoke_scoring"
     private const val KEY_THEME = "theme_mode"
     private const val KEY_ACCENT_COLOR = "accent_color"
     private const val KEY_AUTOPLAY = "autoplay"

@@ -22,6 +22,7 @@ import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.data.settings.LastPlayerScreen
 import com.music.sonariq.playback.AudioOutputStatus
 import com.music.sonariq.playback.AudioRouting
+import com.music.sonariq.playback.KaraokeScorer
 import com.music.sonariq.playback.VisualizerController
 import com.music.sonariq.playback.cast.CastController
 import dev.chrisbanes.haze.HazeState
@@ -205,6 +206,10 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
     // bitmap, a canvas, the gallery and the chooser are all Android's here. The
     // desktop has no answer to it, so it never sees the pick mode at all.
     override val lyricsShareAvailable: Boolean get() = true
+
+    // Mic-based karaoke scoring lives in the playback service; the shared
+    // player only needs the number to draw its chip.
+    override val karaokeScore: StateFlow<Int?> get() = KaraokeScorer.score
 
     @Composable
     override fun LyricsShareSheet(
