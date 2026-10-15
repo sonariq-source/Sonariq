@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
@@ -58,13 +59,16 @@ internal val LocalGlassExport = compositionLocalOf<LayerBackdrop?> { null }
  */
 fun isGlassSupported(sdkInt: Int = Build.VERSION.SDK_INT): Boolean = sdkInt >= Build.VERSION_CODES.S
 
-/** Apple-matched defaults (Echo's GlassEffectConfig()), fixed rather than user sliders. */
-private const val VIBRANCY = 1f
-private const val BLUR_RADIUS_DP = 8f
-private const val LENS_HEIGHT = 0.5f
-private const val LENS_AMOUNT = 0.5f
+/** Apple-matched defaults (Echo's GlassEffectConfig()), tuned up for a more
+ * luminous, liquid look: milkier blur, more vivid refraction, stronger lens
+ * bend and a brighter rim. The resolution scale is unchanged, so the cost is
+ * the same — the blur hides the upscale. */
+private const val VIBRANCY = 1.6f
+private const val BLUR_RADIUS_DP = 12f
+private const val LENS_HEIGHT = 0.65f
+private const val LENS_AMOUNT = 0.7f
 private const val LENS_MAX_DP = 48f
-private const val SURFACE_OPACITY = 0.4f
+private const val SURFACE_OPACITY = 0.32f
 
 /**
  * Resolution fraction the glass surface records and processes its backdrop at.
@@ -88,7 +92,17 @@ private const val GLASS_RESOLUTION_SCALE = 0.33f
  * its edge from [Highlight], and this is that edge for everything that does not.
  */
 internal val GLASS_EDGE_WIDTH = 0.5.dp
-internal val GLASS_EDGE_COLOR = Color.White.copy(alpha = 0.10f)
+internal val GLASS_EDGE_COLOR = Color.White.copy(alpha = 0.16f)
+
+/**
+ * The rim light for a full liquid-glass surface: wider and brighter than the
+ * default hairline, so the glass edge catches the light like real glass.
+ */
+internal val GLASS_HIGHLIGHT = Highlight(
+    width = 1.dp,
+    blurRadius = 0.75f.dp,
+    alpha = 1f,
+)
 
 /**
  * Icon and label colour for content sitting on a glass surface.
@@ -202,10 +216,23 @@ fun Modifier.liquidGlass(shape: CornerBasedShape): Modifier {
                 )
             }
         },
-        highlight = { Highlight.Default },
+        highlight = { GLASS_HIGHLIGHT },
         shadow = { Shadow.Default },
         onDrawSurface = {
             drawRect(color = surfaceTintColor.copy(alpha = SURFACE_OPACITY), size = size)
+            // Top light: a soft sheen falling from the top edge gives the
+            // glass its lit depth, like light catching real glass.
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.10f),
+                        Color.Transparent,
+                    ),
+                    startY = 0f,
+                    endY = size.height * 0.45f,
+                ),
+                size = size,
+            )
         },
         exportedBackdrop = exportedBackdrop,
         backdropScale = GLASS_RESOLUTION_SCALE,

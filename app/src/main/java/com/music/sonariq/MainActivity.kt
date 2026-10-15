@@ -21,9 +21,16 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -2573,34 +2580,66 @@ private fun SonariqApp(
                         detail != null -> detail.browseId
                         else -> "$TAB_KEY$selectedTab"
                     },
-                    // Tabs swap outright; everything else crossfades.
+                    // Navigation motion: every move between screens is animated.
                     //
-                    // A tab is not a place you travel to — the bar is the whole
-                    // navigation and it carries its own movement — so a fade
-                    // between two of them only ever reads as a stutter. And it
-                    // cannot read as anything else: neither page paints a
-                    // background, so a crossfade dissolves both through to the
-                    // window and the switch dips through a dimmer frame in the
-                    // middle. Pushing a page or raising Settings is a real
-                    // change of context and keeps the fade.
-                    //
+                    // - Tab swaps get a soft fade with a breath of scale — the
+                    //   bar itself carries the travel, so the page just blooms.
+                    // - Pushed pages (a card opened from a tab, a detail from a
+                    //   detail) slide in from the right while the old page
+                    //   parallaxes left and fades — a real sense of travel.
+                    // - Going back reverses it: the page slides back right.
+                    // - Modal-style pages (Settings, Equalizer, Sources, Replay
+                    //   and friends) rise from the bottom and sink back down.
                     // "Show all" swapping with the Library tab underneath it is
-                    // the same case as a tab swap, not a pushed page: it's still
-                    // that tab, just laid out as a grid instead of a row, sharing
-                    // its background rather than painting its own — so this one
-                    // pair gets the tab's no-fade swap too, in both directions, or
-                    // the dip through a dim frame shows up on every hold of a
-                    // card there. A card opened *from* the grid is a real page
-                    // and keeps the fade, same as one opened from the row.
+                    // the same case as a tab swap: it's still that tab, just
+                    // laid out as a grid instead of a row.
                     transitionSpec = {
                         val tabSwap = initialState.startsWith(TAB_KEY) && targetState.startsWith(TAB_KEY)
                         val libraryTabKey = "$TAB_KEY$TAB_LIBRARY"
                         val libraryShowAllSwap = (initialState == "library_show_all" && targetState == libraryTabKey) ||
                             (targetState == "library_show_all" && initialState == libraryTabKey)
-                        if (tabSwap || libraryShowAllSwap) {
-                            EnterTransition.None togetherWith ExitTransition.None
-                        } else {
-                            fadeIn(tween(180)) togetherWith fadeOut(tween(180))
+                        val modalKeys = setOf(
+                            "settings", "account_scrobbling", "sources",
+                            "listen_together", "equalizer", "spotify",
+                            "discord", "history", "replay",
+                        )
+                        val targetIsModal = targetState in modalKeys
+                        val initialIsModal = initialState in modalKeys
+                        val targetIsTab = targetState.startsWith(TAB_KEY) || targetState == "library_show_all"
+                        val initialIsTab = initialState.startsWith(TAB_KEY) || initialState == "library_show_all"
+                        when {
+                            tabSwap || libraryShowAllSwap -> {
+                                (fadeIn(tween(220)) + scaleIn(tween(260), initialScale = 0.96f)) togetherWith
+                                    (fadeOut(tween(160)) + scaleOut(tween(200), targetScale = 0.98f))
+                            }
+                            targetIsModal && !initialIsModal -> {
+                                (slideInVertically(tween(320, easing = FastOutSlowInEasing)) { it / 3 } +
+                                    fadeIn(tween(240))) togetherWith
+                                    (fadeOut(tween(200)) + scaleOut(tween(240), targetScale = 0.97f))
+                            }
+                            initialIsModal && !targetIsModal -> {
+                                (fadeIn(tween(240)) + scaleIn(tween(260), initialScale = 0.97f)) togetherWith
+                                    (slideOutVertically(tween(300, easing = FastOutSlowInEasing)) { it / 3 } +
+                                        fadeOut(tween(220)))
+                            }
+                            initialIsTab && !targetIsTab -> {
+                                (slideInHorizontally(tween(320, easing = FastOutSlowInEasing)) { it / 4 } +
+                                    fadeIn(tween(240))) togetherWith
+                                    (slideOutHorizontally(tween(300, easing = FastOutSlowInEasing)) { -it / 8 } +
+                                        fadeOut(tween(200)))
+                            }
+                            !initialIsTab && targetIsTab -> {
+                                (slideInHorizontally(tween(320, easing = FastOutSlowInEasing)) { -it / 4 } +
+                                    fadeIn(tween(240))) togetherWith
+                                    (slideOutHorizontally(tween(300, easing = FastOutSlowInEasing)) { it / 4 } +
+                                        fadeOut(tween(200)))
+                            }
+                            else -> {
+                                (slideInHorizontally(tween(320, easing = FastOutSlowInEasing)) { it / 4 } +
+                                    fadeIn(tween(240))) togetherWith
+                                    (slideOutHorizontally(tween(300, easing = FastOutSlowInEasing)) { -it / 8 } +
+                                        fadeOut(tween(200)))
+                            }
                         }
                     },
                     modifier = Modifier
