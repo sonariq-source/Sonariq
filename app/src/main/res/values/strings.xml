@@ -500,6 +500,7 @@
     <string name="cast_receiver_app_id_subtitle_empty">Not set — audio-only casting</string>
     <string name="cast_receiver_app_id_label">Application ID</string>
     <string name="cast_receiver_app_id_hint">Register the Sonariq TV receiver in the Cast Developer Console, then paste its Application ID here. Takes effect after an app restart.</string>
+    <string name="tv_ambient_wake_hint" translatable="false">Press any button to wake</string>
     <string name="audio_pipeline_subtitle">Live signal path, decoder to output</string>
     <string name="pipeline_track_info">Track Info</string>
     <string name="pipeline_decoder">Decoder</string>
