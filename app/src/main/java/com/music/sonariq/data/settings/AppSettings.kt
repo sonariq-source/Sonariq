@@ -422,6 +422,9 @@ object AppSettings {
     /** The accent driving the theme's primary roles; brand lime out of the box. */
     val accentColor = MutableStateFlow(AccentColor.LIME)
 
+    /** When true, the accent is extracted from the playing track's artwork. */
+    val dynamicTheme = MutableStateFlow(false)
+
     /** Keep playing similar music once the queue runs out. */
     val autoplay = MutableStateFlow(true)
 
@@ -941,6 +944,7 @@ object AppSettings {
                 }
             }
         accentColor.value = accentColorFromStored(prefs.getString(KEY_ACCENT_COLOR, null))
+        dynamicTheme.value = prefs.getBoolean(KEY_DYNAMIC_THEME, false)
         playbackSpeed.value = prefs.getFloat(KEY_SPEED, 1.0f)
         karaokePitch.value = prefs.getFloat(KEY_KARAOKE_PITCH, 0f)
         themeMode.value = runCatching {
@@ -1391,6 +1395,11 @@ object AppSettings {
     fun setAccentColor(value: AccentColor) {
         accentColor.value = value
         prefs.edit().putString(KEY_ACCENT_COLOR, value.name).apply()
+    }
+
+    fun setDynamicTheme(value: Boolean) {
+        dynamicTheme.value = value
+        prefs.edit().putBoolean(KEY_DYNAMIC_THEME, value).apply()
     }
 
     fun setReduceAnimation(value: Boolean) {
@@ -2262,6 +2271,7 @@ object AppSettings {
     private const val KEY_KARAOKE_PITCH = "karaoke_pitch"
     private const val KEY_THEME = "theme_mode"
     private const val KEY_ACCENT_COLOR = "accent_color"
+    private const val KEY_DYNAMIC_THEME = "dynamic_theme"
     private const val KEY_AUTOPLAY = "autoplay"
     private const val KEY_SHUFFLE_ENABLED = "shuffle_enabled"
     private const val KEY_REPEAT_MODE = "repeat_mode"
