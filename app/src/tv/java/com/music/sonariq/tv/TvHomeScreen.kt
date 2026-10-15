@@ -31,9 +31,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.session.MediaController
 import coil3.compose.AsyncImage
 import com.music.sonariq.data.YtMusicRepository
+import com.music.sonariq.data.listentogether.ListenTogether
 import com.music.sonariq.data.model.SearchFilter
 import com.music.sonariq.data.model.SearchResult
 import com.music.sonariq.data.model.Song
@@ -50,6 +52,7 @@ import kotlinx.coroutines.launch
 fun TvHomeScreen(
     controller: MediaController?,
     onPlaySong: (Song) -> Unit,
+    onOpenParty: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<Song>>(emptyList()) }
@@ -96,11 +99,22 @@ fun TvHomeScreen(
             .fillMaxSize()
             .padding(48.dp),
     ) {
-        Text(
-            text = "Sonariq TV",
-            style = MaterialTheme.typography.headlineLarge.copy(fontSize = 40.sp),
-            color = MaterialTheme.colorScheme.primary,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = "Sonariq TV",
+                style = MaterialTheme.typography.headlineLarge.copy(fontSize = 40.sp),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(1f),
+            )
+            val partyState by ListenTogether.state.collectAsStateWithLifecycle()
+            TvTextButton(
+                label = partyState.code?.let { "Party $it" } ?: "Listen Together",
+                onClick = onOpenParty,
+            )
+        }
         Spacer(Modifier.height(24.dp))
         // The current query, as typed on the on-screen keyboard below.
         Text(
