@@ -68,8 +68,9 @@ jobs:
         path: app/build/outputs/apk/prodTv/debug/*.apk
 
   # Phase 1: run every unit test suite without building the APK.
-  # :app:testProdDebugUnitTest covers app/src/test (prod flavor + debug build
-  # type — the same variant the build job assembles). :shared:jvmTest and
+  # :app:testProdPhoneDebugUnitTest covers app/src/test (prod+phone flavor +
+  # debug build type — the same variant the build job assembles).
+  # :shared:jvmTest and
   # :sharedUi:jvmTest cover shared/src/commonTest + shared/src/jvmTest and
   # sharedUi/src/jvmTest respectively.
   unit-tests:
@@ -116,7 +117,7 @@ jobs:
       run: chmod +x gradlew
 
     - name: Run unit tests
-      run: ./gradlew :app:testProdDebugUnitTest :shared:jvmTest :sharedUi:jvmTest
+      run: ./gradlew :app:testProdPhoneDebugUnitTest :app:testProdTvDebugUnitTest :shared:jvmTest :sharedUi:jvmTest
 
     - name: Upload test reports
       if: failure()
