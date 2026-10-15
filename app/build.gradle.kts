@@ -115,6 +115,9 @@ android {
     // dev/prod dimension exists purely to let both sit installed side by side
     // on the same device instead of the dev build overwriting the prod one.
     flavorDimensions += "env"
+    // Phone vs TV: the TV app is a separate APK (com.sonariq.tv, "Sonariq TV")
+    // with its own leanback launcher. It plays music on the TV itself.
+    flavorDimensions += "form"
     productFlavors {
         create("dev") {
             dimension = "env"
@@ -124,6 +127,14 @@ android {
         create("prod") {
             dimension = "env"
             // Matches defaultConfig — this is the package already shipped/installed.
+        }
+        create("phone") {
+            dimension = "form"
+        }
+        create("tv") {
+            dimension = "form"
+            applicationId = "com.sonariq.tv"
+            resValue("string", "app_name", "Sonariq TV")
         }
     }
 

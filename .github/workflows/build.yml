@@ -52,14 +52,20 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Build Prod Debug APK
-      run: ./gradlew :app:assembleProdDebug
+    - name: Build Phone + TV Debug APKs
+      run: ./gradlew :app:assembleProdPhoneDebug :app:assembleProdTvDebug
 
-    - name: Upload APK Artifact
+    - name: Upload Phone APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: sonariq-debug-apk
-        path: app/build/outputs/apk/prod/debug/*.apk
+        path: app/build/outputs/apk/prodPhone/debug/*.apk
+
+    - name: Upload TV APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: sonariq-tv-debug-apk
+        path: app/build/outputs/apk/prodTv/debug/*.apk
 
   # Phase 1: run every unit test suite without building the APK.
   # :app:testProdDebugUnitTest covers app/src/test (prod flavor + debug build
