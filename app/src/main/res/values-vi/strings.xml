@@ -1337,6 +1337,4 @@
     <string name="update_checking">Checking…</string>
     <string name="update_up_to_date">You have the latest version</string>
     <string name="device">Device</string>
-    <string name="live_lyric_sync">Live lyric sync</string>
-    <string name="live_lyric_sync_subtitle">Hear the song and nudge the words to the actual vocals</string>
 </resources>

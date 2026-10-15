@@ -185,11 +185,11 @@ object LyricsRepository {
             var lineSynced: Result? = null
             // Writes a winner through to the disk cache before handing it up,
             // so the next lookup for this track skips the providers entirely.
-            // Word timings are interpolated here — after the race, so a
-            // measured word-synced answer still beats an estimated one — and
-            // the interpolated lines arrive marked as estimates.
+            // Joel: no interpolated word timings — if the winner has real
+            // word sync it stays word-synced; if it's line-synced it stays
+            // line-synced. Fake word timings are worse than honest lines.
             suspend fun deliver(result: Result): Result {
-                val lines = result.lines.withInterpolatedWordTimings()
+                val lines = result.lines
                 val timed = result.copy(lines = lines, timing = lines.lyricTiming())
                 writeCache(videoId, recording, timed)
                 return timed

@@ -235,7 +235,6 @@ fun SettingsScreen(
     val lyricsFontSizeSp by AppSettings.lyricsFontSizeSp.collectAsStateWithLifecycle()
     val lyricsAutoScroll by AppSettings.lyricsAutoScroll.collectAsStateWithLifecycle()
     val lyricsKaraokeEffects by AppSettings.lyricsKaraokeEffects.collectAsStateWithLifecycle()
-    val liveLyricSync by AppSettings.liveLyricSync.collectAsStateWithLifecycle()
     val visualizerStyle by AppSettings.visualizerStyle.collectAsStateWithLifecycle()
     val visualizerIntensity by AppSettings.visualizerIntensity.collectAsStateWithLifecycle()
     val visualizerBatterySaver by AppSettings.visualizerBatterySaver.collectAsStateWithLifecycle()
@@ -1308,25 +1307,6 @@ fun SettingsScreen(
                             )
                         },
                         onClick = { AppSettings.setLyricsKaraokeEffects(!lyricsKaraokeEffects) },
-                    )
-                }
-                val liveLyricSyncTitle = stringResource(R.string.live_lyric_sync)
-                row(liveLyricSyncTitle, "lyrics", "sync", "live", "accurate") {
-                    SettingsRow(
-                        icon = Icons.Rounded.Hearing,
-                        title = liveLyricSyncTitle,
-                        subtitle = stringResource(R.string.live_lyric_sync_subtitle),
-                        trailing = {
-                            Switch(
-                                checked = liveLyricSync,
-                                onCheckedChange = AppSettings::setLiveLyricSync,
-                                colors = SwitchDefaults.colors(
-                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
-                                ),
-                            )
-                        },
-                        onClick = { AppSettings.setLiveLyricSync(!liveLyricSync) },
                     )
                 }
                 val lockscreenLyricsTitle = stringResource(R.string.lockscreen_lyrics)

@@ -1272,6 +1272,4 @@
     <string name="spotify_import_empty_playlist">No songs in this playlist</string>
     <string name="spotify_library_subtitle">Your Spotify playlists</string>
     <string name="device">Device</string>
-    <string name="live_lyric_sync">Live lyric sync</string>
-    <string name="live_lyric_sync_subtitle">Hear the song and nudge the words to the actual vocals</string>
 </resources>

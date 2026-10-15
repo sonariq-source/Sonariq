@@ -122,16 +122,7 @@ interface PlayerHost {
      * its score chip from this; null draws nothing.
      */
     val karaokeScore: StateFlow<Int?> get() = NoKaraokeScore
-
-    /**
-     * Live lyric re-sync offset in milliseconds. The app hears the song and
-     * nudges the words to the actual vocals; 0 means "trust the provider".
-     * Added to the user-configured offset when resolving lyric timing.
-     */
-    val lyricSyncOffsetMs: StateFlow<Long> get() = NoLyricSyncOffset
 }
-
-private val NoLyricSyncOffset = MutableStateFlow(0L)
 
 private val NoKaraokeScore = MutableStateFlow<Int?>(null)
 
