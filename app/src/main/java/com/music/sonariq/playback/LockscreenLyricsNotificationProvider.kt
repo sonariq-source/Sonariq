@@ -31,7 +31,12 @@ class LockscreenLyricsNotificationProvider(
     channelId: String,
     @StringRes channelNameResourceId: Int,
     private val getLyricLine: () -> String?,
-) : DefaultMediaNotificationProvider(context, null, channelId, channelNameResourceId) {
+) : DefaultMediaNotificationProvider(
+    context,
+    DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID_PROVIDER,
+    channelId,
+    channelNameResourceId,
+) {
 
     override fun getNotificationContentText(metadata: MediaMetadata): CharSequence? {
         if (AppSettings.lockscreenLyrics.value) {

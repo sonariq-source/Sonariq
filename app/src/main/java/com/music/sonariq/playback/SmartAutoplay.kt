@@ -23,13 +23,13 @@ import kotlinx.serialization.json.Json
  * plus a small song-info cache so predictions can show titles without a
  * network round-trip. Capped to keep the store small.
  */
-private val Context.smartAutoplayStore by preferencesDataStore("smart_autoplay")
+internal val Context.smartAutoplayStore by preferencesDataStore("smart_autoplay")
 
 private const val MAX_TRANSITIONS = 2000
 private const val MAX_SONG_CACHE = 500
 
 @Serializable
-private data class CachedSong(
+internal data class CachedSong(
     val videoId: String,
     val title: String,
     val artist: String,
