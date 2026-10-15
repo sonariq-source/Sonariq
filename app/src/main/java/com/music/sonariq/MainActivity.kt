@@ -231,6 +231,7 @@ import com.music.sonariq.ui.components.HeldContextMenu
 import com.music.sonariq.ui.components.HeldItem
 import androidx.media3.session.MediaController
 import com.music.sonariq.playback.QualityUpgrade
+import com.music.sonariq.playback.PlayerState
 import com.music.sonariq.playback.rememberMediaController
 import com.music.sonariq.playback.rememberPlayerState
 import com.music.sonariq.playback.setQueueDragActive
@@ -316,6 +317,7 @@ import com.music.sonariq.ui.replay.ReplayStoryPage
 import com.music.sonariq.ui.replay.rememberReplayState
 import com.music.sonariq.ui.theme.SonariqTheme
 import com.music.sonariq.ui.theme.rememberArtworkPalette
+import com.music.sonariq.ui.theme.rememberDynamicAccentArgb
 import com.music.sonariq.data.canvas.AppleArtistArtRepository
 import com.music.sonariq.data.canvas.keyColors
 import com.music.sonariq.ui.theme.SystemBarIcons
@@ -359,6 +361,16 @@ class MainActivity : AppCompatActivity() {
         setContent {
             val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
             val accent by AppSettings.accentColor.collectAsStateWithLifecycle()
+            val dynamicTheme by AppSettings.dynamicTheme.collectAsStateWithLifecycle()
+            // Hoisted above the theme: the dynamic accent is derived from the
+            // playing track's artwork, so the player state has to exist before
+            // SonariqTheme is composed. SonariqApp receives both below.
+            val controller = rememberMediaController()
+            val player = rememberPlayerState(controller)
+            val dynamicAccentArgb = rememberDynamicAccentArgb(
+                song = player.song,
+                enabled = dynamicTheme,
+            )
             val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
             val liquidGlassEnabled by AppSettings.liquidGlass.collectAsStateWithLifecycle()
             val iosOverscrollFactory = rememberIosOverscrollFactory()
@@ -372,7 +384,11 @@ class MainActivity : AppCompatActivity() {
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
             }
-            SonariqTheme(darkTheme = darkTheme, accent = accent) {
+            SonariqTheme(
+                darkTheme = darkTheme,
+                accent = accent,
+                dynamicAccentArgb = dynamicAccentArgb,
+            ) {
                 // The glass surfaces sample this layer, and a layer records only
                 // what is drawn into it — which, for Sonariq, is a page that
                 // paints no background of its own. Everywhere a page is not
@@ -412,6 +428,8 @@ class MainActivity : AppCompatActivity() {
                         windowWidth = maxWidth,
                         windowHeight = maxHeight,
                         appBackdrop = appBackdrop,
+                        controller = controller,
+                        player = player,
                     )
                 }
                 }
@@ -471,6 +489,10 @@ private fun SonariqApp(
      */
     windowHeight: Dp,
     appBackdrop: LayerBackdrop,
+    /** Media session binding, hoisted so the theme can read the playing track. */
+    controller: MediaController?,
+    /** Playback snapshot driven by [controller]. */
+    player: PlayerState,
     viewModel: MainViewModel = viewModel(),
 ) {
     val context = LocalContext.current
@@ -892,8 +914,9 @@ private fun SonariqApp(
             viewModel.reloadLocalDetail(com.music.sonariq.data.smb.SmbConfig.BROWSE_ID)
         }
     }
-    val controller = rememberMediaController()
-    val player = rememberPlayerState(controller)
+    // Hoisted into the activity's setContent — the theme reads the playing
+    // track's artwork above SonariqApp, so `controller` and `player` arrive
+    // as parameters now.
     // A resume in a party is performed on the instant the server schedules, not
     // when it was pressed, and nothing about the player moves in between — so
     // the transport spends that round trip drawn as though the tap never landed.

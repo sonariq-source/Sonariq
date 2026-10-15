@@ -116,14 +116,50 @@ private val SonariqTypography = Typography(
 fun SonariqTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     accent: AccentColor = AccentColor.LIME,
+    /**
+     * Artwork-driven accent override for the dynamic theme. When non-null it
+     * replaces [accent]'s primary in both modes — darkened for light mode so
+     * white on-primary text keeps its contrast. Null means [accent] as usual.
+     */
+    dynamicAccentArgb: Int? = null,
     content: @Composable () -> Unit,
 ) {
     val scheme = if (darkTheme) {
-        DarkColors.copy(primary = Color(accent.darkArgb), onPrimary = Color(0xFF14110A))
+        val primary = dynamicAccentArgb?.let { Color(accentForDark(it)) }
+            ?: Color(accent.darkArgb)
+        DarkColors.copy(primary = primary, onPrimary = Color(0xFF14110A))
     } else {
-        LightColors.copy(primary = Color(accent.lightArgb), onPrimary = Color.White)
+        val primary = dynamicAccentArgb?.let { Color(accentForLight(it)) }
+            ?: Color(accent.lightArgb)
+        LightColors.copy(primary = primary, onPrimary = Color.White)
     }
     MaterialTheme(colorScheme = scheme, typography = SonariqTypography, shapes = SonariqShapes, content = content)
+}
+
+/**
+ * Keeps an extracted artwork color legible as the dark-mode primary: vivid
+ * enough to read against near-black on-primary text, never so dark it sinks
+ * into the midnight surfaces.
+ */
+private fun accentForDark(argb: Int): Int {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(argb, hsv)
+    hsv[1] = hsv[1].coerceAtLeast(0.35f)
+    hsv[2] = hsv[2].coerceIn(0.45f, 1f)
+    return android.graphics.Color.HSVToColor(argb ushr 24, hsv)
+}
+
+/**
+ * The light scheme's primary carries white on-primary text, so the artwork
+ * color is darkened into the same readable band the fixed light accents live
+ * in rather than being used raw.
+ */
+private fun accentForLight(argb: Int): Int {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(argb, hsv)
+    hsv[1] = hsv[1].coerceAtLeast(0.5f)
+    hsv[2] = (hsv[2] * 0.62f).coerceIn(0.3f, 0.75f)
+    return android.graphics.Color.HSVToColor(argb ushr 24, hsv)
 }
 
 /**

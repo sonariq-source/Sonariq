@@ -1286,6 +1286,8 @@
     <string name="spotify_track_unavailable">O şarkı YouTube Music’de bulunamadı</string>
     <string name="accent_color">Accent color</string>
     <string name="accent_color_subtitle">The highlight color used across the app</string>
+    <string name="dynamic_theme">Dynamic theme</string>
+    <string name="dynamic_theme_subtitle">Match the accent color to the current song artwork</string>
     <string name="auto_generated">Auto-generated</string>
     <string name="clear_listening_history">Clear listening history</string>
     <string name="clear_listening_history_subtitle">Deletes your Replay stats and smart playlists from this device</string>

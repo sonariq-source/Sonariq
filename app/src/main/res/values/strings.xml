@@ -367,6 +367,8 @@
     <string name="accent_yellow">Sulfur</string>
     <string name="accent_color">Accent color</string>
     <string name="accent_color_subtitle">The highlight color used across the app</string>
+    <string name="dynamic_theme">Dynamic theme</string>
+    <string name="dynamic_theme_subtitle">Match the accent color to the current song artwork</string>
     <string name="reduce_animation">Reduce animation</string>
     <string name="reduce_animation_subtitle">Freezes the main player\'s gradient instead of drifting</string>
     <string name="reduce_dynamic_blur">Reduce dynamic blur</string>

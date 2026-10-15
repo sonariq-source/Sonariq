@@ -243,6 +243,7 @@ fun SettingsScreen(
     val translationLanguage by AppSettings.translationLanguage.collectAsStateWithLifecycle()
     val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
     val accent by AppSettings.accentColor.collectAsStateWithLifecycle()
+    val dynamicTheme by AppSettings.dynamicTheme.collectAsStateWithLifecycle()
     val sessionId by AppSettings.audioSessionId.collectAsStateWithLifecycle()
     val outputPcmMode by AppSettings.outputPcmMode.collectAsStateWithLifecycle()
     val preferUsbDac by AppSettings.preferUsbDac.collectAsStateWithLifecycle()
@@ -969,6 +970,25 @@ fun SettingsScreen(
                         ThemeMode.DARK -> true
                     },
                     modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
+                )
+            }
+            val dynamicThemeTitle = stringResource(R.string.dynamic_theme)
+            row(dynamicThemeTitle, "dynamic", "artwork", "adaptive") {
+                SettingsRow(
+                    icon = Icons.Rounded.Gradient,
+                    title = dynamicThemeTitle,
+                    subtitle = stringResource(R.string.dynamic_theme_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = dynamicTheme,
+                            onCheckedChange = AppSettings::setDynamicTheme,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setDynamicTheme(!dynamicTheme) },
                 )
             }
             val reduceAnimationTitle = stringResource(R.string.reduce_animation)
