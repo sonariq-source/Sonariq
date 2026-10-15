@@ -300,6 +300,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Completed hits are retained for the playing track so choosing one is instant. */
     private val lyricsProviderResults = ConcurrentHashMap<LyricsSource, LyricsRepository.Result>()
 
+    /** A first line stamped inside this is treated as a defaulted timestamp. */
+    private val FIRST_LINE_SUSPICIOUS_MS = 2000L
+
+    /** How much later another provider's stamp must be to overrule. */
+    private val FIRST_LINE_MIN_GAP_MS = 5000L
+
     private data class LyricsRequest(
         val videoId: String,
         val title: String,
@@ -403,10 +409,44 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 },
                 onSourceCancelled = { source -> providerCancelled(generation, source) },
             )
-            _lyrics.value = found?.lines
-            _lyricsSource.value = found?.source
+            val validated = validatedLyrics(found)
+            _lyrics.value = validated?.lines
+            _lyricsSource.value = validated?.source
             _lyricsChecked.value = true
         }
+    }
+
+    /**
+     * Cross-validates the winning lyrics against the other providers' results.
+     *
+     * A first sung line stamped in the opening two seconds is suspicious —
+     * real tracks open with at least a breath of intro, and a 0:00 stamp is
+     * the classic sign of a provider that defaulted the timestamp. When
+     * another provider has the same opening line stamped clearly later, its
+     * timing is the trustworthy one and it wins instead. This is what keeps
+     * the highlight from jumping the gun on songs with instrumental intros.
+     */
+    private fun validatedLyrics(
+        winner: LyricsRepository.Result?,
+    ): LyricsRepository.Result? {
+        winner ?: return null
+        val firstSung = winner.lines.firstOrNull { it.text.isNotBlank() } ?: return winner
+        if (firstSung.timeMs >= FIRST_LINE_SUSPICIOUS_MS) return winner
+        val firstText = firstSung.text.trim().lowercase()
+        var best: LyricsRepository.Result? = null
+        var bestTime = firstSung.timeMs
+        for ((source, result) in lyricsProviderResults) {
+            if (result.source == winner.source) continue
+            val otherFirst = result.lines.firstOrNull { it.text.isNotBlank() } ?: continue
+            if (otherFirst.text.trim().lowercase() != firstText) continue
+            if (otherFirst.timeMs > bestTime + FIRST_LINE_MIN_GAP_MS &&
+                otherFirst.timeMs > bestTime
+            ) {
+                best = result
+                bestTime = otherFirst.timeMs
+            }
+        }
+        return best ?: winner
     }
 
     private fun providerStarted(generation: Long, source: LyricsSource) {
