@@ -1,6 +1,5 @@
 package com.music.sonariq.ui.screens
 
-import android.content.Intent
 import android.text.format.DateFormat
 import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
@@ -89,7 +88,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.music.sonariq.R
-import com.music.sonariq.data.listentogether.JamInviteLink
 import com.music.sonariq.data.listentogether.ListenTogether
 import com.music.sonariq.data.listentogether.PartyActivity
 import com.music.sonariq.data.listentogether.PartyMember
@@ -186,34 +184,6 @@ fun ListenTogetherScreen(
         // and being interrupted by a drawer nobody asked for is worse than not
         // being offered the link.
         if (sheet == null) sheet = PartySheet.Invite
-    }
-
-    /** The invite URL for a code, pointing at whichever server holds the party. */
-    val inviteLinkFor: (String) -> String = { partyCode ->
-        val host = ListenTogether.activePartyServerBase()
-        if (host == null || host == ListenTogether.defaultServer) {
-            JamInviteLink.url(partyCode, null)
-        } else {
-            JamInviteLink.url(partyCode, host)
-        }
-    }
-
-    /** The system chooser, with the link and the spoken-aloud code together. */
-    val shareInvite: () -> Unit = {
-        state.code?.let { partyCode ->
-            val message = inviteLinkFor(partyCode) +
-                System.lineSeparator() + System.lineSeparator() +
-                context.getString(R.string.listen_together_share_text, partyCode)
-            context.startActivity(
-                Intent.createChooser(
-                    Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, message)
-                    },
-                    null,
-                ),
-            )
-        }
     }
 
     /**
@@ -453,11 +423,6 @@ fun ListenTogetherScreen(
 
                 PartySheet.Invite -> InviteSheet(
                     code = state.code.orEmpty(),
-                    link = inviteLinkFor(state.code.orEmpty()),
-                    onShareLink = {
-                        sheet = null
-                        shareInvite()
-                    },
                     onCopyCode = {
                         clipboard.setText(AnnotatedString(state.code.orEmpty()))
                         Toast.makeText(
@@ -515,7 +480,6 @@ fun ListenTogetherScreen(
                 state = state,
                 onCopy = { clipboard.setText(AnnotatedString(state.code.orEmpty())) },
                 onShare = { sheet = PartySheet.Invite },
-                onShareLink = shareInvite,
                 onLeave = { scope.launch { ListenTogether.leaveParty() } },
                 onSetCapacity = ListenTogether::setMaxMembers,
                 onSetHostOnlyControl = ListenTogether::setHostOnlyControl,
@@ -842,7 +806,6 @@ private fun InAParty(
     state: ListenTogether.State,
     onCopy: () -> Unit,
     onShare: () -> Unit,
-    onShareLink: () -> Unit,
     onLeave: () -> Unit,
     onSetCapacity: (Int) -> Unit,
     onSetHostOnlyControl: (Boolean) -> Unit,
