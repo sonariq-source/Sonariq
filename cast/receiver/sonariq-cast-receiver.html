@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<!--
+  Sonariq Cast Receiver — synced lyrics for TV.
+
+  Host this file as a static page (any HTTPS host), then register it in the
+  Google Cast SDK Developer Console to get an Application ID. Paste that ID
+  into Sonariq's Settings > Advanced > Cast receiver app ID, restart the app,
+  and lyrics appear on the TV while casting.
+
+  Protocol (namespace urn:x-cast:com.sonariq.lyrics):
+    {"type":"lyrics","id":"<mediaId>","ti":"title","ar":"artist","im":"artworkUrl",
+     "lines":[{"t":1000,"x":"hello world","w":[{"s":1000,"e":1500,"x":"hello"}],"u":4000,"e":false}]}
+    {"type":"clear","id":"<mediaId>"}
+
+  Sync comes from the receiver's own media clock (playerManager.getCurrentTimeSec),
+  so karaoke stays sample-accurate with no position messages from the phone.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sonariq</title>
+<script src="//www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+<style>
+  :root {
+    --bg0: #0b0714;
+    --bg1: #17102a;
+    --coral: #ff6f61;
+    --orchid: #c77dff;
+    --cyan: #7de8ff;
+    --ink: #f5efff;
+    --ink-dim: rgba(245, 239, 255, 0.42);
+    --ink-faint: rgba(245, 239, 255, 0.22);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: radial-gradient(120% 90% at 50% 0%, var(--bg1) 0%, var(--bg0) 60%) fixed, var(--bg0);
+    color: var(--ink);
+    font-family: "Google Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+  }
+  body::before {
+    /* soft aurora wash, slow drift */
+    content: "";
+    position: fixed; inset: -20%;
+    background:
+      radial-gradient(40% 32% at 22% 18%, rgba(199, 125, 255, 0.16), transparent 70%),
+      radial-gradient(36% 30% at 80% 24%, rgba(255, 111, 97, 0.12), transparent 70%),
+      radial-gradient(42% 34% at 55% 90%, rgba(125, 232, 255, 0.10), transparent 70%);
+    animation: drift 26s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+  @keyframes drift {
+    from { transform: translate3d(-2%, -1%, 0) scale(1); }
+    to   { transform: translate3d(2%, 2%, 0) scale(1.06); }
+  }
+  #stage {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 6vh 8vw;
+    z-index: 1;
+  }
+  #brand {
+    position: absolute;
+    top: 4vh; left: 5vw;
+    font-size: 2.2vh;
+    letter-spacing: 0.42em;
+    font-weight: 600;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+  }
+  #brand b { color: var(--coral); font-weight: 700; }
+  #track {
+    text-align: center;
+    margin-bottom: 4vh;
+    max-width: 80vw;
+  }
+  #artwork {
+    width: 15vh; height: 15vh;
+    border-radius: 2.4vh;
+    object-fit: cover;
+    box-shadow: 0 1.5vh 5vh rgba(0, 0, 0, 0.55), 0 0 4vh rgba(199, 125, 255, 0.22);
+    margin-bottom: 2.4vh;
+    display: none;
+  }
+  #title {
+    font-size: 3.4vh;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #artist {
+    font-size: 2.3vh;
+    color: var(--ink-dim);
+    margin-top: 0.8vh;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #lyrics {
+    width: 100%;
+    max-width: 1100px;
+    text-align: center;
+    transition: opacity 0.6s ease;
+  }
+  .line {
+    font-weight: 600;
+    color: var(--ink-faint);
+    line-height: 1.5;
+    padding: 0.55vh 0;
+    font-size: 2.5vh;
+    transition: color 0.35s ease, font-size 0.35s ease, opacity 0.35s ease;
+    white-space: pre-wrap;
+  }
+  .line.past { color: var(--ink-dim); }
+  .line.current {
+    color: var(--ink);
+    font-size: 4.6vh;
+    font-weight: 800;
+    text-shadow: 0 0 3.2vh rgba(255, 111, 97, 0.35);
+  }
+  .line .w { transition: color 0.12s linear; }
+  .line.current .w.sung { color: var(--coral); }
+  .line.current .w.singing {
+    color: #fff;
+    text-shadow: 0 0 2.2vh rgba(255, 111, 97, 0.85), 0 0 0.6vh rgba(255, 255, 255, 0.6);
+  }
+  .line .bgv { display: block; font-size: 0.62em; color: var(--ink-dim); font-weight: 500; }
+  #hint {
+    position: absolute;
+    bottom: 4vh;
+    font-size: 1.9vh;
+    color: var(--ink-faint);
+    letter-spacing: 0.08em;
+  }
+  #idle {
+    text-align: center;
+    color: var(--ink-dim);
+  }
+  #idle .logo {
+    font-size: 7vh;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    margin-bottom: 2vh;
+  }
+  #idle .logo b { color: var(--coral); }
+  #idle p { font-size: 2.4vh; }
+  .hidden { display: none !important; }
+  cast-media-player { display: none; }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <div id="brand"><b>S</b>onariq</div>
+    <div id="idle">
+      <div class="logo"><b>S</b>ONARIQ</div>
+      <p>Ready to cast — pick a song on your phone.</p>
+    </div>
+    <div id="track" class="hidden">
+      <img id="artwork" alt="">
+      <div id="title"></div>
+      <div id="artist"></div>
+    </div>
+    <div id="lyrics" class="hidden"></div>
+    <div id="hint" class="hidden">Lyrics on TV · from Sonariq</div>
+  </div>
+  <cast-media-player></cast-media-player>
+<script>
+(function () {
+  "use strict";
+  var NAMESPACE = "urn:x-cast:com.sonariq.lyrics";
+  var VISIBLE_LINES = 7; // odd: current line sits in the middle
+
+  var context = cast.framework.CastReceiverContext.getInstance();
+  var playerManager = context.getPlayerManager();
+
+  var state = {
+    mediaId: null,
+    title: "",
+    artist: "",
+    lines: [],       // [{t, x, w:[{s,e,x}], u, e}]
+    lineEls: [],
+    currentIndex: -1,
+  };
+
+  var idleEl = document.getElementById("idle");
+  var trackEl = document.getElementById("track");
+  var artworkEl = document.getElementById("artwork");
+  var titleEl = document.getElementById("title");
+  var artistEl = document.getElementById("artist");
+  var lyricsEl = document.getElementById("lyrics");
+  var hintEl = document.getElementById("hint");
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function showIdle() {
+    idleEl.classList.remove("hidden");
+    trackEl.classList.add("hidden");
+    lyricsEl.classList.add("hidden");
+    hintEl.classList.add("hidden");
+  }
+
+  function showTrack() {
+    idleEl.classList.add("hidden");
+    trackEl.classList.remove("hidden");
+    hintEl.classList.remove("hidden");
+  }
+
+  // --- lyrics payload -------------------------------------------------------
+  function setLyrics(msg) {
+    state.mediaId = msg.id || null;
+    state.title = msg.ti || "";
+    state.artist = msg.ar || "";
+    state.lines = Array.isArray(msg.lines) ? msg.lines : [];
+    state.currentIndex = -1;
+
+    titleEl.textContent = state.title;
+    artistEl.textContent = state.artist;
+    if (msg.im) {
+      artworkEl.src = msg.im;
+      artworkEl.style.display = "block";
+    } else {
+      artworkEl.removeAttribute("src");
+      artworkEl.style.display = "none";
+    }
+
+    lyricsEl.innerHTML = "";
+    state.lineEls = state.lines.map(function (line) {
+      var div = document.createElement("div");
+      div.className = "line";
+      if (line.w && line.w.length) {
+        div.innerHTML = line.w.map(function (w) {
+          return '<span class="w">' + esc(w.x) + "</span>";
+        }).join(" ");
+      } else {
+        div.textContent = line.x || "";
+      }
+      lyricsEl.appendChild(div);
+      return div;
+    });
+
+    showTrack();
+    lyricsEl.classList.toggle("hidden", state.lines.length === 0);
+    render(-1); // paint initial state
+  }
+
+  function clearLyrics(mediaId) {
+    if (mediaId && state.mediaId && mediaId !== state.mediaId) return;
+    state.mediaId = mediaId || null;
+    state.lines = [];
+    state.lineEls = [];
+    state.currentIndex = -1;
+    lyricsEl.innerHTML = "";
+    lyricsEl.classList.add("hidden");
+    showTrack();
+  }
+
+  context.addCustomMessageListener(NAMESPACE, function (event) {
+    var msg = event.data;
+    if (!msg || typeof msg !== "object") return;
+    if (msg.type === "lyrics") setLyrics(msg);
+    else if (msg.type === "clear") clearLyrics(msg.id);
+  });
+
+  // Fall back to the media metadata when the sender never sent lyrics
+  // (stock behavior for tracks the phone could not fetch lyrics for).
+  playerManager.addEventListener(
+    cast.framework.events.EventType.MEDIA_STATUS,
+    function (event) {
+      var info = playerManager.getMediaInformation();
+      if (!info) return;
+      var md = info.metadata || {};
+      var changed = (md.title && md.title !== state.title) || (md.artist && md.artist !== state.artist);
+      if (changed && state.lines.length === 0) {
+        state.title = md.title || "";
+        state.artist = md.artist || "";
+        titleEl.textContent = state.title;
+        artistEl.textContent = state.artist;
+        var art = (info.metadata && info.metadata.images && info.metadata.images[0] && info.metadata.images[0].url) || "";
+        if (art) { artworkEl.src = art; artworkEl.style.display = "block"; }
+        showTrack();
+      }
+    }
+  );
+
+  // --- karaoke render loop --------------------------------------------------
+  // Driven by the receiver's own media clock: the position being read is the
+  // one playing the audio, so sync is exact with no phone round-trips.
+  function positionMs() {
+    try {
+      var sec = playerManager.getCurrentTimeSec();
+      return sec > 0 ? Math.round(sec * 1000) : 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  function lineIndexAt(pos) {
+    var idx = -1;
+    for (var i = 0; i < state.lines.length; i++) {
+      if (state.lines[i].t <= pos) idx = i;
+      else break;
+    }
+    return idx;
+  }
+
+  function render(pos) {
+    var lines = state.lines;
+    if (!lines.length) return;
+    var idx = pos < 0 ? -1 : lineIndexAt(pos);
+    if (idx === state.currentIndex && pos >= 0) {
+      paintWords(idx, pos);
+      return;
+    }
+    state.currentIndex = idx;
+
+    // Window the visible lines around the current one.
+    var half = Math.floor(VISIBLE_LINES / 2);
+    var from = Math.max(0, idx - half);
+    var to = Math.min(lines.length, from + VISIBLE_LINES);
+    from = Math.max(0, to - VISIBLE_LINES);
+    for (var i = 0; i < state.lineEls.length; i++) {
+      var el = state.lineEls[i];
+      var visible = i >= from && i < to;
+      el.style.display = visible ? "" : "none";
+      el.classList.toggle("current", i === idx);
+      el.classList.toggle("past", i < idx);
+      if (i !== idx) {
+        var spans = el.querySelectorAll(".w.sung, .w.singing");
+        for (var s = 0; s < spans.length; s++) spans[s].classList.remove("sung", "singing");
+      }
+    }
+    if (pos >= 0) paintWords(idx, pos);
+  }
+
+  function paintWords(idx, pos) {
+    if (idx < 0 || idx >= state.lines.length) return;
+    var line = state.lines[idx];
+    var words = line.w;
+    var el = state.lineEls[idx];
+    if (!words || !words.length || !el) return;
+    var spans = el.children;
+    for (var i = 0; i < words.length && i < spans.length; i++) {
+      var w = words[i];
+      var span = spans[i];
+      if (pos >= w.e) {
+        span.classList.add("sung");
+        span.classList.remove("singing");
+      } else if (pos >= w.s) {
+        span.classList.add("singing");
+        span.classList.remove("sung");
+      } else {
+        span.classList.remove("sung", "singing");
+      }
+    }
+  }
+
+  var lastPaintedSecond = -1;
+  function tick() {
+    if (state.lines.length) {
+      var pos = positionMs();
+      // Line changes are cheap to check every frame; word painting is too.
+      render(pos);
+      lastPaintedSecond = Math.floor(pos / 1000);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // Keep the idle screen until the first media loads.
+  playerManager.addEventListener(cast.framework.events.EventType.LOAD, function () {
+    if (!state.title) showIdle();
+  });
+
+  context.start();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

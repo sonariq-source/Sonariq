@@ -1,0 +1,120 @@
+name: Sonariq Debug APK
+
+# Sonariq fork: builds a debuggable APK of the fork on every push to the
+# sonariq branch (and on demand). Release signing happens separately with
+# the fork's own keystore, not in this workflow.
+on:
+  push:
+    branches: [sonariq]
+  workflow_dispatch:
+
+jobs:
+  build-debug:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: gradle
+
+    # The ubuntu runner already ships an Android SDK (ANDROID_HOME is set).
+    # android-actions/setup-android is deliberately NOT used: it tries to
+    # install the long-removed 'tools' package and fails on current images.
+    # compileSdk is 37 and the native build pins CMake 3.22.1; install them
+    # explicitly against the preinstalled SDK.
+    - name: Install SDK packages
+      run: |
+        ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+        SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+        if [ ! -x "$SDKMANAGER" ]; then
+          SDKMANAGER="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)"
+        fi
+        yes | "$SDKMANAGER" --licenses > /dev/null
+        "$SDKMANAGER" "platforms;android-37" "cmake;3.22.1" \
+          || "$SDKMANAGER" "platforms;android-37.2" "cmake;3.22.1"
+        # AGP defaults to NDK 27.0.12077973 and auto-installs it while
+        # configuring :app; its downloader intermittently fetches a corrupt
+        # archive ("Archive is not a ZIP archive") and fails the job. Install
+        # it explicitly here with retries so Gradle finds it already present.
+        for i in 1 2 3; do
+          "$SDKMANAGER" "ndk;27.0.12077973" && break
+          echo "NDK install attempt $i failed, retrying in 10s..." >&2
+          sleep 10
+        done
+        test -d "$ANDROID_HOME/ndk/27.0.12077973"
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Build Prod Debug APK
+      run: ./gradlew :app:assembleProdDebug
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: sonariq-debug-apk
+        path: app/build/outputs/apk/prod/debug/*.apk
+
+  # Phase 1: run every unit test suite without building the APK.
+  # :app:testProdDebugUnitTest covers app/src/test (prod flavor + debug build
+  # type — the same variant the build job assembles). :shared:jvmTest and
+  # :sharedUi:jvmTest cover shared/src/commonTest + shared/src/jvmTest and
+  # sharedUi/src/jvmTest respectively.
+  unit-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: gradle
+
+    # The ubuntu runner already ships an Android SDK (ANDROID_HOME is set).
+    # android-actions/setup-android is deliberately NOT used: it tries to
+    # install the long-removed 'tools' package and fails on current images.
+    # compileSdk is 37 and the native build pins CMake 3.22.1; install them
+    # explicitly against the preinstalled SDK.
+    - name: Install SDK packages
+      run: |
+        ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+        SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+        if [ ! -x "$SDKMANAGER" ]; then
+          SDKMANAGER="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)"
+        fi
+        yes | "$SDKMANAGER" --licenses > /dev/null
+        "$SDKMANAGER" "platforms;android-37" "cmake;3.22.1" \
+          || "$SDKMANAGER" "platforms;android-37.2" "cmake;3.22.1"
+        # AGP defaults to NDK 27.0.12077973 and auto-installs it while
+        # configuring :app; its downloader intermittently fetches a corrupt
+        # archive ("Archive is not a ZIP archive") and fails the job. Install
+        # it explicitly here with retries so Gradle finds it already present.
+        for i in 1 2 3; do
+          "$SDKMANAGER" "ndk;27.0.12077973" && break
+          echo "NDK install attempt $i failed, retrying in 10s..." >&2
+          sleep 10
+        done
+        test -d "$ANDROID_HOME/ndk/27.0.12077973"
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Run unit tests
+      run: ./gradlew :app:testProdDebugUnitTest :shared:jvmTest :sharedUi:jvmTest
+
+    - name: Upload test reports
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: unit-test-reports
+        path: '**/build/reports/tests/'
