@@ -732,6 +732,8 @@
     <string name="listen_together_not_now">Nanti saja</string>
     <string name="listen_together_preview_footer">Orang di pesta akan melihat nama dan foto profilmu.</string>
     <string name="listen_together_invite_title">Ajak teman ke pestamu</string>
+    <string name="listen_together_code_subtitle">Share this code with your friends so they can join your party.</string>
+    <string name="listen_together_tap_to_copy">Tap the code to copy it</string>
     <string name="listen_together_share_link">Bagikan link</string>
     <string name="listen_together_scan_qr">Pindai kode QR</string>
     <string name="listen_together_scan_qr_subtitle">Biarkan teman memindai ini untuk ikut.</string>

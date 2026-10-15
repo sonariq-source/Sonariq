@@ -753,6 +753,8 @@
     <string name="listen_together_not_now">Pas maintenant</string>
     <string name="listen_together_preview_footer">Les membres de la session verront ton nom et ta photo de profil.</string>
     <string name="listen_together_invite_title">Invite des amis à ta session</string>
+    <string name="listen_together_code_subtitle">Share this code with your friends so they can join your party.</string>
+    <string name="listen_together_tap_to_copy">Tap the code to copy it</string>
     <string name="listen_together_share_link">Partager le lien</string>
     <string name="listen_together_scan_qr">Scanner le code QR</string>
     <string name="listen_together_scan_qr_subtitle">Tes amis peuvent le scanner pour rejoindre.</string>

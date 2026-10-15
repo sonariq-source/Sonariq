@@ -788,6 +788,8 @@
     <string name="listen_together_not_now">Nie teraz</string>
     <string name="listen_together_preview_footer">Uczestnicy imprezy zobaczą twoje imię i zdjęcie profilowe.</string>
     <string name="listen_together_invite_title">Zaproś znajomych na imprezę</string>
+    <string name="listen_together_code_subtitle">Share this code with your friends so they can join your party.</string>
+    <string name="listen_together_tap_to_copy">Tap the code to copy it</string>
     <string name="listen_together_share_link">Udostępnij link</string>
     <string name="listen_together_scan_qr">Zeskanuj kod QR</string>
     <string name="listen_together_scan_qr_subtitle">Znajomi mogą go zeskanować, by dołączyć.</string>
