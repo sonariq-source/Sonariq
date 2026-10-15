@@ -2616,8 +2616,12 @@ private fun SonariqApp(
                                     dampingRatio = Spring.DampingRatioMediumBouncy,
                                     stiffness = Spring.StiffnessMedium,
                                 )
+                                val scaleSpring = spring<Float>(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMedium,
+                                )
                                 (slideInHorizontally(animationSpec = spring) { dir * it / 5 } +
-                                    fadeIn(tween(280)) + scaleIn(spring, initialScale = 0.94f)) togetherWith
+                                    fadeIn(tween(280)) + scaleIn(scaleSpring, initialScale = 0.94f)) togetherWith
                                     (slideOutHorizontally(animationSpec = spring) { -dir * it / 6 } +
                                         fadeOut(tween(220)) + scaleOut(tween(240), targetScale = 0.97f))
                             }
