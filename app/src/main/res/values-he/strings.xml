@@ -1392,6 +1392,12 @@
     <string name="search_source_youtube" translatable="false">YouTube</string>
     <string name="cast_tv_lyrics">TV lyrics</string>    <string name="cast_tv_lyrics_subtitle">Show synced lyrics on the TV while casting (needs a custom receiver)</string>    <string name="cast_receiver_app_id">Cast receiver app ID</string>    <string name="cast_receiver_app_id_subtitle_empty">Not set — audio-only casting</string>    <string name="cast_receiver_app_id_label">Application ID</string>    <string name="cast_receiver_app_id_hint">Register the Sonariq TV receiver in the Cast Developer Console, then paste its Application ID here. Takes effect after an app restart.</string>
     <string name="app_updates">App updates</string>
+    <string name="mood_stations">Mood stations</string>
+    <string name="mood_chill">Chill</string>
+    <string name="mood_party">Party</string>
+    <string name="mood_focus">Focus</string>
+    <string name="mood_workout">Workout</string>
+    <string name="mood_building">Building your station…</string>
     <string name="karaoke">Karaoke</string>
     <string name="karaoke_scoring">Karaoke scoring</string>
     <string name="karaoke_scoring_subtitle">Score your singing with the microphone</string>

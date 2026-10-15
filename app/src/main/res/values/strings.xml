@@ -159,6 +159,12 @@
     <string name="update_available">Update available: v%1$s</string>
     <string name="software_update">Software Update</string>
     <string name="app_updates">App updates</string>
+    <string name="mood_stations">Mood stations</string>
+    <string name="mood_chill">Chill</string>
+    <string name="mood_party">Party</string>
+    <string name="mood_focus">Focus</string>
+    <string name="mood_workout">Workout</string>
+    <string name="mood_building">Building your station…</string>
     <string name="karaoke">Karaoke</string>
     <string name="karaoke_scoring">Karaoke scoring</string>
     <string name="karaoke_scoring_subtitle">Score your singing with the microphone</string>

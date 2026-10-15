@@ -201,6 +201,8 @@ import com.music.sonariq.playback.commitRadioQueue
 import com.music.sonariq.playback.fromAutoplay
 import com.music.sonariq.playback.hasYouTubeOriginal
 import com.music.sonariq.playback.loadAutoplayTracks
+import com.music.sonariq.data.mood.Mood
+import com.music.sonariq.data.mood.MoodStations
 import com.music.sonariq.playback.playSongs
 import com.music.sonariq.playback.toMediaItem
 import com.music.sonariq.playback.toSong
@@ -300,6 +302,7 @@ import com.music.sonariq.ui.screens.DetailScreen
 import com.music.sonariq.ui.screens.ExploreScreen
 import com.music.sonariq.ui.screens.LocalMusicScreen
 import com.music.sonariq.ui.screens.HomeScreen
+import com.music.sonariq.ui.screens.MoodStationsRow
 import com.music.sonariq.ui.screens.LibraryGridPage
 import com.music.sonariq.ui.screens.LibraryScreen
 import com.music.sonariq.ui.screens.MoodGenrePlaylistsScreen
@@ -1395,6 +1398,42 @@ private fun SonariqApp(
         }
         if (player.song?.videoId == song.videoId) {
             hasAlternateVersion = exists
+        }
+    }
+
+    /** The mood chip currently building its station, or null when idle. */
+    var buildingMood by remember { mutableStateOf<Mood?>(null) }
+
+    /**
+     * A mood chip on Home starts a ~25-track station built from the listener's
+     * own history (falling back to a real keyword search when history is thin),
+     * then plays it outright — no menu, no intermediate screen.
+     */
+    val playMoodStation: (Mood) -> Unit = { mood ->
+        val originalController = controller
+        if (originalController != null && !refusedByHost() && buildingMood == null) {
+            scope.launch {
+                buildingMood = mood
+                val station = withContext(Dispatchers.IO) {
+                    runCatching { MoodStations.buildStation(context, mood) }.getOrDefault(emptyList())
+                }
+                buildingMood = null
+                val activeController = controller
+                when {
+                    activeController == null -> Unit
+                    station.isEmpty() -> Toast.makeText(
+                        context, R.string.couldnt_load_tracks, Toast.LENGTH_SHORT,
+                    ).show()
+                    else -> {
+                        activeController.playSongs(station, 0)
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.radio_started, context.getString(mood.labelRes)),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                }
+            }
         }
     }
 
@@ -3109,6 +3148,14 @@ private fun SonariqApp(
                             onLoadMore = viewModel::loadMoreHome,
                             loadingMore = homeLoadingMore,
                             recentlyPlayedLoading = homeRecentlyPlayedLoading,
+                            moodRow = {
+                                item {
+                                    MoodStationsRow(
+                                        buildingMood = buildingMood,
+                                        onMoodClick = playMoodStation,
+                                    )
+                                }
+                            },
                         )
                         TAB_EXPLORE -> selectedMoodGenre?.let { category ->
                             MoodGenrePlaylistsScreen(
