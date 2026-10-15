@@ -817,6 +817,8 @@
     <string name="listen_together_not_now">Non ora</string>
     <string name="listen_together_preview_footer">Le persone nel party vedranno il tuo nome e la tua foto profilo.</string>
     <string name="listen_together_invite_title">Invita amici al tuo party</string>
+    <string name="listen_together_code_subtitle">Share this code with your friends so they can join your party.</string>
+    <string name="listen_together_tap_to_copy">Tap the code to copy it</string>
     <string name="listen_together_share_link">Condividi link</string>
     <string name="listen_together_scan_qr">Scansiona codice QR</string>
     <string name="listen_together_scan_qr_subtitle">Fallo scansionare agli amici per entrare.</string>

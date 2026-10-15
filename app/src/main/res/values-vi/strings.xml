@@ -1102,6 +1102,8 @@
     <string name="listen_together_full">Bữa tiệc đã đầy</string>
     <string name="listen_together_invite">Mời</string>
     <string name="listen_together_invite_title">Mời bạn bè vào bữa tiệc</string>
+    <string name="listen_together_code_subtitle">Share this code with your friends so they can join your party.</string>
+    <string name="listen_together_tap_to_copy">Tap the code to copy it</string>
     <string name="listen_together_join_existing">Tham gia bữa tiệc có sẵn</string>
     <string name="listen_together_join_question">Tham gia bữa tiệc của %1$s?</string>
     <string name="listen_together_join_question_unnamed">Tham gia bữa tiệc này?</string>

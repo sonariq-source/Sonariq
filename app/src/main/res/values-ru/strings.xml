@@ -778,6 +778,8 @@
     <string name="listen_together_not_now">Не сейчас</string>
     <string name="listen_together_preview_footer">Участники вечеринки увидят ваше имя и фото профиля.</string>
     <string name="listen_together_invite_title">Пригласите друзей на вечеринку</string>
+    <string name="listen_together_code_subtitle">Share this code with your friends so they can join your party.</string>
+    <string name="listen_together_tap_to_copy">Tap the code to copy it</string>
     <string name="listen_together_share_link">Поделиться ссылкой</string>
     <string name="listen_together_scan_qr">Сканировать QR-код</string>
     <string name="listen_together_scan_qr_subtitle">Друзья могут отсканировать его, чтобы присоединиться.</string>

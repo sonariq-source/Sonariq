@@ -799,6 +799,8 @@
     <string name="listen_together_not_now">Şimdi değil</string>
     <string name="listen_together_preview_footer">Partidekiler adını ve profil fotoğrafını görecek.</string>
     <string name="listen_together_invite_title">Arkadaşlarını partine davet et</string>
+    <string name="listen_together_code_subtitle">Share this code with your friends so they can join your party.</string>
+    <string name="listen_together_tap_to_copy">Tap the code to copy it</string>
     <string name="listen_together_share_link">Bağlantıyı paylaş</string>
     <string name="listen_together_scan_qr">QR kodu tara</string>
     <string name="listen_together_scan_qr_subtitle">Arkadaşların katılmak için bunu tarasın.</string>

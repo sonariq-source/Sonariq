@@ -778,6 +778,8 @@
     <string name="listen_together_not_now">ไว้ทีหลัง</string>
     <string name="listen_together_preview_footer">คนในปาร์ตี้จะเห็นชื่อและรูปโปรไฟล์ของคุณ</string>
     <string name="listen_together_invite_title">ชวนเพื่อนมาปาร์ตี้ของคุณ</string>
+    <string name="listen_together_code_subtitle">Share this code with your friends so they can join your party.</string>
+    <string name="listen_together_tap_to_copy">Tap the code to copy it</string>
     <string name="listen_together_share_link">แชร์ลิงก์</string>
     <string name="listen_together_scan_qr">สแกนคิวอาร์โค้ด</string>
     <string name="listen_together_scan_qr_subtitle">ให้เพื่อนสแกนเพื่อเข้าร่วม</string>

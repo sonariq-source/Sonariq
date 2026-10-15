@@ -732,6 +732,8 @@
     <string name="listen_together_not_now">今はしない</string>
     <string name="listen_together_preview_footer">パーティーの参加者にあなたの名前とプロフィール写真が表示されます。</string>
     <string name="listen_together_invite_title">友だちをパーティーに招待</string>
+    <string name="listen_together_code_subtitle">Share this code with your friends so they can join your party.</string>
+    <string name="listen_together_tap_to_copy">Tap the code to copy it</string>
     <string name="listen_together_share_link">リンクを共有</string>
     <string name="listen_together_scan_qr">QRコードをスキャン</string>
     <string name="listen_together_scan_qr_subtitle">友だちにスキャンしてもらうと参加できます。</string>

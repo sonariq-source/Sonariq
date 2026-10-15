@@ -752,6 +752,8 @@
     <string name="listen_together_not_now">अभी नहीं</string>
     <string name="listen_together_preview_footer">पार्टी के लोग आपका नाम और प्रोफ़ाइल फ़ोटो देखेंगे।</string>
     <string name="listen_together_invite_title">दोस्तों को अपनी पार्टी में बुलाएँ</string>
+    <string name="listen_together_code_subtitle">Share this code with your friends so they can join your party.</string>
+    <string name="listen_together_tap_to_copy">Tap the code to copy it</string>
     <string name="listen_together_share_link">लिंक शेयर करें</string>
     <string name="listen_together_scan_qr">QR कोड स्कैन करें</string>
     <string name="listen_together_scan_qr_subtitle">शामिल होने के लिए दोस्त इसे स्कैन करें।</string>
