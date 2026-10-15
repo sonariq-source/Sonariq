@@ -1,5 +1,6 @@
 package com.music.sonariq.playback
 
+import android.content.Context
 import com.music.sonariq.data.YtMusicRepository
 import com.music.sonariq.data.listentogether.ListenTogether
 import com.music.sonariq.data.model.SearchFilter
@@ -95,15 +96,45 @@ suspend fun youtubeSeedFor(song: Song): String? {
  * Loads, de-duplicates and resolves one AutoPlay batch. The playback service is
  * the only caller for the AutoPlay toggle; the player UI's explicit radio start
  * uses this same helper for its initial station batch.
+ *
+ * When [context] is provided, SmartAutoplay predictions lead the queue: songs
+ * the user actually plays after [seedSong] come first, then YouTube's radio
+ * fills the rest. The predictor only leads when it has learned enough —
+ * otherwise radio runs the show as before.
  */
 suspend fun loadAutoplayTracks(
     existing: List<Song>,
     seedSong: Song,
     limit: Int = MAX_QUEUED_AUTOPLAY,
+    context: Context? = null,
 ): Result<List<Song>> {
     val seed = youtubeSeedFor(seedSong) ?: return Result.success(emptyList())
     val related = YtMusicRepository.radio(seed).getOrElse { return Result.failure(it) }
-    val extra = QueueBuilder.extend(existing, related, limit)
+
+    // Smart predictions first: resolve cached predictions to full songs.
+    val predicted: List<Song> = if (context != null) {
+        runCatching {
+            val confidence = SmartAutoplay.confidence(context, seedSong)
+            if (confidence >= 3) {
+                SmartAutoplay.predictNext(context, seedSong, limit = 3)
+                    .mapNotNull { cached ->
+                        // Resolve via search; skip if unresolvable.
+                        runCatching {
+                            YtMusicRepository.search(
+                                "${cached.title} ${cached.artist}",
+                                SearchFilter.SONGS,
+                            ).getOrNull()
+                                ?.filterIsInstance<SearchResult.Track>()
+                                ?.map { it.song }
+                                ?.firstOrNull { it.videoId == cached.videoId }
+                        }.getOrNull()
+                    }
+            } else emptyList()
+        }.getOrDefault(emptyList())
+    } else emptyList()
+
+    val combined = (predicted + related).distinctBy { it.videoId }
+    val extra = QueueBuilder.extend(existing, combined, limit)
     if (extra.isEmpty()) return Result.success(emptyList())
 
     return Result.success(extra.map {

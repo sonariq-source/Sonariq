@@ -1862,6 +1862,7 @@ class PlaybackService : MediaLibraryService() {
                 existing = listOf(radioSeed),
                 seedSong = radioSeed,
                 limit = INITIAL_STATION_TRACKS,
+                context = applicationContext,
             ).getOrElse {
                 TrackLog.w(
                     "Sonariq",
@@ -2450,7 +2451,7 @@ class PlaybackService : MediaLibraryService() {
                 } else {
                     queueSongs
                 }
-                val result = loadAutoplayTracks(existing, current, remaining)
+                val result = loadAutoplayTracks(existing, current, remaining, context = applicationContext)
                 val resolved = result.getOrElse {
                     TrackLog.w(
                         "Sonariq",
@@ -3032,6 +3033,22 @@ class PlaybackService : MediaLibraryService() {
         publishWidgetState()
         loadLyricsForCurrentTrack()
         if (exoPlayer.isPlaying) startLyricsTicker()
+
+        // Smart Autoplay learning: what played right after what. Only natural
+        // advances (song ended) teach the predictor — manual skips are taste,
+        // not sequence.
+        val currentSong = mediaItem?.toSong()
+        val previous = smartAutoplayPrevious
+        if (previousEnded && previous != null && currentSong != null &&
+            previous.videoId != currentSong.videoId
+        ) {
+            scope.launch {
+                runCatching {
+                    SmartAutoplay.recordTransition(applicationContext, previous, currentSong)
+                }
+            }
+        }
+        smartAutoplayPrevious = currentSong
     }
 
     /** The background hunt for a better copy of whatever is playing. */
@@ -3660,6 +3677,8 @@ class PlaybackService : MediaLibraryService() {
      * queue actually moving on. Cleared by the transition it describes.
      */
     private var swappingMediaId: String? = null
+    /** The last song that was current, for SmartAutoplay transition learning. */
+    private var smartAutoplayPrevious: Song? = null
 
     /**
      * When the audio was last cut for a quality swap, so the analytics listener
