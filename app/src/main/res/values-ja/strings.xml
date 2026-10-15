@@ -842,6 +842,9 @@
     <string name="lyrics_karaoke_effects">カラオケエフェクト</string>
 
     <string name="lyrics_karaoke_effects_subtitle">歌われている単語を一つずつハイライトします</string>
+    <string name="lockscreen_lyrics">Lock screen lyrics</string>
+
+    <string name="lockscreen_lyrics_subtitle">Show the current lyric line on the lock screen and in the notification</string>
 
     <string name="advanced_options">詳細設定</string>
 

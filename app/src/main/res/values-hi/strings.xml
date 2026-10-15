@@ -847,6 +847,9 @@
     <string name="lyrics_karaoke_effects">कराओके इफ़ेक्ट</string>
 
     <string name="lyrics_karaoke_effects_subtitle">गाए जाते समय शब्दों को एक-एक करके हाइलाइट करता है</string>
+    <string name="lockscreen_lyrics">Lock screen lyrics</string>
+
+    <string name="lockscreen_lyrics_subtitle">Show the current lyric line on the lock screen and in the notification</string>
 
     <string name="brand_account">ब्रांड खाता</string>
 

@@ -71,6 +71,7 @@ import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.LocalOffer
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MusicOff
 import androidx.compose.material.icons.rounded.MotionPhotosOff
@@ -236,6 +237,7 @@ fun SettingsScreen(
     val fullBleedArtwork by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
     val legacyMeshGradient by AppSettings.legacyMeshGradient.collectAsStateWithLifecycle()
     val syncedLyrics by AppSettings.syncedLyrics.collectAsStateWithLifecycle()
+    val lockscreenLyrics by AppSettings.lockscreenLyrics.collectAsStateWithLifecycle()
     val translationLanguage by AppSettings.translationLanguage.collectAsStateWithLifecycle()
     val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
     val accent by AppSettings.accentColor.collectAsStateWithLifecycle()
@@ -1237,6 +1239,25 @@ fun SettingsScreen(
                             )
                         },
                         onClick = { AppSettings.setLyricsKaraokeEffects(!lyricsKaraokeEffects) },
+                    )
+                }
+                val lockscreenLyricsTitle = stringResource(R.string.lockscreen_lyrics)
+                row(lockscreenLyricsTitle, "lyrics", "lock screen", "notification") {
+                    SettingsRow(
+                        icon = Icons.Rounded.Lock,
+                        title = lockscreenLyricsTitle,
+                        subtitle = stringResource(R.string.lockscreen_lyrics_subtitle),
+                        trailing = {
+                            Switch(
+                                checked = lockscreenLyrics,
+                                onCheckedChange = AppSettings::setLockscreenLyrics,
+                                colors = SwitchDefaults.colors(
+                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            )
+                        },
+                        onClick = { AppSettings.setLockscreenLyrics(!lockscreenLyrics) },
                     )
                 }
                 val translationLanguageTitle = stringResource(R.string.translation_language)

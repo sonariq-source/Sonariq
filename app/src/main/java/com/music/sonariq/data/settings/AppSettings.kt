@@ -589,6 +589,14 @@ object AppSettings {
      */
     val syncedLyrics = MutableStateFlow(true)
 
+    /**
+     * Shows the currently sung lyric line in the playback notification, so it
+     * follows the user to the lock screen. On by default — it is the kind of
+     * quiet delight that should just work. [PlaybackService][com.music.sonariq.playback.PlaybackService]
+     * refreshes the notification's content text whenever the line changes.
+     */
+    val lockscreenLyrics = MutableStateFlow(true)
+
     /** Check GitHub Releases for a newer Sonariq on launch. On by default. */
     val autoUpdateCheck = MutableStateFlow(true)
 
@@ -998,6 +1006,7 @@ object AppSettings {
             )
         }.getOrDefault(LastPlayerScreen.MAIN)
         syncedLyrics.value = prefs.getBoolean(KEY_SYNCED_LYRICS, true)
+        lockscreenLyrics.value = prefs.getBoolean(KEY_LOCKSCREEN_LYRICS, true)
         autoUpdateCheck.value = prefs.getBoolean(KEY_AUTO_UPDATE_CHECK, true)
         lyricsSources.value = readLyricsSources()
         lyricsSourceOrder.value = readLyricsSourceOrder()
@@ -1536,6 +1545,11 @@ object AppSettings {
     fun setSyncedLyrics(value: Boolean) {
         syncedLyrics.value = value
         prefs.edit().putBoolean(KEY_SYNCED_LYRICS, value).apply()
+    }
+
+    fun setLockscreenLyrics(value: Boolean) {
+        lockscreenLyrics.value = value
+        prefs.edit().putBoolean(KEY_LOCKSCREEN_LYRICS, value).apply()
     }
 
     fun setAutoUpdateCheck(value: Boolean) {
@@ -2297,6 +2311,7 @@ object AppSettings {
     private const val KEY_LEGACY_MESH_GRADIENT = "legacy_mesh_gradient"
     private const val KEY_LAST_PLAYER_SCREEN = "last_player_screen"
     private const val KEY_SYNCED_LYRICS = "synced_lyrics"
+    private const val KEY_LOCKSCREEN_LYRICS = "lockscreen_lyrics"
     private const val KEY_AUTO_UPDATE_CHECK = "auto_update_check"
     private const val KEY_LYRICS_SOURCES = "lyrics_sources"
     private const val KEY_LYRICS_SOURCES_SEEN = "lyrics_sources_seen"

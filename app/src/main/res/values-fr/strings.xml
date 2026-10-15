@@ -848,6 +848,9 @@
     <string name="lyrics_karaoke_effects">Effets karaoké</string>
 
     <string name="lyrics_karaoke_effects_subtitle">Éclaire les mots un par un pendant qu\'ils sont chantés</string>
+    <string name="lockscreen_lyrics">Lock screen lyrics</string>
+
+    <string name="lockscreen_lyrics_subtitle">Show the current lyric line on the lock screen and in the notification</string>
 
     <string name="brand_account">Compte de marque</string>
 
