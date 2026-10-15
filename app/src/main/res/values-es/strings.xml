@@ -590,6 +590,10 @@
     <string name="share_my_replay">Compartir mi Replay</string>
     <string name="share_your_lyrics">Enviar tu tarjeta de letra</string>
     <string name="share_your_replay">Comparte tu Replay</string>
+    <string name="share_stats_card">Share stats card</string>
+    <string name="stats_card_title">My Sonariq Replay</string>
+    <string name="stats_card_empty_title">Not enough listening yet</string>
+    <string name="stats_card_empty_hint">Play some music and your Replay will appear here.</string>
     <string name="tap_share_for_picture">Toca Compartir para crear una imagen</string>
     <string name="top_album">Álbum principal</string>
     <string name="top_artist">Artista principal</string>

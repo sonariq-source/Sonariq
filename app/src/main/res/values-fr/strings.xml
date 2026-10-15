@@ -578,6 +578,10 @@
     <string name="share_my_replay">Partager mon Replay</string>
     <string name="share_your_lyrics">Envoyer votre carte de paroles</string>
     <string name="share_your_replay">Partagez votre Replay</string>
+    <string name="share_stats_card">Share stats card</string>
+    <string name="stats_card_title">My Sonariq Replay</string>
+    <string name="stats_card_empty_title">Not enough listening yet</string>
+    <string name="stats_card_empty_hint">Play some music and your Replay will appear here.</string>
     <string name="tap_share_for_picture">Appuyez sur Partager pour créer une image</string>
     <string name="top_album">Meilleur album</string>
     <string name="top_artist">Meilleur artiste</string>

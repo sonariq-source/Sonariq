@@ -561,6 +561,10 @@
     <string name="share_my_replay">分享我的 Replay</string>
     <string name="share_your_lyrics">发送歌词卡片</string>
     <string name="share_your_replay">分享你的 Replay</string>
+    <string name="share_stats_card">Share stats card</string>
+    <string name="stats_card_title">My Sonariq Replay</string>
+    <string name="stats_card_empty_title">Not enough listening yet</string>
+    <string name="stats_card_empty_hint">Play some music and your Replay will appear here.</string>
     <string name="tap_share_for_picture">点按分享以生成图片</string>
     <string name="top_album">热门专辑</string>
     <string name="top_artist">热门艺人</string>

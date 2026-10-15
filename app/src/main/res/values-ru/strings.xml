@@ -599,6 +599,10 @@
     <string name="share_my_replay">Поделиться моим Replay</string>
     <string name="share_your_lyrics">Отправить карточку с текстом</string>
     <string name="share_your_replay">Поделиться своим Replay</string>
+    <string name="share_stats_card">Share stats card</string>
+    <string name="stats_card_title">My Sonariq Replay</string>
+    <string name="stats_card_empty_title">Not enough listening yet</string>
+    <string name="stats_card_empty_hint">Play some music and your Replay will appear here.</string>
     <string name="tap_share_for_picture">Нажмите «Поделиться», чтобы создать изображение</string>
     <string name="top_album">Топ-альбом</string>
     <string name="top_artist">Топ-исполнитель</string>
