@@ -14,11 +14,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,9 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.session.MediaController
@@ -61,7 +56,7 @@ fun TvHomeScreen(
     var searching by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var searchJob by remember { mutableStateOf<Job?>(null) }
-    val searchFocus = remember { FocusRequester() }
+    val keyboardFocus = remember { FocusRequester() }
 
     fun runSearch(q: String) {
         searchJob?.cancel()
@@ -87,8 +82,13 @@ fun TvHomeScreen(
         }
     }
 
+    fun type(char: String) {
+        query += char
+        runSearch(query)
+    }
+
     LaunchedEffect(Unit) {
-        searchFocus.requestFocus()
+        keyboardFocus.requestFocus()
     }
 
     Column(
@@ -102,19 +102,29 @@ fun TvHomeScreen(
             color = MaterialTheme.colorScheme.primary,
         )
         Spacer(Modifier.height(24.dp))
-        OutlinedTextField(
-            value = query,
-            onValueChange = {
-                query = it
-                runSearch(it)
+        // The current query, as typed on the on-screen keyboard below.
+        Text(
+            text = query.ifEmpty { "Type to search…" },
+            fontSize = 28.sp,
+            color = if (query.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant
+            else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.fillMaxWidth(0.6f),
+        )
+        Spacer(Modifier.height(16.dp))
+        TvKeyboard(
+            onKey = ::type,
+            onBackspace = {
+                if (query.isNotEmpty()) {
+                    query = query.dropLast(1)
+                    runSearch(query)
+                }
             },
-            label = { Text("Search songs") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { runSearch(query) }),
-            modifier = Modifier
-                .fillMaxWidth(0.6f)
-                .focusRequester(searchFocus),
+            onClear = {
+                query = ""
+                runSearch("")
+            },
+            onDone = { runSearch(query) },
+            firstKeyFocus = keyboardFocus,
         )
         Spacer(Modifier.height(24.dp))
         if (searching) {
