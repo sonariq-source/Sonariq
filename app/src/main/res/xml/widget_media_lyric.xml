@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The lyric-peek widget's entry in the picker: full width, two rows tall — the
+  same 4×2 footprint as the wide widget, whose size arithmetic it follows (a
+  span of n cells is 70n − 30 dp, so four cells is 250dp, and maxResizeWidth is
+  288dp for the same one-column-short reason documented in
+  widget_media_square).
+
+  resizeMode is horizontal only: every size this widget is meant to take is two
+  rows tall, and the band at its foot is a fixed height, so a widget stretched
+  vertically would just be more artwork above an unchanged bar.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_lyric_description"
+    android:initialLayout="@layout/widget_lyric"
+    android:maxResizeWidth="288dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minWidth="250dp"
+    android:previewImage="@drawable/widget_preview_wide"
+    android:previewLayout="@layout/widget_lyric_preview"
+    android:resizeMode="horizontal"
+    android:targetCellHeight="2"
+    android:targetCellWidth="4"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

@@ -24,6 +24,12 @@
     <dimen name="widget_band_compact">66dp</dimen>
     <dimen name="widget_band_wide">60dp</dimen>
 
+    <!--
+      The lyric widget's band: title, artist and the current lyric line, so it
+      is taller than either of the other widgets' bands.
+    -->
+    <dimen name="widget_band_lyric">78dp</dimen>
+
     <!-- Inset of the transport from the widget's edges. -->
     <dimen name="widget_band_padding">8dp</dimen>
 

@@ -162,6 +162,8 @@
     <string name="widget_preview_artist">Artysta</string>
     <string name="widget_pill_label">Now playing 4×1</string>
     <string name="widget_pill_description">Utwór z polubieniem, losowaniem i kontrolkami odtwarzania w jednym wierszu.</string>
+    <string name="widget_lyric_label">Now playing + lyrics</string>
+    <string name="widget_lyric_description">Album art with the track, playback controls and the current lyric line, full width.</string>
     <string name="widget_preview_pill">Tytuł utworu - Artysta</string>
     <string name="download_quality">Jakość pobierania</string>
     <string name="download_wifi_only">Pobieraj tylko przez Wi-Fi</string>
