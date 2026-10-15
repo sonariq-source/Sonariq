@@ -158,6 +158,15 @@
     <string name="dolby_atmos_open_failed">Couldn’t open Dolby Atmos settings</string>
     <string name="update_available">Update available: v%1$s</string>
     <string name="software_update">Software Update</string>
+    <string name="app_updates">App updates</string>
+    <string name="automatic_update_check">Check for updates automatically</string>
+    <string name="automatic_update_check_subtitle">Look for a new version every time the app opens</string>
+    <string name="check_for_updates">Check for updates</string>
+    <string name="check_for_updates_subtitle">See if a newer Sonariq is on GitHub</string>
+    <string name="current_version">Current version</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_up_to_date">You have the latest version</string>
+    <string name="update_available">A new version is available</string>
     <string name="update_available_body">sonariq %1$s is available to download.</string>
     <string name="update_downloading_body">Downloading sonariq %1$s…</string>
     <string name="update_ready_body">sonariq %1$s is ready to install.</string>

@@ -35,6 +35,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.Animation
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -149,6 +152,8 @@ import com.music.sonariq.data.LocalMediaRepository
 import com.music.sonariq.data.NerdStats
 import com.music.sonariq.data.scrobbling.LastFM
 import com.music.sonariq.data.listentogether.ListenTogether
+import com.music.sonariq.BuildConfig
+import com.music.sonariq.data.AppUpdateChecker
 import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.data.settings.OutputPcmMode
 import com.music.sonariq.playback.AudioOutputStatus
@@ -1441,6 +1446,78 @@ fun SettingsScreen(
 
         // No footer: it only restated the stop-on-close row's own subtitle,
         // which sits four rows above it and says the same thing in fewer words.
+        SearchableSettingsGroup(search, header = stringResource(R.string.app_updates)) {
+            val autoUpdateCheck by AppSettings.autoUpdateCheck.collectAsStateWithLifecycle()
+            val updateScope = rememberCoroutineScope()
+            var updateChecking by remember { mutableStateOf(false) }
+            var updateCheckResult by remember { mutableStateOf<String?>(null) }
+            val autoUpdateTitle = stringResource(R.string.automatic_update_check)
+            row(autoUpdateTitle, "update", "upgrade", "version", "automatic") {
+                SettingsRow(
+                    icon = Icons.Rounded.SystemUpdate,
+                    title = autoUpdateTitle,
+                    subtitle = stringResource(R.string.automatic_update_check_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = autoUpdateCheck,
+                            onCheckedChange = AppSettings::setAutoUpdateCheck,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setAutoUpdateCheck(!autoUpdateCheck) },
+                )
+            }
+            val checkUpdatesTitle = stringResource(R.string.check_for_updates)
+            row(checkUpdatesTitle, "update", "check", "version", "new") {
+                SettingsRow(
+                    icon = Icons.Rounded.Refresh,
+                    title = checkUpdatesTitle,
+                    subtitle = updateCheckResult
+                        ?: stringResource(R.string.check_for_updates_subtitle),
+                    trailing = {
+                        if (updateChecking) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            Chevron()
+                        }
+                    },
+                    onClick = {
+                        if (updateChecking) return@SettingsRow
+                        updateChecking = true
+                        updateCheckResult = null
+                        updateScope.launch {
+                            AppUpdateChecker.check()
+                            updateChecking = false
+                            updateCheckResult = if (AppUpdateChecker.available.value != null) {
+                                AppUpdateChecker.available.value?.version?.let { v ->
+                                    // "A new version is available: v"
+                                    context.getString(R.string.update_available) + ": " + v
+                                }
+                            } else {
+                                context.getString(R.string.update_up_to_date)
+                            }
+                        }
+                    },
+                )
+            }
+            val currentVersionTitle = stringResource(R.string.current_version)
+            row(currentVersionTitle, "version", "about") {
+                SettingsRow(
+                    icon = Icons.Rounded.Info,
+                    title = currentVersionTitle,
+                    subtitle = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    trailing = { },
+                    onClick = { },
+                )
+            }
+        }
+
         SearchableSettingsGroup(search, header = stringResource(R.string.miscellaneous)) {
             val playNextOnSwipeTitle = stringResource(R.string.play_next_on_swipe)
             row(playNextOnSwipeTitle, "swipe", "queue") {
