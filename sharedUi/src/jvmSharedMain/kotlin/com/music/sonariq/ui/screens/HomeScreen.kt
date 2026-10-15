@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import com.music.sonariq.ui.components.ShelfRow
 import androidx.compose.foundation.lazy.items
@@ -293,6 +294,12 @@ fun HomeScreen(
     leadHero: Boolean = true,
     currentSong: Song? = null,
     isPlaying: Boolean = false,
+    /**
+     * An optional section near the top of Home — the phone injects its mood
+     * station chips here; null wherever the caller owns no playback, such as
+     * the desktop. Kept last so existing call sites are untouched.
+     */
+    moodRow: (LazyListScope.() -> Unit)? = null,
 ) {
     val recentsViewType by AppUi.host.homeRecentsViewType.collectAsStateWithLifecycle()
 
@@ -324,6 +331,9 @@ fun HomeScreen(
                     SignInBanner(onSignIn = onSignIn, modifier = Modifier.padding(bottom = 8.dp))
                 }
             }
+            // Injected by callers that own playback — the phone's mood station
+            // chips — and absent everywhere else.
+            moodRow?.let { row -> row() }
             when (state) {
                 is UiState.Loading -> {
                     if (recentlyPlayedLoading) {
