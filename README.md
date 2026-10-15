@@ -55,6 +55,22 @@
 - **Karaoke pause-hold** — each word lands discretely and holds through the silence, just like the pros.
 - **Clean UI** — no provider badges, no sync estimates. Just the words.
 - **Translations & romanisation**, per-track offset, in-lyrics search and copy.
+- **Karaoke scoring** — sing along with the mic; pitch detection scores your performance 0–100.
+- **Karaoke key changer** — shift any song −6…+6 semitones in Settings to match your voice.
+- **Lock-screen lyrics** — the current line shows right on your lock screen as you sing.
+
+### 🤖 Smart autoplay & AI radio
+- **Smart Autoplay** — learns your song-to-song transitions and predicts what plays next.
+- **AI mood stations** — pick Chill, Party, Focus or Workout; Sonariq builds a ~25-track station from your taste.
+
+### 🎨 Personalisation
+- **Dynamic themes** — the UI accent follows your album artwork's colours (toggle in Settings).
+- **Liquid glass, buttery edition** — faster, smoother glass nav with a proper on/off toggle; animations stay on either way.
+- **Your logo everywhere** — the white Sonariq waveform mark replaces every leftover placeholder.
+
+### 📱 Widgets & sharing
+- **Now-playing + lyrics widget** — artwork, controls and a live lyric-line peek on your home screen.
+- **Shareable Replay cards** — beautiful 1080×1350 stats cards rendered from your real listening, ready to share.
 
 ### 💎 Design
 - **Prism design system** — matte midnight/plum surfaces, coral primary, orchid secondary, cyan highlights.
@@ -96,7 +112,7 @@
 
 *A separate app for the big screen — same music engine, 10-foot UI.*
 
-Sonariq TV (`com.sonariq.tv`) plays music **on the TV itself** with a remote-friendly interface: big search, D-pad navigation, and full-screen karaoke lyrics that follow the song.
+Sonariq TV (`com.sonariq.tv`) plays music **on the TV itself** with a remote-friendly interface: big search, D-pad navigation, and full-screen karaoke lyrics that follow the song. New in this update: **Listen Together on TV** (host and join parties from the couch) and **ambient mode** (artwork + drifting visuals when idle).
 
 > [!NOTE]
 > Sonariq TV ships on the same [Releases](https://github.com/sonariq-source/Sonariq/releases) page as the phone app — one release carries both APKs, and each app's in-app updater automatically picks the right one.
