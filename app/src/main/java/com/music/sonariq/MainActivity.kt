@@ -175,6 +175,7 @@ import com.music.sonariq.ui.screens.LIBRARY_SHELF_ROW_PREFIX
 import com.music.sonariq.ui.screens.libraryLinks
 import com.music.sonariq.ui.screens.CACHE_FOLDER_BROWSE_ID
 import com.music.sonariq.ui.screens.ListenTogetherScreen
+import com.music.sonariq.ui.screens.OfflineLibraryScreen
 import com.music.sonariq.ui.screens.PartyServerEditor
 import com.music.sonariq.ui.screens.SettingsScreen
 import com.music.sonariq.ui.screens.SourceEditorAlert
@@ -205,6 +206,7 @@ import com.music.sonariq.data.mood.Mood
 import com.music.sonariq.data.mood.MoodStations
 import com.music.sonariq.data.mood.MomentSlot
 import com.music.sonariq.playback.playSongs
+import com.music.sonariq.playback.onOfflinePlaybackBlocked
 import com.music.sonariq.playback.toMediaItem
 import com.music.sonariq.playback.toSong
 import com.music.sonariq.playback.toDirectYouTubeMediaItem
@@ -939,6 +941,12 @@ private fun SonariqApp(
         queueNoticeId += 1
         queueNotice = QueueActionNotice(queueNoticeId, message)
     }
+    // True offline mode's honest refusal, wired where every play request is
+    // funnelled — see [playSongs]. The message has to come from the UI
+    // because the playback layer owns no Context.
+    onOfflinePlaybackBlocked = { blocked ->
+        showQueueNotice(context.getString(R.string.offline_playback_blocked, blocked))
+    }
     LaunchedEffect(queueNotice?.id) {
         val shown = queueNotice ?: return@LaunchedEffect
         delay(3_000)
@@ -1142,6 +1150,26 @@ private fun SonariqApp(
             BottomTab(libraryLabel, SonariqIcons.TabLibrary),
             BottomTab(searchLabel, SonariqIcons.TabSearch),
         )
+    }
+
+    // True offline mode hides the streaming-only surfaces: Explore (radio,
+    // charts) and Search are network UI, and showing them while every tap
+    // behind them is refused would be the app lying about what it can do.
+    // The list keeps the TAB_* index of each entry so the rest of the file —
+    // which reasons in those constants — never has to change.
+    val offlineMode by AppSettings.offlineMode.collectAsStateWithLifecycle()
+    val visibleTabs = remember(tabs, offlineMode) {
+        tabs.mapIndexedNotNull { index, tab ->
+            if (offlineMode && (index == TAB_EXPLORE || index == TAB_SEARCH)) null
+            else index to tab
+        }
+    }
+    // Toggling the mode on while sitting on a hidden tab must not strand the
+    // page on content that no longer exists.
+    LaunchedEffect(offlineMode) {
+        if (offlineMode && (selectedTab == TAB_EXPLORE || selectedTab == TAB_SEARCH)) {
+            selectedTab = TAB_HOME
+        }
     }
 
     val scope = rememberCoroutineScope()
@@ -3408,7 +3436,69 @@ private fun SonariqApp(
                                 )
                             },
                         )
-                        else -> LibraryScreen(
+                        else -> if (offlineMode) {
+                            // True offline mode: the Library tab is the
+                            // Downloads folder promoted to the whole tab.
+                            // Everything else on it needs the network, so it
+                            // is not shown.
+                            OfflineLibraryScreen(
+                                onSongClick = { songs, index ->
+                                    playFrom(
+                                        songs,
+                                        index,
+                                        QueueSource(
+                                            context.getString(R.string.downloads),
+                                            PlaybackSourceType.BROWSE,
+                                            "local:downloads",
+                                        ),
+                                    )
+                                },
+                                onSongLongPress = openSongMenu,
+                                onSongSwipe = onSongSwipe,
+                                onShuffle = { songs ->
+                                    QueueShuffle.enableForNextQueue()
+                                    playFrom(
+                                        songs,
+                                        songs.indices.random(),
+                                        QueueSource(
+                                            context.getString(R.string.downloads),
+                                            PlaybackSourceType.BROWSE,
+                                            "local:downloads",
+                                        ),
+                                    )
+                                },
+                                onCollectionLongPress = { label, grouped, downloadId ->
+                                    openBrowseMenu(
+                                        BrowseTarget(
+                                            browseId = null,
+                                            title = label,
+                                            subtitle = grouped.firstOrNull()?.artist.orEmpty()
+                                                .takeUnless { it == label }
+                                                .orEmpty(),
+                                            thumbnailUrl = grouped.firstOrNull()?.thumbnailUrl,
+                                            songs = grouped,
+                                            downloadId = downloadId,
+                                        ),
+                                    )
+                                },
+                                currentSong = player.song,
+                                isPlaying = player.isPlaying,
+                                onDeleteDownloads = { selected ->
+                                    scope.launch {
+                                        selected.forEach { song ->
+                                            Downloads.delete(context, song.videoId)
+                                        }
+                                    }
+                                },
+                                onUploadToWebDav =
+                                    if (com.music.sonariq.data.webdav.WebDavConfig.isConfigured(webdavUrl)) {
+                                        { selected -> uploadToWebDav(selected) }
+                                    } else {
+                                        null
+                                    },
+                                contentPadding = listPadding,
+                            )
+                        } else LibraryScreen(
                             signedIn = signedIn,
                             state = libraryState,
                             listState = libraryListState,
@@ -3922,8 +4012,12 @@ private fun SonariqApp(
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
 
-                // One tab handler, whichever bar is drawing it.
-                val onTabSelected: (Int) -> Unit = { index ->
+                // One tab handler, whichever bar is drawing it. The bar hands over
+                // a position in the *visible* tabs; offline mode hides
+                // Explore and Search, so it is mapped back to the TAB_*
+                // constant before anything else reasons about it.
+                val onTabSelected: (Int) -> Unit = { visibleIndex ->
+                    val index = visibleTabs.getOrNull(visibleIndex)?.first ?: return@onTabSelected
                     viewModel.clearDetail()
                     viewModel.closeMoodGenre()
                     showSettings = false
@@ -3944,6 +4038,11 @@ private fun SonariqApp(
                         searchFocusRequested = true
                     }
                 }
+                // The bars index into the visible tabs, not the full set — see
+                // the offline-mode filter above.
+                val barTabs = visibleTabs.map { it.second }
+                val barSelectedIndex =
+                    visibleTabs.indexOfFirst { it.first == selectedTab }.coerceAtLeast(0)
 
                 if (glassActive) Column(
                     modifier = Modifier
@@ -3958,8 +4057,8 @@ private fun SonariqApp(
                     // controls dock into the tab bar rather than riding above it,
                     // and the pair folds together on scroll. See [GlassNavBar].
                     GlassNavBar(
-                        tabs = tabs,
-                        selectedIndex = selectedTab,
+                        tabs = barTabs,
+                        selectedIndex = barSelectedIndex,
                         onTabSelected = onTabSelected,
                         scrollConnection = navBarScroll,
                         song = player.song,
@@ -4015,8 +4114,8 @@ private fun SonariqApp(
                         Spacer(Modifier.height(8.dp))
                     }
                     FloatingBottomBar(
-                        tabs = tabs,
-                        selectedIndex = selectedTab,
+                        tabs = barTabs,
+                        selectedIndex = barSelectedIndex,
                         hazeState = hazeState,
                         onTabSelected = onTabSelected,
                     )

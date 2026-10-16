@@ -237,6 +237,14 @@ object AppSettings {
     val smartDownloadsWifiOnly = MutableStateFlow(true)
 
     /**
+     * True offline mode: only downloaded tracks may play, and the
+     * streaming-only surfaces (Explore, Search) are hidden. Network playback
+     * attempts are refused with an honest message rather than silently
+     * failing — see [com.music.sonariq.playback.playSongs].
+     */
+    val offlineMode = MutableStateFlow(false)
+
+    /**
      * Show synced lyrics on the TV while casting.
      *
      * Needs a custom Sonariq receiver (see [castReceiverAppId]); with the
@@ -953,6 +961,7 @@ object AppSettings {
         smartDownloadsEnabled.value = prefs.getBoolean(KEY_SMART_DOWNLOADS_ENABLED, false)
         smartDownloadsCount.value = prefs.getInt(KEY_SMART_DOWNLOADS_COUNT, 50).coerceIn(25, 100)
         smartDownloadsWifiOnly.value = prefs.getBoolean(KEY_SMART_DOWNLOADS_WIFI_ONLY, true)
+        offlineMode.value = prefs.getBoolean(KEY_OFFLINE_MODE, false)
         castTvLyricsEnabled.value = prefs.getBoolean(KEY_CAST_TV_LYRICS_ENABLED, true)
         castReceiverAppId.value = prefs.getString(KEY_CAST_RECEIVER_APP_ID, "").orEmpty()
         crossfadeSeconds.value = prefs.getInt(KEY_CROSSFADE, 0)
@@ -1918,6 +1927,11 @@ object AppSettings {
         com.music.sonariq.download.SmartDownloads.applySchedule()
     }
 
+    fun setOfflineMode(value: Boolean) {
+        offlineMode.value = value
+        prefs.edit().putBoolean(KEY_OFFLINE_MODE, value).apply()
+    }
+
     fun setCastTvLyricsEnabled(value: Boolean) {
         castTvLyricsEnabled.value = value
         prefs.edit().putBoolean(KEY_CAST_TV_LYRICS_ENABLED, value).apply()
@@ -2359,6 +2373,7 @@ object AppSettings {
     private const val KEY_SMART_DOWNLOADS_ENABLED = "smart_downloads_enabled"
     private const val KEY_SMART_DOWNLOADS_COUNT = "smart_downloads_count"
     private const val KEY_SMART_DOWNLOADS_WIFI_ONLY = "smart_downloads_wifi_only"
+    private const val KEY_OFFLINE_MODE = "offline_mode"
     private const val KEY_CAST_TV_LYRICS_ENABLED = "cast_tv_lyrics_enabled"
     private const val KEY_CAST_RECEIVER_APP_ID = "cast_receiver_app_id"
     private const val KEY_LOSSLESS = "lossless_audio"

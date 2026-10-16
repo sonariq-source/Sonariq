@@ -1501,4 +1501,23 @@
     <string name="dj_mix_subtitle">Tempo- and energy-aware transitions: long blends for matching songs, quick cuts for clashing ones</string>
     <string name="fade_out">Fade out</string>
     <string name="fade_out_subtitle">Lower the volume gradually over the last minute before pausing</string>
+    <string name="custom_color">Custom color</string>
+    <string name="custom">Custom</string>
+    <string name="custom_color_subtitle">Pick any color as the app accent</string>
+    <string name="pick_a_color">Pick a color</string>
+    <string name="hex_color">Hex color</string>
+    <string name="custom_color_live_preview">Live preview — the app re-themes as you pick</string>
+
+    <string name="friend_activity_title">Friends listening now</string>
+    <string name="friend_activity_join">Join</string>
+    <string name="friend_activity_full">Full</string>
+    <string name="friend_activity_listening_together">Listening together</string>
+    <string name="friend_activity_party_of">In %1$s\'s party</string>
+    <string name="friend_activity_last_played">Last played: %1$s</string>
+    <string name="friend_activity_no_track">Listening with friends</string>
+    <string name="friend_activity_join_failed">Couldn\'t join that party</string>
+    <string name="offline_mode">Offline mode</string>
+    <string name="offline_mode_subtitle">Only downloaded tracks play, and the streaming tabs are hidden</string>
+    <string name="offline_playback_blocked">Offline mode is on — only your downloads can play (%1$d skipped)</string>
+    <string name="offline_library_empty">Nothing downloaded yet. Download tracks to play them offline.</string>
 </resources>

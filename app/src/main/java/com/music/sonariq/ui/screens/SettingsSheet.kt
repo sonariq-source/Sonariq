@@ -37,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.Animation
+import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Remove
@@ -266,6 +267,7 @@ fun SettingsScreen(
     val exportDownloads by AppSettings.exportDownloads.collectAsStateWithLifecycle()
     val smartDownloadsEnabled by AppSettings.smartDownloadsEnabled.collectAsStateWithLifecycle()
     val smartDownloadsCount by AppSettings.smartDownloadsCount.collectAsStateWithLifecycle()
+    val offlineMode by AppSettings.offlineMode.collectAsStateWithLifecycle()
     val smartDownloadsWifiOnly by AppSettings.smartDownloadsWifiOnly.collectAsStateWithLifecycle()
     val stopOnTaskRemoved by AppSettings.stopOnTaskRemoved.collectAsStateWithLifecycle()
     val hideVolumeBar by AppSettings.hideVolumeBar.collectAsStateWithLifecycle()
@@ -649,6 +651,28 @@ fun SettingsScreen(
                         },
                     )
                 }
+            }
+            // The master switch: only downloaded tracks play, and the
+            // streaming-only tabs are hidden. Lives with the other download
+            // answers because it is one: "what may I play with no network".
+            val offlineModeTitle = stringResource(R.string.offline_mode)
+            row(offlineModeTitle, "offline", "no network", "airplane") {
+                SettingsRow(
+                    icon = Icons.Rounded.CloudOff,
+                    title = offlineModeTitle,
+                    subtitle = stringResource(R.string.offline_mode_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = offlineMode,
+                            onCheckedChange = AppSettings::setOfflineMode,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setOfflineMode(!offlineMode) },
+                )
             }
         }
 

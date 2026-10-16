@@ -29,6 +29,7 @@ import com.music.sonariq.data.model.PlaybackSourceType
 import com.music.sonariq.data.model.QueueTier
 import com.music.sonariq.data.model.Song
 import com.music.sonariq.data.model.artworkAt
+import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.data.sources.SourceRegistry
 import com.music.sonariq.data.sources.TrackMatcher
 import com.music.sonariq.download.Downloads
@@ -548,6 +549,24 @@ private fun Song.matchQuery(): String = buildString {
     if (isVideo) append("&m=1")
 }
 
+/**
+ * Called on the main thread when [AppSettings.offlineMode] refuses a play
+ * request, with the number of tracks that were skipped. Set by the UI layer
+ * (MainActivity), which owns the honest "only your downloads can play"
+ * message — this file must not reach for a Context it doesn't have.
+ */
+var onOfflinePlaybackBlocked: ((blocked: Int) -> Unit)? = null
+
+/**
+ * Whether this track can play with the network off: a verified file on the
+ * device, or a device URI (local music / downloads folder rows).
+ */
+fun Song.isOfflinePlayable(): Boolean {
+    if (!localUri.isNullOrBlank() && !Downloads.isMissingLocalFile(localUri!!)) return true
+    if (Downloads.verifiedSavedUri(videoId) != null) return true
+    return videoId.startsWith("content://") || videoId.startsWith("file://")
+}
+
 fun Song.toMediaItem(): MediaItem {
     val sourceTrack = SourceRegistry.parseTrackKey(videoId)
     // A row from search or a playlist carries no file of its own, but the track
@@ -764,19 +783,37 @@ fun mediaIdIn(uri: Uri): String? = if (uri.authority == "source") {
  */
 suspend fun MediaController.playSongs(songs: List<Song>, startIndex: Int) {
     if (songs.isEmpty()) return
+    // True offline mode: the queue is filtered down to what the device holds
+    // before anything reaches the player. A fully-streaming request (radio,
+    // a search row) leaves nothing playable, and the UI answers with the
+    // reason instead of a dead spinner — see [onOfflinePlaybackBlocked].
+    var playable = songs
+    var start = startIndex
+    if (AppSettings.offlineMode.value) {
+        playable = songs.filter { it.isOfflinePlayable() }
+        val blocked = songs.size - playable.size
+        if (blocked > 0) onOfflinePlaybackBlocked?.invoke(blocked)
+        if (playable.isEmpty()) return
+        val picked = songs.getOrNull(startIndex)
+        start = if (picked != null && picked.isOfflinePlayable()) {
+            playable.indexOf(picked).coerceAtLeast(0)
+        } else {
+            0
+        }
+    }
     // A queue started while shuffle is on goes in shuffled rather than being
     // played out of order — see [QueueShuffle]. The track the user picked still
     // leads, so it ends up at the top instead of at [startIndex].
     val shuffled = QueueShuffle.enabled.value
     val items = withContext(Dispatchers.Default) {
         val queue = if (shuffled) {
-            QueueShuffle.startingOrder(songs, startIndex.coerceIn(songs.indices))
+            QueueShuffle.startingOrder(playable, start.coerceIn(playable.indices))
         } else {
-            songs
+            playable
         }
         queue.map { it.toMediaItem() }
     }
-    setMediaItems(items, queueStartIndex(startIndex, items.size, shuffled), 0L)
+    setMediaItems(items, queueStartIndex(start, items.size, shuffled), 0L)
     prepare()
     play()
 }
