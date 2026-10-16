@@ -207,6 +207,7 @@ fun SettingsScreen(
     onTranslationLanguage: () -> Unit,
     onSources: () -> Unit,
     onListenTogether: () -> Unit,
+    onOpenKaraokeParty: () -> Unit,
     onSpotifyCanvasAuth: () -> Unit,
     onAppLanguage: () -> Unit,
     contentPadding: PaddingValues,
@@ -994,6 +995,17 @@ fun SettingsScreen(
                     onClick = {
                         if (scoring) AppSettings.setKaraokeScoring(false) else enableScoring()
                     },
+                )
+            }
+            // Turn-based multiplayer scoring: the room takes turns singing,
+            // one song each, scored live by the mic. Opens the party screen.
+            row("karaoke party", "party", "multiplayer", "versus", "score") {
+                SettingsRow(
+                    icon = Icons.Rounded.Groups,
+                    title = stringResource(R.string.karaoke_party),
+                    subtitle = stringResource(R.string.karaoke_party_subtitle),
+                    trailing = { Chevron() },
+                    onClick = onOpenKaraokeParty,
                 )
             }
         }
