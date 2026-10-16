@@ -229,7 +229,7 @@ fun ListenTogetherScreen(
         val source = controller?.handoffSource()
         if (source == null) {
             failure = context.getString(R.string.handoff_no_song)
-            return
+            return@handOffToTv
         }
         busy = true
         failure = null
@@ -254,7 +254,7 @@ fun ListenTogetherScreen(
         val target = controller
         if (target == null) {
             failure = context.getString(R.string.handoff_no_song)
-            return
+            return@takeBackFromTv
         }
         busy = true
         failure = null
