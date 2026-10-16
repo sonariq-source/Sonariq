@@ -13,6 +13,11 @@
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
+    <!-- Karaoke scoring uses the mic when it's there, but the TV app must
+         install on TVs without one (e.g. KONKA). -->
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
 
     <application>
         <activity
