@@ -235,6 +235,7 @@ fun SettingsScreen(
     val lyricsFontSizeSp by AppSettings.lyricsFontSizeSp.collectAsStateWithLifecycle()
     val lyricsAutoScroll by AppSettings.lyricsAutoScroll.collectAsStateWithLifecycle()
     val lyricsKaraokeEffects by AppSettings.lyricsKaraokeEffects.collectAsStateWithLifecycle()
+    val duetKaraoke by AppSettings.duetKaraoke.collectAsStateWithLifecycle()
     val visualizerStyle by AppSettings.visualizerStyle.collectAsStateWithLifecycle()
     val visualizerIntensity by AppSettings.visualizerIntensity.collectAsStateWithLifecycle()
     val visualizerBatterySaver by AppSettings.visualizerBatterySaver.collectAsStateWithLifecycle()
@@ -1307,6 +1308,28 @@ fun SettingsScreen(
                             )
                         },
                         onClick = { AppSettings.setLyricsKaraokeEffects(!lyricsKaraokeEffects) },
+                    )
+                }
+                // Word timings split down the middle: the first half reads as
+                // the lead in coral, the second as the harmony in orchid. Only
+                // word-synced lines split — line-synced ones render normally.
+                val duetKaraokeTitle = stringResource(R.string.duet_karaoke)
+                row(duetKaraokeTitle, "lyrics", "karaoke", "duet", "harmony", "lead", "split") {
+                    SettingsRow(
+                        icon = Icons.Rounded.Groups,
+                        title = duetKaraokeTitle,
+                        subtitle = stringResource(R.string.duet_karaoke_subtitle),
+                        trailing = {
+                            Switch(
+                                checked = duetKaraoke,
+                                onCheckedChange = AppSettings::setDuetKaraoke,
+                                colors = SwitchDefaults.colors(
+                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            )
+                        },
+                        onClick = { AppSettings.setDuetKaraoke(!duetKaraoke) },
                     )
                 }
                 val lockscreenLyricsTitle = stringResource(R.string.lockscreen_lyrics)

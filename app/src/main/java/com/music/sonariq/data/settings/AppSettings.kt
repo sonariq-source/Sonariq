@@ -502,6 +502,14 @@ object AppSettings {
     val lyricsKaraokeEffects = MutableStateFlow(true)
 
     /**
+     * Duet karaoke: a word-synced line is split into its first half (Lead)
+     * and its second half (Harmony), each sweeping on the same clock under
+     * its own tint. Lines without word timings render normally — there is
+     * nothing reliable to split on.
+     */
+    val duetKaraoke = MutableStateFlow(false)
+
+    /**
      * The Now Playing visualizer's rendering mode. Off hides the strip
      * entirely — and the capture with it.
      */
@@ -993,6 +1001,7 @@ object AppSettings {
                 .coerceIn(MIN_LYRICS_FONT_SIZE_SP, MAX_LYRICS_FONT_SIZE_SP)
         lyricsAutoScroll.value = prefs.getBoolean(KEY_LYRICS_AUTO_SCROLL, true)
         lyricsKaraokeEffects.value = prefs.getBoolean(KEY_LYRICS_KARAOKE, true)
+        duetKaraoke.value = prefs.getBoolean(KEY_DUET_KARAOKE, false)
         visualizerStyle.value = VisualizerStyle.fromPersistedName(
             prefs.getString(KEY_VISUALIZER_STYLE, null),
         )
@@ -1537,6 +1546,12 @@ object AppSettings {
         if (lyricsKaraokeEffects.value == value) return
         lyricsKaraokeEffects.value = value
         prefs.edit().putBoolean(KEY_LYRICS_KARAOKE, value).apply()
+    }
+
+    fun setDuetKaraoke(value: Boolean) {
+        if (duetKaraoke.value == value) return
+        duetKaraoke.value = value
+        prefs.edit().putBoolean(KEY_DUET_KARAOKE, value).apply()
     }
 
     fun setVisualizerStyle(value: VisualizerStyle) {
@@ -2323,6 +2338,7 @@ object AppSettings {
     private const val KEY_LYRICS_FONT_SIZE_SP = "lyrics_font_size_sp"
     private const val KEY_LYRICS_AUTO_SCROLL = "lyrics_auto_scroll"
     private const val KEY_LYRICS_KARAOKE = "lyrics_karaoke"
+    private const val KEY_DUET_KARAOKE = "duet_karaoke"
     private const val KEY_VISUALIZER_STYLE = "visualizer_style"
     private const val KEY_VISUALIZER_INTENSITY = "visualizer_intensity"
     private const val KEY_VISUALIZER_BATTERY_SAVER = "visualizer_battery_saver"

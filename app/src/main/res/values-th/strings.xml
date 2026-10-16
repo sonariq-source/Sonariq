@@ -798,6 +798,19 @@
     <string name="listen_together_reconnecting">กำลังเชื่อมต่ออีกครั้ง…</string>
     <string name="listen_together_syncing_clock">กำลังวัดเวลา…</string>
     <string name="listen_together_in_sync">ตรงกัน · ไปกลับ %1$d มิลลิวินาที</string>
+    <string name="listen_together_queue">Shared queue</string>
+    <string name="listen_together_queue_add">Add songs</string>
+    <string name="listen_together_queue_empty">Nothing queued yet — add the first song.</string>
+    <string name="listen_together_queue_locked">Only the host can change the queue.</string>
+    <string name="listen_together_queue_now_playing">Now playing</string>
+    <string name="listen_together_queue_clear">Clear queue</string>
+    <string name="listen_together_queue_clear_title">Clear the whole queue?</string>
+    <string name="listen_together_queue_clear_message">Every song in the shared queue will be removed.</string>
+    <string name="listen_together_queue_search_title">Add to the shared queue</string>
+    <string name="listen_together_queue_search_hint">Search for songs</string>
+    <string name="listen_together_queue_searching">Searching…</string>
+    <string name="listen_together_queue_no_results">No songs found for “%1$s”.</string>
+    <string name="listen_together_queue_added">Added to the queue</string>
     <string name="listen_together_custom_server_dialog_title">เข้าร่วมปาร์ตี้บนเซิร์ฟเวอร์ที่กำหนดเองไหม</string>
     <string name="listen_together_custom_server_dialog_message">ปาร์ตี้นี้โฮสต์อยู่บนเซิร์ฟเวอร์ภายนอก:\n\n%1$s\n\nต้องการเปลี่ยนเซิร์ฟเวอร์ปาร์ตี้และเข้าร่วมปาร์ตี้ %2$s หรือไม่</string>
     <string name="listen_together_custom_server_switch_and_join">เปลี่ยนและเข้าร่วม</string>
@@ -1135,6 +1148,9 @@
     <string name="lyrics_karaoke_effects">เอฟเฟกต์คาราโอเกะ</string>
 
     <string name="lyrics_karaoke_effects_subtitle">ไฮไลต์คำร้องทีละคำตามจังหวะที่ร้อง</string>
+    <string name="duet_karaoke">Duet karaoke</string>
+
+    <string name="duet_karaoke_subtitle">Split each line into a lead and a harmony part</string>
     <string name="lockscreen_lyrics">Lock screen lyrics</string>
 
     <string name="lockscreen_lyrics_subtitle">Show the current lyric line on the lock screen and in the notification</string>
@@ -1387,6 +1403,19 @@
     <string name="mood_focus">Focus</string>
     <string name="mood_workout">Workout</string>
     <string name="mood_building">Building your station…</string>
+    <string name="moment_title">สำหรับช่วงเวลานี้</string>
+    <string name="moment_morning">พลังยามเช้า</string>
+    <string name="moment_midday">โฟกัสยามเที่ยง</string>
+    <string name="moment_afternoon">จังหวะยามบ่าย</string>
+    <string name="moment_evening">ผ่อนคลายยามเย็น</string>
+    <string name="moment_night">บรรยากาศยามค่ำคืน</string>
+    <string name="greeting_morning">อรุณสวัสดิ์</string>
+    <string name="greeting_afternoon">สวัสดีตอนบ่าย</string>
+    <string name="greeting_evening">สวัสดีตอนเย็น</string>
+    <string name="greeting_night">ราตรีสวัสดิ์</string>
+    <string name="moment_subtitle_personal">สร้างจากการฟังของคุณ</string>
+    <string name="moment_subtitle_fresh">เพลงใหม่สำหรับช่วงเวลานี้ของวัน</string>
+    <string name="moment_play_station">เล่นสถานี</string>
     <string name="karaoke">Karaoke</string>
     <string name="karaoke_scoring">Karaoke scoring</string>
     <string name="karaoke_scoring_subtitle">Score your singing with the microphone</string>

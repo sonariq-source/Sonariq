@@ -196,6 +196,14 @@ private const val GLOW_ALPHA = 0.62f
 private val LyricLime = Color(0xFFFFB020)
 
 /**
+ * The two voices of duet karaoke mode, from the Prism palette — coral for the
+ * lead half, orchid for the harmony half. Same hexes as the app's theme and
+ * the TV ambient glow; mirrored here because sharedUi cannot see them.
+ */
+private val DuetLeadTint = Color(0xFFFF6B5E)
+private val DuetHarmonyTint = Color(0xFFDA70D6)
+
+/**
  * How far the bloom spreads off a letter. Tight, because it is a letter's worth
  * of light now rather than a word's: a wide radius on something this small is
  * a smudge behind the text instead of a glow coming off it.
@@ -729,6 +737,14 @@ private fun SweptLyricLine(
     rise: Boolean = true,
     alignEnd: Boolean = false,
     translationProgress: State<Float>? = null,
+    /**
+     * The colour the words are lit in — white on an ordinary line, coral or
+     * orchid for the two halves of a duet line. The dim copy takes the same
+     * colour at [dimAlpha], so each voice reads as its own from unsung to lit.
+     */
+    tint: Color = Color.White,
+    /** The bloom's colour; the brand lime unless a voice carries its own. */
+    glowTint: Color = LyricLime,
 ) {
     var layout by remember(line) { mutableStateOf<TextLayoutResult?>(null) }
 
@@ -842,7 +858,7 @@ private fun SweptLyricLine(
         Text(
             text = line.text,
             style = style,
-            color = Color.White.copy(alpha = dimAlpha),
+            color = tint.copy(alpha = dimAlpha),
             maxLines = maxLines,
             overflow = overflow,
             onTextLayout = { layout = it },
@@ -852,8 +868,9 @@ private fun SweptLyricLine(
             Text(
                 text = line.text,
                 style = style,
-                // The bloom in the brand lime: the current line's highlight.
-                color = LyricLime,
+                // The bloom in the brand lime: the current line's highlight —
+                // or the voice's own tint on a duet half.
+                color = glowTint,
                 maxLines = maxLines,
                 overflow = overflow,
                 modifier = Modifier
@@ -885,7 +902,7 @@ private fun SweptLyricLine(
         Text(
             text = line.text,
             style = style,
-            color = Color.White,
+            color = tint,
             maxLines = maxLines,
             overflow = overflow,
             // The feather erases into this layer, so the layer has to exist —
@@ -1703,6 +1720,7 @@ internal fun LyricsPanel(
     val lyricsFontSizeSp by PlayerSettings.lyricsFontSizeSp.collectAsStateWithLifecycle()
     val lyricsAutoScroll by PlayerSettings.lyricsAutoScroll.collectAsStateWithLifecycle()
     val lyricsKaraokeEffects by PlayerSettings.lyricsKaraokeEffects.collectAsStateWithLifecycle()
+    val duetKaraoke by PlayerSettings.duetKaraoke.collectAsStateWithLifecycle()
 
     // The live karaoke singing score 0..100, or null when scoring is off, the
     // mic is unavailable, or the song has no lyrics. Null draws nothing.
@@ -2254,6 +2272,7 @@ internal fun LyricsPanel(
                         room = GLOW_ROOM,
                         alignEnd = alignEnd,
                         karaoke = lyricsKaraokeEffects,
+                        duet = duetKaraoke,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     // A line the service handed back unchanged ("falling
@@ -2272,6 +2291,7 @@ internal fun LyricsPanel(
                             alignEnd = alignEnd,
                             rise = false,
                             karaoke = lyricsKaraokeEffects,
+                            duet = duetKaraoke,
                             // Only the rows actually in front of the reader get the
                             // particle pass. Sixty rows' worth of glyph boxes is a
                             // layout walk per frame for text nobody is looking at.
@@ -2314,6 +2334,7 @@ internal fun LyricsPanel(
                                 alignEnd = alignEnd,
                                 rise = false,
                                 karaoke = lyricsKaraokeEffects,
+                                duet = duetKaraoke,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     // No top inset: the lead's own bottom room is
@@ -2341,6 +2362,7 @@ internal fun LyricsPanel(
                                         alignEnd = alignEnd,
                                         rise = false,
                                         karaoke = lyricsKaraokeEffects,
+                                        duet = duetKaraoke,
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .revealBelow(subReveal.progress)
@@ -2609,9 +2631,62 @@ private fun PanelVoice(
      * per-word sweep.
      */
     karaoke: Boolean = true,
+    /**
+     * Duet karaoke: split a word-synced line into its lead and harmony
+     * halves, each sweeping on the same clock under its own tint. Lines
+     * without word timings render normally — there is no reliable place to
+     * cut them, and provider "duet" tagging is not to be faked.
+     */
+    duet: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    if (line.isWordSynced && karaoke && !browsing) {
+    // Two words is the smallest splittable line: one for each voice.
+    if (line.isWordSynced && karaoke && duet && line.words.size >= 2) {
+        // Each half is its own sub-line carrying the original's stamps, so
+        // the sweep, rise and bloom all run on the same clock as ever — see
+        // [LyricLine.duetHalf]. The tint is what tells the two voices apart:
+        // coral for the lead, orchid for the harmony.
+        val tail by animateFloatAsState(
+            targetValue = if (sung) 1f else UNSUNG_ALPHA,
+            label = "lyricTail",
+        )
+        val lead = remember(line) { line.duetHalf(first = true) }
+        val harmony = remember(line) { line.duetHalf(first = false) }
+        // Browsing keeps the sweep but drops the bloom, the same way the
+        // single-line path below does: the bloom is a playback flourish.
+        val halfGlow = if (browsing) 0f else glowAlpha
+        Column(modifier = modifier) {
+            SweptLyricLine(
+                line = lead,
+                clock = clock,
+                style = style,
+                dimAlpha = tail,
+                modifier = Modifier.fillMaxWidth(),
+                glowAlpha = halfGlow,
+                glowRoom = room,
+                feather = isActive,
+                rise = rise,
+                alignEnd = alignEnd,
+                translationProgress = translationProgress,
+                tint = DuetLeadTint,
+                glowTint = DuetLeadTint,
+            )
+            SweptLyricLine(
+                line = harmony,
+                clock = clock,
+                style = style,
+                dimAlpha = tail,
+                modifier = Modifier.fillMaxWidth(),
+                glowAlpha = halfGlow,
+                glowRoom = room,
+                rise = rise,
+                alignEnd = alignEnd,
+                translationProgress = translationProgress,
+                tint = DuetHarmonyTint,
+                glowTint = DuetHarmonyTint,
+            )
+        }
+    } else if (line.isWordSynced && karaoke && !browsing) {
         // Every word-synced line goes through the sweep, not just the playing
         // one — a line that has already been sung is fully revealed and one
         // still to come is not, which falls out of the same arithmetic.
@@ -2798,6 +2873,33 @@ private fun LyricLine.withoutBracketPunctuation(): LyricLine = copy(
 )
 
 private fun String.stripParens(): String = replace("(", "").replace(")", "").trim()
+
+/**
+ * The first or second half of this line's words as its own line, for duet
+ * karaoke mode. Keeps the original's stamps — [LyricLine.timeMs],
+ * [LyricLine.sungUntilMs], [LyricLine.background], [LyricLine.alignment] —
+ * so the sub-line's sweep, rise and bloom read the same clock as the line it
+ * was cut from; [LyricLine.text] is just the half's words' own span of the
+ * original text, so the walk that places each word lands on itself and every
+ * existing timing function ([LyricLine.revealedChars],
+ * [LyricLine.animatesFromMs], [LyricLine.wordLift]) works unchanged.
+ *
+ * Only called with at least two words, so each half has something to sing;
+ * the extra word of an odd count goes to the harmony half.
+ */
+private fun LyricLine.duetHalf(first: Boolean): LyricLine {
+    val cut = words.size / 2
+    val from = if (first) 0 else cut
+    val spans = wordSpans
+    val fromChar = spans[from].first
+    // [wordSpans] are exclusive-end ranges, and the halves are contiguous
+    // word runs, so the last word's end is the sub-text's end.
+    val untilChar = spans[words.lastIndex].last
+    return copy(
+        text = text.substring(fromChar, untilChar),
+        words = words.subList(from, if (first) cut else words.size),
+    )
+}
 
 /**
  * The single lyric line above the scrubber.

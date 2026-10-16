@@ -156,6 +156,8 @@ interface PlayerSettingsSource {
     val audioQualityCellular: StateFlow<AudioQuality>
     val audioQualityWifi: StateFlow<AudioQuality>
     val canvasOverCellular: StateFlow<Boolean>
+    /** Duet karaoke: split each word-synced line into lead and harmony halves. */
+    val duetKaraoke: StateFlow<Boolean>
     val fullBleedArtwork: StateFlow<Boolean>
     val hideSongStatus: StateFlow<Boolean>
     val hideVolumeBar: StateFlow<Boolean>

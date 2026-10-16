@@ -798,6 +798,19 @@
     <string name="listen_together_reconnecting">Переподключение…</string>
     <string name="listen_together_syncing_clock">Сверяем часы…</string>
     <string name="listen_together_in_sync">Синхронно · %1$d мс на круг</string>
+    <string name="listen_together_queue">Shared queue</string>
+    <string name="listen_together_queue_add">Add songs</string>
+    <string name="listen_together_queue_empty">Nothing queued yet — add the first song.</string>
+    <string name="listen_together_queue_locked">Only the host can change the queue.</string>
+    <string name="listen_together_queue_now_playing">Now playing</string>
+    <string name="listen_together_queue_clear">Clear queue</string>
+    <string name="listen_together_queue_clear_title">Clear the whole queue?</string>
+    <string name="listen_together_queue_clear_message">Every song in the shared queue will be removed.</string>
+    <string name="listen_together_queue_search_title">Add to the shared queue</string>
+    <string name="listen_together_queue_search_hint">Search for songs</string>
+    <string name="listen_together_queue_searching">Searching…</string>
+    <string name="listen_together_queue_no_results">No songs found for “%1$s”.</string>
+    <string name="listen_together_queue_added">Added to the queue</string>
     <string name="listen_together_custom_server_dialog_title">Присоединиться к вечеринке на своём сервере?</string>
     <string name="listen_together_custom_server_dialog_message">Эта вечеринка размещена на внешнем сервере:\n\n%1$s\n\nСменить сервер вечеринок и присоединиться к вечеринке %2$s?</string>
     <string name="listen_together_custom_server_switch_and_join">Сменить и войти</string>
@@ -881,6 +894,9 @@
     <string name="lyrics_karaoke_effects">Эффекты караоке</string>
 
     <string name="lyrics_karaoke_effects_subtitle">Подсвечивает слова по одному по мере исполнения</string>
+    <string name="duet_karaoke">Duet karaoke</string>
+
+    <string name="duet_karaoke_subtitle">Split each line into a lead and a harmony part</string>
     <string name="lockscreen_lyrics">Lock screen lyrics</string>
 
     <string name="lockscreen_lyrics_subtitle">Show the current lyric line on the lock screen and in the notification</string>
@@ -1436,6 +1452,19 @@
     <string name="mood_focus">Focus</string>
     <string name="mood_workout">Workout</string>
     <string name="mood_building">Building your station…</string>
+    <string name="moment_title">Для этого момента</string>
+    <string name="moment_morning">Утренняя энергия</string>
+    <string name="moment_midday">Дневной фокус</string>
+    <string name="moment_afternoon">Дневной драйв</string>
+    <string name="moment_evening">Вечерний чилл</string>
+    <string name="moment_night">Ночные вайбы</string>
+    <string name="greeting_morning">Доброе утро</string>
+    <string name="greeting_afternoon">Добрый день</string>
+    <string name="greeting_evening">Добрый вечер</string>
+    <string name="greeting_night">Доброй ночи</string>
+    <string name="moment_subtitle_personal">Создано на основе вашего прослушивания</string>
+    <string name="moment_subtitle_fresh">Свежая подборка для этого времени суток</string>
+    <string name="moment_play_station">Слушать станцию</string>
     <string name="karaoke">Karaoke</string>
     <string name="karaoke_scoring">Karaoke scoring</string>
     <string name="karaoke_scoring_subtitle">Score your singing with the microphone</string>

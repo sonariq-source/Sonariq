@@ -802,6 +802,19 @@
     <string name="listen_together_reconnecting">Reconectando…</string>
     <string name="listen_together_syncing_clock">Midiendo el reloj…</string>
     <string name="listen_together_in_sync">Sincronizado · %1$d ms de ida y vuelta</string>
+    <string name="listen_together_queue">Shared queue</string>
+    <string name="listen_together_queue_add">Add songs</string>
+    <string name="listen_together_queue_empty">Nothing queued yet — add the first song.</string>
+    <string name="listen_together_queue_locked">Only the host can change the queue.</string>
+    <string name="listen_together_queue_now_playing">Now playing</string>
+    <string name="listen_together_queue_clear">Clear queue</string>
+    <string name="listen_together_queue_clear_title">Clear the whole queue?</string>
+    <string name="listen_together_queue_clear_message">Every song in the shared queue will be removed.</string>
+    <string name="listen_together_queue_search_title">Add to the shared queue</string>
+    <string name="listen_together_queue_search_hint">Search for songs</string>
+    <string name="listen_together_queue_searching">Searching…</string>
+    <string name="listen_together_queue_no_results">No songs found for “%1$s”.</string>
+    <string name="listen_together_queue_added">Added to the queue</string>
     <string name="listen_together_custom_server_dialog_title">¿Unirte a una fiesta en un servidor personalizado?</string>
     <string name="listen_together_custom_server_dialog_message">Esta fiesta está alojada en un servidor externo:\n\n%1$s\n\n¿Quieres cambiar tu servidor de fiestas y unirte a la fiesta %2$s?</string>
     <string name="listen_together_custom_server_switch_and_join">Cambiar y unirse</string>
@@ -858,6 +871,9 @@
     <string name="lyrics_karaoke_effects">Efectos de karaoke</string>
 
     <string name="lyrics_karaoke_effects_subtitle">Ilumina las palabras una por una mientras se cantan</string>
+    <string name="duet_karaoke">Duet karaoke</string>
+
+    <string name="duet_karaoke_subtitle">Split each line into a lead and a harmony part</string>
     <string name="lockscreen_lyrics">Lock screen lyrics</string>
 
     <string name="lockscreen_lyrics_subtitle">Show the current lyric line on the lock screen and in the notification</string>
@@ -1376,6 +1392,19 @@
     <string name="mood_focus">Focus</string>
     <string name="mood_workout">Workout</string>
     <string name="mood_building">Building your station…</string>
+    <string name="moment_title">Para este momento</string>
+    <string name="moment_morning">Energía matutina</string>
+    <string name="moment_midday">Concentración del mediodía</string>
+    <string name="moment_afternoon">Ritmo de la tarde</string>
+    <string name="moment_evening">Relax de la noche</string>
+    <string name="moment_night">Vibras nocturnas</string>
+    <string name="greeting_morning">Buenos días</string>
+    <string name="greeting_afternoon">Buenas tardes</string>
+    <string name="greeting_evening">Buenas noches</string>
+    <string name="greeting_night">Buenas noches</string>
+    <string name="moment_subtitle_personal">Creada a partir de tu escucha</string>
+    <string name="moment_subtitle_fresh">Novedades para esta hora del día</string>
+    <string name="moment_play_station">Reproducir estación</string>
     <string name="karaoke">Karaoke</string>
     <string name="karaoke_scoring">Karaoke scoring</string>
     <string name="karaoke_scoring_subtitle">Score your singing with the microphone</string>

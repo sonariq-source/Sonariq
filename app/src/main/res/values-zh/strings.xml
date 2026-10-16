@@ -752,6 +752,19 @@
     <string name="listen_together_reconnecting">正在重新连接…</string>
     <string name="listen_together_syncing_clock">正在校准时钟…</string>
     <string name="listen_together_in_sync">已同步 · 往返 %1$d 毫秒</string>
+    <string name="listen_together_queue">Shared queue</string>
+    <string name="listen_together_queue_add">Add songs</string>
+    <string name="listen_together_queue_empty">Nothing queued yet — add the first song.</string>
+    <string name="listen_together_queue_locked">Only the host can change the queue.</string>
+    <string name="listen_together_queue_now_playing">Now playing</string>
+    <string name="listen_together_queue_clear">Clear queue</string>
+    <string name="listen_together_queue_clear_title">Clear the whole queue?</string>
+    <string name="listen_together_queue_clear_message">Every song in the shared queue will be removed.</string>
+    <string name="listen_together_queue_search_title">Add to the shared queue</string>
+    <string name="listen_together_queue_search_hint">Search for songs</string>
+    <string name="listen_together_queue_searching">Searching…</string>
+    <string name="listen_together_queue_no_results">No songs found for “%1$s”.</string>
+    <string name="listen_together_queue_added">Added to the queue</string>
     <string name="listen_together_custom_server_dialog_title">加入自定义服务器上的派对？</string>
     <string name="listen_together_custom_server_dialog_message">此派对托管在外部服务器上：\n\n%1$s\n\n要切换派对服务器并加入派对 %2$s 吗？</string>
     <string name="listen_together_custom_server_switch_and_join">切换并加入</string>
@@ -832,6 +845,9 @@
     <string name="lyrics_karaoke_effects">卡拉OK效果</string>
 
     <string name="lyrics_karaoke_effects_subtitle">随着演唱逐词高亮显示</string>
+    <string name="duet_karaoke">Duet karaoke</string>
+
+    <string name="duet_karaoke_subtitle">Split each line into a lead and a harmony part</string>
     <string name="lockscreen_lyrics">Lock screen lyrics</string>
 
     <string name="lockscreen_lyrics_subtitle">Show the current lyric line on the lock screen and in the notification</string>
@@ -1381,6 +1397,19 @@
     <string name="mood_focus">Focus</string>
     <string name="mood_workout">Workout</string>
     <string name="mood_building">Building your station…</string>
+    <string name="moment_title">此时此刻</string>
+    <string name="moment_morning">清晨能量</string>
+    <string name="moment_midday">午间专注</string>
+    <string name="moment_afternoon">午后律动</string>
+    <string name="moment_evening">夜晚放松</string>
+    <string name="moment_night">深夜氛围</string>
+    <string name="greeting_morning">早上好</string>
+    <string name="greeting_afternoon">下午好</string>
+    <string name="greeting_evening">晚上好</string>
+    <string name="greeting_night">晚安</string>
+    <string name="moment_subtitle_personal">根据你的收听生成</string>
+    <string name="moment_subtitle_fresh">适合此时段的新鲜推荐</string>
+    <string name="moment_play_station">播放电台</string>
     <string name="karaoke">Karaoke</string>
     <string name="karaoke_scoring">Karaoke scoring</string>
     <string name="karaoke_scoring_subtitle">Score your singing with the microphone</string>

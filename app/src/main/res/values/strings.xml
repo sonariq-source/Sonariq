@@ -165,6 +165,19 @@
     <string name="mood_focus">Focus</string>
     <string name="mood_workout">Workout</string>
     <string name="mood_building">Building your station…</string>
+    <string name="moment_title">For this moment</string>
+    <string name="moment_morning">Morning energy</string>
+    <string name="moment_midday">Midday focus</string>
+    <string name="moment_afternoon">Afternoon drive</string>
+    <string name="moment_evening">Evening chill</string>
+    <string name="moment_night">Night vibes</string>
+    <string name="greeting_morning">Good morning</string>
+    <string name="greeting_afternoon">Good afternoon</string>
+    <string name="greeting_evening">Good evening</string>
+    <string name="greeting_night">Good night</string>
+    <string name="moment_subtitle_personal">Built from your listening</string>
+    <string name="moment_subtitle_fresh">Fresh picks for this time of day</string>
+    <string name="moment_play_station">Play station</string>
     <string name="karaoke">Karaoke</string>
     <string name="karaoke_scoring">Karaoke scoring</string>
     <string name="karaoke_scoring_subtitle">Score your singing with the microphone</string>
@@ -1048,6 +1061,19 @@
     <string name="listen_together_reconnecting">Reconnecting…</string>
     <string name="listen_together_syncing_clock">Measuring the clock…</string>
     <string name="listen_together_in_sync">In sync · %1$d ms round trip</string>
+    <string name="listen_together_queue">Shared queue</string>
+    <string name="listen_together_queue_add">Add songs</string>
+    <string name="listen_together_queue_empty">Nothing queued yet — add the first song.</string>
+    <string name="listen_together_queue_locked">Only the host can change the queue.</string>
+    <string name="listen_together_queue_now_playing">Now playing</string>
+    <string name="listen_together_queue_clear">Clear queue</string>
+    <string name="listen_together_queue_clear_title">Clear the whole queue?</string>
+    <string name="listen_together_queue_clear_message">Every song in the shared queue will be removed.</string>
+    <string name="listen_together_queue_search_title">Add to the shared queue</string>
+    <string name="listen_together_queue_search_hint">Search for songs</string>
+    <string name="listen_together_queue_searching">Searching…</string>
+    <string name="listen_together_queue_no_results">No songs found for “%1$s”.</string>
+    <string name="listen_together_queue_added">Added to the queue</string>
     <string name="listen_together_custom_server_dialog_title">Join party on custom server?</string>
     <string name="listen_together_custom_server_dialog_message">This party is hosted on an external server:\n\n%1$s\n\nDo you want to switch your party server and join party %2$s?</string>
     <string name="listen_together_custom_server_switch_and_join">Switch &amp; Join</string>
@@ -1121,6 +1147,9 @@
     <string name="lyrics_karaoke_effects">Karaoke effects</string>
 
     <string name="lyrics_karaoke_effects_subtitle">Light words one by one as they’re sung</string>
+    <string name="duet_karaoke">Duet karaoke</string>
+
+    <string name="duet_karaoke_subtitle">Split each line into a lead and a harmony part</string>
 
     <string name="lockscreen_lyrics">Lock screen lyrics</string>
 
