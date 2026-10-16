@@ -1,19 +1,28 @@
 package com.music.sonariq.playback
 
 import android.content.Context
+import com.music.sonariq.data.LocalMediaRepository
 import com.music.sonariq.data.YtMusicRepository
 import com.music.sonariq.data.listentogether.ListenTogether
 import com.music.sonariq.data.model.SearchFilter
 import com.music.sonariq.data.model.SearchResult
 import com.music.sonariq.data.model.QueueTier
 import com.music.sonariq.data.model.Song
+import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.data.sources.SourceRegistry
 import com.music.sonariq.data.sources.TrackMatcher
+import com.music.sonariq.download.Downloads
 import com.music.sonariq.playback.QueueCoordinator.asQueueEntry
+import com.music.sonariq.playback.vibe.VibeAnalyzer
+import com.music.sonariq.playback.vibe.VibeAutoplay
+import com.music.sonariq.playback.vibe.VibeStore
 import kotlinx.coroutines.CancellationException
 
 /** Most AutoPlay-suggested tracks kept queued ahead of the current one at once. */
 const val MAX_QUEUED_AUTOPLAY = 10
+
+/** Cap on the library scan for vibe autoplay, so a huge library stays cheap. */
+private const val MAX_VIBE_CANDIDATES = 2000
 
 /**
  * Whether AutoPlay is on for the music this device is playing.
@@ -108,6 +117,15 @@ suspend fun loadAutoplayTracks(
     limit: Int = MAX_QUEUED_AUTOPLAY,
     context: Context? = null,
 ): Result<List<Song>> {
+    // Vibe autoplay leads when enabled: match the session's vibe against the
+    // offline library. The regular radio path below is the fallback — vibe
+    // returning empty means "couldn't verify anything", not an error.
+    if (context != null) {
+        val vibe = runCatching { loadVibeAutoplay(context, existing, seedSong, limit) }
+            .getOrDefault(emptyList())
+        if (vibe.isNotEmpty()) return Result.success(vibe)
+    }
+
     val seed = youtubeSeedFor(seedSong) ?: return Result.success(emptyList())
     val related = YtMusicRepository.radio(seed).getOrElse { return Result.failure(it) }
 
@@ -145,4 +163,64 @@ suspend fun loadAutoplayTracks(
             playbackSourceId = seedSong.playbackSourceId,
         ).asQueueEntry(QueueTier.AUTOPLAY)
     })
+}
+
+/**
+ * Vibe-first autoplay batch, or empty when there is nothing vibe-verified to
+ * play. The session vibe is read from the last few tracks' stored vibes; the
+ * candidates are the user's offline library (downloads + local files), which
+ * needs no sign-in and is guaranteed playable. Everything then goes through
+ * [VibeAutoplay.selectNext]'s purity rule: no stored vibe, no pick.
+ */
+private suspend fun loadVibeAutoplay(
+    context: Context,
+    existing: List<Song>,
+    seedSong: Song,
+    limit: Int,
+): List<Song> {
+    if (!AppSettings.vibeAutoplay.value) return emptyList()
+
+    // The session vibe, blended from the last few tracks' stored vibes.
+    val recentVibes = (existing.takeLast(5) + seedSong)
+        .mapNotNull { VibeStore.getVibe(context, it.videoId)?.vector }
+        .filter { !it.isEmpty() }
+    if (recentVibes.isEmpty()) return emptyList()
+    val sessionVibe = VibeAnalyzer.sessionVibe(recentVibes)
+    if (sessionVibe.isEmpty()) return emptyList()
+
+    // The offline library: downloads and local files, capped for performance.
+    val downloaded = runCatching { Downloads.getDownloadedSongs(context) }
+        .getOrDefault(emptyList())
+    val local = if (LocalMediaRepository.hasStoragePermission(context)) {
+        runCatching { LocalMediaRepository.getLocalMusic(context) }
+            .getOrDefault(emptyList())
+    } else {
+        emptyList()
+    }
+    val candidates = (downloaded + local)
+        .filter { it.videoId.isNotBlank() }
+        .distinctBy { it.videoId }
+        .take(MAX_VIBE_CANDIDATES)
+    if (candidates.isEmpty()) return emptyList()
+
+    val stats = VibeAutoplay.loadPlayStats(context)
+    val picked = VibeAutoplay.selectNext(
+        context = context,
+        sessionVibe = sessionVibe,
+        candidates = candidates,
+        excludeIds = (existing.map { it.videoId } + seedSong.videoId).toSet(),
+        limit = limit,
+        strictness = AppSettings.vibeStrictness.value,
+        includeForgottenFavorites = AppSettings.vibeForgottenFavorites.value,
+        tasteScore = VibeAutoplay.tasteScore(stats, candidates),
+        lastPlayedAt = { stats.lastPlayedMs[it] ?: 0L },
+    )
+    return picked.map {
+        it.copy(
+            radioName = seedSong.radioName,
+            playbackSource = seedSong.playbackSource,
+            playbackSourceType = seedSong.playbackSourceType,
+            playbackSourceId = seedSong.playbackSourceId,
+        ).asQueueEntry(QueueTier.AUTOPLAY)
+    }
 }
