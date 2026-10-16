@@ -225,7 +225,7 @@ fun ListenTogetherScreen(
      * for the TV to join with. The TV's PartySync starts the handed-off track
      * on its own once it joins.
      */
-    val handOffToTv: () -> Unit = {
+    val handOffToTv: () -> Unit = handOffToTv@{
         val source = controller?.handoffSource()
         if (source == null) {
             failure = context.getString(R.string.handoff_no_song)
@@ -250,7 +250,7 @@ fun ListenTogetherScreen(
      * Leaves the party, then resumes locally at the party's current position —
      * read before the leave, because after it there is no party position.
      */
-    val takeBackFromTv: () -> Unit = {
+    val takeBackFromTv: () -> Unit = takeBackFromTv@{
         val target = controller
         if (target == null) {
             failure = context.getString(R.string.handoff_no_song)

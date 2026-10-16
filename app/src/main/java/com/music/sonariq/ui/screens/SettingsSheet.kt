@@ -41,6 +41,9 @@ import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.ConfirmationNumber
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.SentimentSatisfied
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Add
@@ -770,7 +773,7 @@ fun SettingsScreen(
             val autoplayTitle = stringResource(R.string.autoplay)
             row(autoplayTitle, "autoplay", "radio", "similar", "queue") {
                 SettingsRow(
-                    icon = Icons.Rounded.AllInclusive,
+                    icon = Icons.Rounded.Repeat,
                     title = autoplayTitle,
                     subtitle = stringResource(R.string.autoplay_subtitle),
                     trailing = {
@@ -789,7 +792,7 @@ fun SettingsScreen(
             val vibeAutoplayTitle = stringResource(R.string.vibe_autoplay)
             row(vibeAutoplayTitle, "autoplay", "vibe", "mood") {
                 SettingsRow(
-                    icon = Icons.Rounded.Mood,
+                    icon = Icons.Rounded.SentimentSatisfied,
                     title = vibeAutoplayTitle,
                     subtitle = stringResource(R.string.vibe_autoplay_subtitle),
                     trailing = {

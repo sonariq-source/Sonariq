@@ -212,7 +212,7 @@ private suspend fun loadVibeAutoplay(
         limit = limit,
         strictness = AppSettings.vibeStrictness.value,
         includeForgottenFavorites = AppSettings.vibeForgottenFavorites.value,
-        tasteScore = VibeAutoplay.tasteScore(stats, candidates),
+        tasteScore = VibeAutoplay.tasteScore(stats),
         lastPlayedAt = { stats.lastPlayedMs[it] ?: 0L },
     )
     return picked.map {

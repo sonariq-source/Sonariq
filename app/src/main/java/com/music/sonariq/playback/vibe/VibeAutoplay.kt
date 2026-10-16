@@ -1,7 +1,6 @@
 package com.music.sonariq.playback.vibe
 
 import android.content.Context
-import com.music.sonariq.data.model.LikeStatus
 import com.music.sonariq.data.model.Song
 import com.music.sonariq.data.stats.ListeningStats
 import kotlin.math.log10
@@ -123,10 +122,7 @@ object VibeAutoplay {
      * a bonus for liked tracks. No skip-count penalty — skips aren't tracked
      * as per-track counts, so no fake signal is substituted.
      */
-    fun tasteScore(stats: VibePlayStats, candidates: List<Song>): (String) -> Float {
-        val likedIds = candidates
-            .filter { it.likeStatus == LikeStatus.LIKE }
-            .mapTo(HashSet()) { it.videoId }
+    fun tasteScore(stats: VibePlayStats, likedIds: Set<String> = emptySet()): (String) -> Float {
         return { videoId ->
             val plays = stats.plays[videoId] ?: 0
             (log10((plays + 1).toFloat()) / 2f + if (videoId in likedIds) 0.3f else 0f)
