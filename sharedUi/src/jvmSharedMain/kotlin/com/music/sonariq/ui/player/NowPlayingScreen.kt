@@ -66,6 +66,7 @@ import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -643,6 +644,17 @@ fun NowPlayingScreen(
     onQueueDragActiveChange: (Boolean) -> Unit = {},
     onClearQueue: () -> Unit,
     onOpenMenu: () -> Unit,
+    /**
+     * Opens the song share sheet. The artwork URL is handed over because the
+     * card is rendered from the same sleeve the player is showing — the host
+     * must not re-resolve it and risk a different picture.
+     *
+     * No-op by default; [shareSongEnabled] gates the button so platforms
+     * without a share target draw nothing.
+     */
+    onShareSong: (artworkUrl: String?) -> Unit = {},
+    /** Whether the share button is drawn — true where a host implements [onShareSong]. */
+    shareSongEnabled: Boolean = false,
     onOpenAlbum: (String) -> Unit,
     /**
      * Opens an artist's page. [browseId] is null for anyone but the lead credit:
@@ -1855,6 +1867,8 @@ fun NowPlayingScreen(
                                 showRevertCue = showRevertCue,
                                 onToggleLike = onToggleLike,
                                 onOpenMenu = onOpenMenu,
+                                onShareSong = { onShareSong(remoteArt ?: song.thumbnailUrl) },
+                                shareSongEnabled = shareSongEnabled,
                                 onOpenAlbum = onOpenAlbum,
                                 onOpenArtist = onOpenArtist,
                             )
@@ -3284,6 +3298,14 @@ fun NowPlayingScreen(
                             onClick = onToggleLike,
                             active = liked,
                             haptic = if (liked) Haptic.ToggleOff else Haptic.ToggleOn,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    if (shareSongEnabled) {
+                        CircleGlyph(
+                            icon = Icons.Rounded.Share,
+                            contentDescription = stringResource(Res.string.share),
+                            onClick = { onShareSong(remoteArt ?: song.thumbnailUrl) },
                         )
                         Spacer(Modifier.width(8.dp))
                     }

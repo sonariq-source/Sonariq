@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -414,6 +415,10 @@ internal fun LandscapeCredits(
     showRevertCue: Boolean,
     onToggleLike: () -> Unit,
     onOpenMenu: () -> Unit,
+    /** Opens the song share sheet. */
+    onShareSong: () -> Unit = {},
+    /** Whether the share button is drawn — true where a host implements [onShareSong]. */
+    shareSongEnabled: Boolean = false,
     onOpenAlbum: (String) -> Unit,
     /** Null browse id for anyone but the lead credit — see [NowPlayingScreen]. */
     onOpenArtist: (browseId: String?, name: String) -> Unit,
@@ -469,6 +474,14 @@ internal fun LandscapeCredits(
                 onClick = onToggleLike,
                 active = liked,
                 haptic = if (liked) Haptic.ToggleOff else Haptic.ToggleOn,
+            )
+            Spacer(Modifier.width(8.dp))
+        }
+        if (shareSongEnabled) {
+            CircleGlyph(
+                icon = Icons.Rounded.Share,
+                contentDescription = stringResource(Res.string.share),
+                onClick = onShareSong,
             )
             Spacer(Modifier.width(8.dp))
         }
