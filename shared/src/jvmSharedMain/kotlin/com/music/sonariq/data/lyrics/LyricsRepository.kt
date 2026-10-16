@@ -185,7 +185,7 @@ object LyricsRepository {
             var lineSynced: Result? = null
             // Writes a winner through to the disk cache before handing it up,
             // so the next lookup for this track skips the providers entirely.
-            // Joel: no interpolated word timings — if the winner has real
+            // the owner: no interpolated word timings — if the winner has real
             // word sync it stays word-synced; if it's line-synced it stays
             // line-synced. Fake word timings are worse than honest lines.
             suspend fun deliver(result: Result): Result {

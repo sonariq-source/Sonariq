@@ -36,7 +36,7 @@ Root cause, proven by packet capture + instrumented proxy + Gradle `--debug` log
 - Workaround attempted: `--no-daemon` (single-use daemon as a child of the exec call) gets
   further than the long-lived daemon but is still intercepted.
 
-**To unblock:** Joel must open Muse settings → Permissions → Direct network protocols and
+**To unblock:** the owner must open Muse settings → Permissions → Direct network protocols and
 switch `other_tcp` from **Deny** to **Ask** (or Allow — a Gradle build opens hundreds of
 connections, so Allow is far less painful). Then re-run:
 `cd ~/workspace/sonariq-source && ./gradlew :app:tasks --no-daemon`

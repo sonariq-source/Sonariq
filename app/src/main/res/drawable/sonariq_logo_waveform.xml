@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Sonariq waveform mark: 6 white rounded bars on transparent.
-     Proportions from Joel's 2026-10-16 logo (green gradient tile).
+     Proportions from the owner's 2026-10-16 logo (green gradient tile).
      Used in-app: splash, about, share cards, widgets. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="30dp"

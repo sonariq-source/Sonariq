@@ -1,14 +1,14 @@
 # Sonariq Fork Plan
 
-Fork of https://github.com/kushagrasinghx/BitChord (GPL-3.0) → "Sonariq" by Joel.
-Decisions below were confirmed by Joel on 2026-10-14.
+Fork of https://github.com/kushagrasinghx/BitChord (GPL-3.0) → "Sonariq" by the owner.
+Decisions below were confirmed by the owner on 2026-10-14.
 
 ## Confirmed decisions
-- **Base:** `v1.8` tag (commit `32f4e7c5`) — matches Joel's APK (versionCode 26, versionName 1.8).
+- **Base:** `v1.8` tag (commit `32f4e7c5`) — matches the owner's APK (versionCode 26, versionName 1.8).
 - **applicationId:** `com.sonariq.app` (was `com.music.bitchord` upstream). Dev flavor: `com.sonariq.app.dev` (was `com.dev.bitchord` upstream).
   - Change the `applicationId` / `applicationIdSuffix` in `app/build.gradle.kts` only; Kotlin packages and source dirs are now `com/music/sonariq`.
   - Grep for any hardcoded old package name (deep links, FileProvider authorities, etc.) and update them.
-- **Full redesign:** Sonariq neon-purple dark theme (see the "Sonariq App Mockups" artifact for the design system), Joel's new icon
+- **Full redesign:** Sonariq neon-purple dark theme (see the "Sonariq App Mockups" artifact for the design system), the owner's new icon
   (`workspace/user/media_library/image/d9/d982213c85e2956d78936dec38acfb63f79bed292e1889bfa28edae58deacf1b.png`
   → `app/src/main/res/mipmap-*/ic_launcher*.webp` + adaptive `mipmap-anydpi`), display name "Sonariq"
   (`app/src/main/res/values*/strings.xml` → `app_name`).
