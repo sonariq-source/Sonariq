@@ -1,5 +1,6 @@
 package com.music.sonariq.ui.screens
 
+import android.widget.Toast
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -15,23 +16,34 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
@@ -40,8 +52,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -49,9 +64,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.music.sonariq.R
+import com.music.sonariq.data.YtMusicRepository
 import com.music.sonariq.data.listentogether.ListenTogether
 import com.music.sonariq.data.listentogether.PartyPreview
+import com.music.sonariq.data.model.SearchFilter
+import com.music.sonariq.data.model.SearchResult
+import com.music.sonariq.data.model.Song
+import com.music.sonariq.playback.toPartyTrack
 import com.music.sonariq.ui.components.PillTextField
+import kotlinx.coroutines.delay
 
 /**
  * Which of the party sheets is up, if any.
@@ -79,6 +100,9 @@ internal sealed interface PartySheet {
 
     /** A link and a square, for getting somebody else in. */
     data object Invite : PartySheet
+
+    /** Song search for putting tracks in the party's shared queue. */
+    data object AddSongs : PartySheet
 }
 
 /**
@@ -698,3 +722,218 @@ internal fun InviteSheet(
 /** @see ListenTogether.myAvatarUrl */
 @Composable
 internal fun rememberMyAvatar(): String? = ListenTogether.myAvatarUrl()
+
+/**
+ * Song search for adding to the shared queue.
+ *
+ * One sheet, one job: search the song catalogue and put a track in the
+ * party's running order. The add goes out as [ListenTogether.queueAdd] — the
+ * same control the playback layer uses — and the queue-frame echo is what
+ * makes it appear for everyone, so this list never invents an entry of its
+ * own. [hostOnlyControl][ListenTogether.State.controlsLocked] is honoured by
+ * never opening this sheet while the controls are locked: the server would
+ * refuse the control anyway, and a refused add with no visible reason reads as
+ * a broken button.
+ */
+@Composable
+internal fun AddSongsSheet() {
+    val context = LocalContext.current
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<Song>>(emptyList()) }
+    var searching by remember { mutableStateOf(false) }
+    var searchedFor by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    // Debounced so every keystroke is not a request. The search answers in a
+    // few hundred milliseconds, and the typeahead feel survives a short wait —
+    // a storm of overlapping requests, each racing the last, does not.
+    LaunchedEffect(query) {
+        val trimmed = query.trim()
+        if (trimmed.length < ADD_SONG_MIN_QUERY) {
+            results = emptyList()
+            searchedFor = ""
+            searching = false
+            error = null
+            return@LaunchedEffect
+        }
+        delay(ADD_SONG_SEARCH_DEBOUNCE_MS)
+        // Something was typed while waiting — that newer effect owns the
+        // search, so this one stands down rather than overwriting it.
+        if (query.trim() != trimmed) return@LaunchedEffect
+        searching = true
+        error = null
+        YtMusicRepository.search(trimmed, SearchFilter.SONGS)
+            .onSuccess { page ->
+                results = page.mapNotNull { result ->
+                    when (result) {
+                        is SearchResult.TopTrack -> result.song
+                        is SearchResult.Track -> result.song
+                        is SearchResult.Browse -> null
+                    }
+                }
+                    .filter { it.videoId.isShareableId() }
+                    .distinctBy { it.videoId }
+                searchedFor = trimmed
+            }
+            .onFailure { failure ->
+                results = emptyList()
+                error = failure.message
+            }
+        searching = false
+    }
+
+    val addSong: (Song) -> Unit = { song ->
+        ListenTogether.queueAdd(listOf(song.toPartyTrack(0L)))
+        // Marked as this device's own addition so the queue's remove buttons
+        // know whose songs they may offer to take back out. The protocol
+        // carries no adder — see ListenTogether.ownQueueAdditions.
+        ListenTogether.markOwnQueueAdditions(listOf(song.videoId))
+        Toast.makeText(
+            context,
+            context.getString(R.string.listen_together_queue_added),
+            Toast.LENGTH_SHORT,
+        ).show()
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+    ) {
+        SheetHeader(title = stringResource(R.string.listen_together_queue_search_title))
+        Spacer(Modifier.height(18.dp))
+        PillTextField(
+            value = query,
+            onValueChange = { query = it },
+            placeholder = stringResource(R.string.listen_together_queue_search_hint),
+            container = MaterialTheme.colorScheme.surfaceVariant,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        )
+        Spacer(Modifier.height(8.dp))
+        when {
+            searching -> {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 14.dp),
+                ) {
+                    CircularProgressIndicator(
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = stringResource(R.string.listen_together_queue_searching),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            error != null -> {
+                Text(
+                    text = error.orEmpty(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(vertical = 14.dp),
+                )
+            }
+
+            results.isNotEmpty() -> {
+                // Bounded: a sheet's content scrolls as a whole, and an
+                // unbounded lazy list inside it would fight that scroll rather
+                // than join it.
+                LazyColumn(Modifier.heightIn(max = 340.dp)) {
+                    items(results, key = { it.videoId }) { song ->
+                        AddSongRow(song = song, onAdd = { addSong(song) })
+                    }
+                }
+            }
+
+            query.trim().length >= ADD_SONG_MIN_QUERY -> {
+                Text(
+                    text = stringResource(
+                        R.string.listen_together_queue_no_results,
+                        searchedFor.ifBlank { query.trim() },
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 14.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+    }
+}
+
+/** One search hit, and the add that puts it in the shared queue. */
+@Composable
+private fun AddSongRow(song: Song, onAdd: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surface),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (song.thumbnailUrl != null) {
+                AsyncImage(
+                    model = song.thumbnailUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)),
+                )
+            } else {
+                Icon(
+                    Icons.Rounded.MusicNote,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = song.title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = song.artist,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        IconButton(onClick = onAdd) {
+            Icon(
+                Icons.Rounded.Add,
+                contentDescription = stringResource(R.string.listen_together_queue_add),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+/**
+ * What may be shared: a real catalogue id.
+ *
+ * A media-store or file URI names a row on this device and nothing at all
+ * anywhere else — see PartySync's own guard — so it is filtered here rather
+ * than sent and refused. Search results never carry one; this is the belt
+ * rather than the braces.
+ */
+private fun String.isShareableId(): Boolean =
+    isNotBlank() && !startsWith("content://") && !startsWith("file://")
+
+/** Fewer characters than this and the search is all noise. */
+private const val ADD_SONG_MIN_QUERY = 2
+
+private const val ADD_SONG_SEARCH_DEBOUNCE_MS = 400L

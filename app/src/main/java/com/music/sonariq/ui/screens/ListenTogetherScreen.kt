@@ -31,10 +31,13 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Login
@@ -48,6 +51,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
@@ -93,6 +97,7 @@ import com.music.sonariq.R
 import com.music.sonariq.data.listentogether.ListenTogether
 import com.music.sonariq.data.listentogether.PartyActivity
 import com.music.sonariq.data.listentogether.PartyMember
+import com.music.sonariq.data.listentogether.PartyTrack
 import com.music.sonariq.data.listentogether.ServerConnectionState
 import com.music.sonariq.data.listentogether.ServerUrlError
 import com.music.sonariq.data.listentogether.handoffSource
@@ -155,6 +160,10 @@ fun ListenTogetherScreen(
     val customServer by ListenTogether.customServerUrl.collectAsStateWithLifecycle()
     val connectionState by ListenTogether.serverConnectionState.collectAsStateWithLifecycle()
     val activity by ListenTogether.activity.collectAsStateWithLifecycle()
+    // What this device put in the shared queue itself — the remove buttons'
+    // honest answer to "whose song is this". See
+    // ListenTogether.ownQueueAdditions: the protocol carries no adder.
+    val ownAdditions by ListenTogether.ownQueueAdditions.collectAsStateWithLifecycle()
 
     var codeInput by remember(inviteCode) { mutableStateOf(inviteCode.orEmpty()) }
     var busy by remember { mutableStateOf(false) }
@@ -496,6 +505,8 @@ fun ListenTogetherScreen(
                         ).show()
                     },
                 )
+
+                PartySheet.AddSongs -> AddSongsSheet()
             }
         }
     }
@@ -552,12 +563,16 @@ fun ListenTogetherScreen(
         } else {
             InAParty(
                 state = state,
+                ownAdditions = ownAdditions,
                 onCopy = { clipboard.setText(AnnotatedString(state.code.orEmpty())) },
                 onShare = { sheet = PartySheet.Invite },
                 onLeave = { scope.launch { ListenTogether.leaveParty() } },
                 onSetCapacity = ListenTogether::setMaxMembers,
                 onSetHostOnlyControl = ListenTogether::setHostOnlyControl,
                 onKick = ListenTogether::kick,
+                onAddSongs = { sheet = PartySheet.AddSongs },
+                onRemoveTrack = ListenTogether::queueRemove,
+                onClearQueue = ListenTogether::queueClear,
             )
             // Inside the party branch on purpose. A log of who skipped what is
             // a thing to look back over while a party is running; on the page
@@ -878,12 +893,16 @@ private fun CodeCell(
 @Composable
 private fun InAParty(
     state: ListenTogether.State,
+    ownAdditions: Set<String>,
     onCopy: () -> Unit,
     onShare: () -> Unit,
     onLeave: () -> Unit,
     onSetCapacity: (Int) -> Unit,
     onSetHostOnlyControl: (Boolean) -> Unit,
     onKick: (String) -> Unit,
+    onAddSongs: () -> Unit,
+    onRemoveTrack: (String) -> Unit,
+    onClearQueue: () -> Unit,
 ) {
     SettingsGroup(
         header = stringResource(R.string.listen_together_code),
@@ -916,6 +935,14 @@ private fun InAParty(
     }
 
     NowPlayingInTheParty(state)
+
+    PartyQueueSection(
+        state = state,
+        ownAdditions = ownAdditions,
+        onAddSongs = onAddSongs,
+        onRemoveTrack = onRemoveTrack,
+        onClearQueue = onClearQueue,
+    )
 
     SettingsGroup(
         header = stringResource(
@@ -1086,10 +1113,207 @@ private fun NowPlayingInTheParty(state: ListenTogether.State) {
     }
 }
 
+/**
+ * The party's shared queue, live from the server.
+ *
+ * What is shown is [ListenTogether.State.queue] collected as state — the
+ * server re-broadcasts the whole list whenever it changes, so there is
+ * nothing to poll: a change lands in the state flow and the section redraws.
+ *
+ * Who may do what follows the same rules as everything else here:
+ * - When [ListenTogether.State.controlsLocked] is true, the add/remove/clear
+ *   controls are hidden and the section says so instead. The host is never
+ *   locked out of their own party; the server refuses a control sent anyway,
+ *   so this is what the app shows rather than what makes it true.
+ * - A member may remove their own additions — tracked by
+ *   [ListenTogether.ownQueueAdditions], because the protocol carries no
+ *   per-track adder (see [PartyTrack]) and this device's own sends are the
+ *   only honest attribution it has.
+ * - The host may remove anything, and is the only one who may clear.
+ */
+@Composable
+private fun PartyQueueSection(
+    state: ListenTogether.State,
+    ownAdditions: Set<String>,
+    onAddSongs: () -> Unit,
+    onRemoveTrack: (String) -> Unit,
+    onClearQueue: () -> Unit,
+) {
+    val queue = state.queue
+    val locked = state.controlsLocked
+    val isHost = state.you?.isHost == true
+    var confirmClear by remember { mutableStateOf(false) }
+
+    SettingsGroup(
+        header = stringResource(R.string.listen_together_queue),
+        // Said when the controls are hidden, so the section does not read as
+        // missing: a queue nobody may touch is a queue, not an empty box.
+        footer = if (locked) {
+            stringResource(R.string.listen_together_queue_locked)
+        } else {
+            null
+        },
+    ) {
+        if (!locked) {
+            SettingsRow(
+                icon = Icons.Rounded.Add,
+                title = stringResource(R.string.listen_together_queue_add),
+                onClick = onAddSongs,
+            )
+        }
+        if (queue.items.isEmpty()) {
+            if (!locked) RowDivider()
+            Text(
+                text = stringResource(R.string.listen_together_queue_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = ROW_INSET, vertical = 16.dp),
+            )
+        } else {
+            if (!locked) RowDivider()
+            queue.items.forEachIndexed { index, track ->
+                if (index > 0) RowDivider()
+                PartyQueueRow(
+                    track = track,
+                    isCurrent = index == queue.index,
+                    // A member's own additions, or anything when wearing the
+                    // host's hat. AutoPlay's top-ups read as nobody's —
+                    // removing them is the host's call.
+                    canRemove = !locked && (isHost || (!track.fromAutoplay && track.videoId in ownAdditions)),
+                    onRemove = { onRemoveTrack(track.videoId) },
+                )
+            }
+            if (!locked && isHost) {
+                RowDivider()
+                SettingsRow(
+                    icon = Icons.Rounded.Delete,
+                    title = stringResource(R.string.listen_together_queue_clear),
+                    onClick = { confirmClear = true },
+                )
+            }
+        }
+    }
+
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = {
+                Text(
+                    stringResource(R.string.listen_together_queue_clear_title),
+                    style = MaterialTheme.typography.titleLarge,
+                )
+            },
+            text = {
+                Text(
+                    stringResource(R.string.listen_together_queue_clear_message),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmClear = false
+                        onClearQueue()
+                    },
+                ) {
+                    Text(
+                        stringResource(R.string.clear),
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClear = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+        )
+    }
+}
+
+/** One queued track: art, title, artist, and whose turn it is to play. */
+@Composable
+private fun PartyQueueRow(
+    track: PartyTrack,
+    isCurrent: Boolean,
+    canRemove: Boolean,
+    onRemove: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .padding(horizontal = ROW_INSET, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surface),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (track.thumbnailUrl != null) {
+                AsyncImage(
+                    model = track.thumbnailUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)),
+                )
+            } else {
+                Icon(
+                    Icons.Rounded.MusicNote,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = track.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (isCurrent) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onBackground
+                    },
+                    fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (isCurrent) {
+                    Spacer(Modifier.width(8.dp))
+                    Badge(stringResource(R.string.listen_together_queue_now_playing))
+                }
+            }
+            Text(
+                text = track.artist,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (canRemove) {
+            IconButton(onClick = onRemove) {
+                Icon(
+                    Icons.Rounded.Close,
+                    contentDescription = stringResource(R.string.remove),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
 /** One line saying whether this device is actually keeping up, and how well. */
 @Composable
-private fun connectionLine(state: ListenTogether.State): String = when {
-    state.connection != ListenTogether.Connection.LIVE ->
+private fun connectionLine(state: ListenTogether.State): String = when {    state.connection != ListenTogether.Connection.LIVE ->
         stringResource(R.string.listen_together_reconnecting)
     // Live, but the clock has not been measured yet — so the position above is
     // the server's last word on it rather than this device's own reckoning, and

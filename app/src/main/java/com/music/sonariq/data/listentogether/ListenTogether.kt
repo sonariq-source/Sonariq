@@ -257,6 +257,35 @@ object ListenTogether {
     /** Last 100 actions for this app session only. */
     val activity: StateFlow<List<PartyActivity>> = _activity.asStateFlow()
 
+    private val _ownQueueAdditions = MutableStateFlow<Set<String>>(emptySet())
+    /**
+     * `videoId`s of the shared queue's tracks this device added through the
+     * party UI, this session.
+     *
+     * The protocol carries no per-track adder — [PartyTrack] is
+     * `{videoId, title, artist, thumbnailUrl, durationMs, fromAutoplay}` and
+     * nothing more, so "who added this song" is not something the server can
+     * answer. The one honest attribution this device has is what it sent
+     * itself: a member may remove their own additions, the host may remove
+     * anything. AutoPlay's top-ups are never marked (see
+     * `PlaybackService.topUpPartyAutoplay`), and the set is pruned against the
+     * live queue on every update, so a track the server dropped stops reading
+     * as removable instead of dangling.
+     */
+    val ownQueueAdditions: StateFlow<Set<String>> = _ownQueueAdditions.asStateFlow()
+
+    /** Marks tracks as this device's own additions. @see ownQueueAdditions */
+    fun markOwnQueueAdditions(videoIds: Collection<String>) {
+        if (videoIds.isEmpty()) return
+        _ownQueueAdditions.update { it + videoIds }
+    }
+
+    /** @see ownQueueAdditions */
+    private fun pruneOwnQueueAdditions(items: List<PartyTrack>) {
+        val live = items.map { it.videoId }.toSet()
+        _ownQueueAdditions.update { it.intersect(live) }
+    }
+
     /**
      * A server the user has pointed this install at instead of the built-in one.
      *
@@ -790,6 +819,11 @@ object ListenTogether {
                 queue = membership.party.queue,
                 connection = Connection.CONNECTING,
             )
+            // A snapshot is the one message that carries the queue
+            // unconditionally — a device that has just arrived has no other
+            // way to learn it, and none of its entries were added by this
+            // device yet.
+            pruneOwnQueueAdditions(membership.party.queue.items)
         }
         connect()
         return membership.code
@@ -847,6 +881,7 @@ object ListenTogether {
                 queue = membership.party.queue,
                 connection = Connection.CONNECTING,
             )
+            pruneOwnQueueAdditions(membership.party.queue.items)
         }
         connect()
         return membership.code
@@ -983,6 +1018,7 @@ object ListenTogether {
                     queue = membership.party.queue,
                     connection = Connection.CONNECTING,
                 )
+                pruneOwnQueueAdditions(membership.party.queue.items)
             }
 
             // Outside NonCancellable: establish socket connection
@@ -1006,6 +1042,7 @@ object ListenTogether {
             activePartyServerBase = null
             prefs.edit().remove(KEY_CODE).remove(KEY_TOKEN).apply()
             _state.value = State()
+            _ownQueueAdditions.value = emptySet()
             if (code != null && held != null) {
                 releaseStaleSlotOnServer(currentServer, code, held)
             }
@@ -1277,6 +1314,7 @@ object ListenTogether {
                     connection = Connection.LIVE,
                     error = null,
                 ) }
+                pruneOwnQueueAdditions(party.queue.items)
             }
 
             "pong" -> {
@@ -1314,6 +1352,7 @@ object ListenTogether {
                 } ?: return
                 if (queue.seq < _state.value.queue.seq) return
                 _state.update { it.copy(queue = queue) }
+                pruneOwnQueueAdditions(queue.items)
             }
 
             "members" -> {
