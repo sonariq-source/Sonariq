@@ -2908,6 +2908,14 @@ class PlaybackService : MediaLibraryService() {
         mediaItem?.mediaId?.let { id ->
             resolveLocalBitrate(id, mediaItem)
         }
+        // Vibe autoplay: compute the vibe vector for this track in the
+        // background if it doesn't have a confident one yet. Never blocks.
+        mediaItem?.let {
+            com.music.sonariq.playback.vibe.VibeAnalysisTrigger.onTrackStarted(
+                applicationContext,
+                it.toSong(),
+            )
+        }
 
         // A crossfade handoff never fires [formatListener] for the entering
         // track — [CrossfadeController] starts its decoder during ARMING,
