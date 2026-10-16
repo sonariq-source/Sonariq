@@ -3191,18 +3191,17 @@ internal fun rememberLyricsTranslation(
     // What the panel draws in small type under each original line, Apple
     // Music style. The panel itself always keeps the original words; only the
     // one-line strip over the scrubber swaps to [displayedLyrics]. One mode at
-    // a time by construction — [lyricsDisplayMode] holds a single value —
-    // unless the translation-subtitle overlay is on, which draws the
-    // translated lines under the originals without switching modes.
+    // a time by construction — [lyricsDisplayMode] holds a single value — and
+    // the translation-subtitle overlay only fills the sub-lines in while the
+    // mode stays Original.
     val translatedReadyLines = (translationState as? LyricsTranslationUiState.Ready)?.lines
-    val lyricsSubLines = when {
-        overlayEnabled -> translatedReadyLines
-        else -> when (lyricsDisplayMode) {
-            LyricsDisplayMode.Translated -> translatedReadyLines
-            LyricsDisplayMode.Romanized ->
-                (romanizationState as? LyricsTranslationUiState.Ready)?.lines
-            LyricsDisplayMode.Original -> null
-        }
+    val lyricsSubLines = when (lyricsDisplayMode) {
+        LyricsDisplayMode.Translated -> translatedReadyLines
+        LyricsDisplayMode.Romanized ->
+            (romanizationState as? LyricsTranslationUiState.Ready)?.lines
+        // The subtitle overlay fills these in without leaving Original mode;
+        // an explicit romanize tap still wins while it lasts.
+        LyricsDisplayMode.Original -> translatedReadyLines.takeIf { overlayEnabled }
     }
     val translationScope = rememberCoroutineScope()
     // Shared by the manual button and the automatic subtitle overlay: asks
