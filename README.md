@@ -40,6 +40,12 @@
 </div>
 
 ### 🎵 Playback
+- **Mood & time-of-day** — a home section with time-aware stations.
+- **Phone-to-TV handoff** — fling playback from the phone app to Sonariq TV via a Listen Together party.
+- **Shared party queues** — party members add/remove songs in Listen Together.
+- **Collaborative playlists** — build playlists together through a Listen Together party.
+- **Friend activity feed** — see what friends are playing, from the party server.
+- **Concert alerts** — upcoming shows by your top artists via Ticketmaster.
 - **Search, browse and play** anything available on YouTube Music.
 - **Hi-Res lossless audio** — FLAC/ALAC from a configured module source, with YouTube Music as fallback.
 - **Gapless playback with true crossfade**, adjustable 0–12s.
@@ -55,11 +61,15 @@
 - **Karaoke pause-hold** — each word lands discretely and holds through the silence, just like the pros.
 - **Clean UI** — no provider badges, no sync estimates. Just the words.
 - **Translations & romanisation**, per-track offset, in-lyrics search and copy.
+- **Lyrics translation overlay** — automatic translated subtitle lines in Now Playing (an explicit romanise tap wins over the overlay).
+- **Duet karaoke** — split-screen lead/harmony lyrics mode.
+- **Karaoke party mode** — turn-based multiplayer scoring.
 - **Karaoke scoring** — sing along with the mic; pitch detection scores your performance 0–100.
 - **Karaoke key changer** — shift any song −6…+6 semitones in Settings to match your voice.
 - **Lock-screen lyrics** — the current line shows right on your lock screen as you sing.
 
 ### 🤖 Smart autoplay & AI radio
+- **Vibe autoplay engine** — detects the vibe of what you're playing (Last.fm listener tags + on-device tempo/key/energy analysis + your listening behaviour) and keeps the music flowing in that mood forever; the queue refills when 3 songs remain, skips teach it your taste, and a vibe badge on Now Playing shows what it's feeling.
 - **Smart Autoplay** — learns your song-to-song transitions and predicts what plays next.
 - **AI mood stations** — pick Chill, Party, Focus or Workout; Sonariq builds a ~25-track station from your taste.
 
@@ -69,10 +79,14 @@
 - **Your logo everywhere** — the white Sonariq waveform mark replaces every leftover placeholder.
 
 ### 📱 Widgets & sharing
+- **Share songs like Spotify** — share button in Now Playing with story cards, lyrics cards, text share and copy link.
 - **Now-playing + lyrics widget** — artwork, controls and a live lyric-line peek on your home screen.
 - **Shareable Replay cards** — beautiful 1080×1350 stats cards rendered from your real listening, ready to share.
+- **Annual Wrapped** — year-in-review story with shareable cards.
 
 ### 💎 Design
+- **New green-gradient waveform logo** — on the launcher, in-app and in notifications.
+- **Custom theme colour picker** — hue/saturation/hex picker for the app accent.
 - **Prism design system** — matte midnight/plum surfaces, coral primary, orchid secondary, cyan highlights.
 - **Liquid glass** — milkier blur, vivid refraction, luminous rims and top-light sheen, on by default.
 - **Animated navigation** — tabs bloom, pages slide, modals rise. The whole app breathes.
@@ -85,14 +99,17 @@
 - **Update card** with version and changelog — download and install without leaving the app.
 
 ### 📶 Smart downloads
+- **Smart Downloads 2.0** — time/daypart pattern prediction learns when you listen.
+- **True offline mode** — a single Settings toggle for downloads-only playback.
 - **Automatic daily downloads** of your favourites — Wi-Fi and charging aware.
 - **Offline lyrics prefetch** so karaoke works without a connection.
 - Storage estimates and 25/50/100 track limits.
 
 ### 🎛️ Sound & stats
+- **DJ mix mode** — tempo- and energy-aware crossfade transitions.
 - **7-band EQ** with user presets and tone trims.
 - **Playback speed control** (0.5×–2.0×) and **skip silence**.
-- **Sleep timer** — fixed presets or "stop after this track".
+- **Sleep timer** — fixed presets or "stop after this track", with gradual fade-out over the last 60 seconds.
 - **Weekly Replay** — your listening stats, milestones and smart playlists.
 - **Stats for nerds** — codec, bit depth, sample rate on the now-playing screen.
 
