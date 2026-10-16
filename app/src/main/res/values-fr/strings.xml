@@ -1464,4 +1464,8 @@
     <string name="update_checking">Checking…</string>
     <string name="update_up_to_date">You have the latest version</string>
     <string name="device">Device</string>
+    <string name="dj_mix">DJ mix</string>
+    <string name="dj_mix_subtitle">Tempo- and energy-aware transitions: long blends for matching songs, quick cuts for clashing ones</string>
+    <string name="fade_out">Fade out</string>
+    <string name="fade_out_subtitle">Lower the volume gradually over the last minute before pausing</string>
 </resources>

@@ -280,6 +280,26 @@ object AppSettings {
      */
     val smartFadeEnabled = MutableStateFlow(false)
 
+    /**
+     * DJ mix mode: its own on/off, distinct from the plain [crossfadeSeconds]
+     * duration. When on, every track boundary gets a DJ-style transition whose
+     * length is decided per pair from real measured audio features — the
+     * tracks' DSP-measured tempi and energy curves — rather than the fixed
+     * slider: similar-tempo songs get a long blend, clashing ones a quick
+     * cut. The slider only sets the *maximum* length; with it at "Off", a
+     * fixed default does. Until a pair is analysed the maximum is used as-is,
+     * which is the honest answer when there is no evidence yet.
+     */
+    val djMixEnabled = MutableStateFlow(false)
+
+    /**
+     * Fade the volume out gradually over the last 60 seconds of a deadline
+     * sleep timer instead of pausing abruptly at the deadline. On by default;
+     * the "pause when this song ends" timer already fades via the crossfade
+     * controller and is unaffected.
+     */
+    val sleepTimerFadeOut = MutableStateFlow(true)
+
     /** The CPU budget used by Beat This! and vocal analysis for Automix. */
     val automixPerformanceMode = MutableStateFlow(AutomixPerformanceMode.BALANCED)
     val skipSilence = MutableStateFlow(false)
@@ -427,6 +447,13 @@ object AppSettings {
 
     /** The accent driving the theme's primary roles; brand lime out of the box. */
     val accentColor = MutableStateFlow(AccentColor.LIME)
+
+    /**
+     * A user-picked accent color (opaque ARGB), overriding [accentColor] when
+     * set. Null means the preset above. The dynamic theme still wins over both
+     * — it follows the artwork, not the settings.
+     */
+    val customAccentArgb = MutableStateFlow<Int?>(null)
 
     /** When true, the accent is extracted from the playing track's artwork. */
     val dynamicTheme = MutableStateFlow(false)
@@ -923,6 +950,8 @@ object AppSettings {
         castReceiverAppId.value = prefs.getString(KEY_CAST_RECEIVER_APP_ID, "").orEmpty()
         crossfadeSeconds.value = prefs.getInt(KEY_CROSSFADE, 0)
         smartFadeEnabled.value = prefs.getBoolean(KEY_SMART_FADE, false)
+        djMixEnabled.value = prefs.getBoolean(KEY_DJ_MIX, false)
+        sleepTimerFadeOut.value = prefs.getBoolean(KEY_SLEEP_TIMER_FADE_OUT, true)
         automixPerformanceMode.value = runCatching {
             AutomixPerformanceMode.valueOf(
                 prefs.getString(KEY_AUTOMIX_PERFORMANCE_MODE, null) ?: AutomixPerformanceMode.BALANCED.name,
@@ -966,6 +995,8 @@ object AppSettings {
                 }
             }
         accentColor.value = accentColorFromStored(prefs.getString(KEY_ACCENT_COLOR, null))
+        customAccentArgb.value =
+            if (prefs.contains(KEY_ACCENT_COLOR_CUSTOM)) prefs.getInt(KEY_ACCENT_COLOR_CUSTOM, 0) else null
         dynamicTheme.value = prefs.getBoolean(KEY_DYNAMIC_THEME, false)
         playbackSpeed.value = prefs.getFloat(KEY_SPEED, 1.0f)
         karaokePitch.value = prefs.getFloat(KEY_KARAOKE_PITCH, 0f)
@@ -1252,6 +1283,16 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_SMART_FADE, value).apply()
     }
 
+    fun setDjMixEnabled(value: Boolean) {
+        djMixEnabled.value = value
+        prefs.edit().putBoolean(KEY_DJ_MIX, value).apply()
+    }
+
+    fun setSleepTimerFadeOut(value: Boolean) {
+        sleepTimerFadeOut.value = value
+        prefs.edit().putBoolean(KEY_SLEEP_TIMER_FADE_OUT, value).apply()
+    }
+
     fun setAutomixPerformanceMode(value: AutomixPerformanceMode) {
         automixPerformanceMode.value = value
         prefs.edit().putString(KEY_AUTOMIX_PERFORMANCE_MODE, value.name).apply()
@@ -1425,7 +1466,26 @@ object AppSettings {
 
     fun setAccentColor(value: AccentColor) {
         accentColor.value = value
-        prefs.edit().putString(KEY_ACCENT_COLOR, value.name).apply()
+        // A preset is a whole choice: it takes over from any custom color, so
+        // tapping one always visibly re-themes rather than silently losing to
+        // the override.
+        customAccentArgb.value = null
+        prefs.edit()
+            .putString(KEY_ACCENT_COLOR, value.name)
+            .remove(KEY_ACCENT_COLOR_CUSTOM)
+            .apply()
+    }
+
+    /**
+     * Overrides the preset accent with a user-picked color, live. Null clears
+     * the override and the preset takes over again.
+     */
+    fun setCustomAccentArgb(argb: Int?) {
+        customAccentArgb.value = argb
+        val editor = prefs.edit()
+        if (argb == null) editor.remove(KEY_ACCENT_COLOR_CUSTOM)
+        else editor.putInt(KEY_ACCENT_COLOR_CUSTOM, argb)
+        editor.apply()
     }
 
     fun setDynamicTheme(value: Boolean) {
@@ -2290,6 +2350,8 @@ object AppSettings {
     private const val KEY_LOSSLESS = "lossless_audio"
     private const val KEY_CROSSFADE = "crossfade_seconds"
     private const val KEY_SMART_FADE = "smart_fade_enabled"
+    private const val KEY_DJ_MIX = "dj_mix_enabled"
+    private const val KEY_SLEEP_TIMER_FADE_OUT = "sleep_timer_fade_out"
     private const val KEY_AUTOMIX_PERFORMANCE_MODE = "automix_performance_mode"
     private const val KEY_SKIP_SILENCE = "skip_silence"
     private const val KEY_OUTPUT_PCM_MODE = "output_pcm_mode"
@@ -2314,6 +2376,7 @@ object AppSettings {
     private const val KEY_KARAOKE_SCORING = "karaoke_scoring"
     private const val KEY_THEME = "theme_mode"
     private const val KEY_ACCENT_COLOR = "accent_color"
+    private const val KEY_ACCENT_COLOR_CUSTOM = "accent_color_custom"
     private const val KEY_DYNAMIC_THEME = "dynamic_theme"
     private const val KEY_AUTOPLAY = "autoplay"
     private const val KEY_SHUFFLE_ENABLED = "shuffle_enabled"

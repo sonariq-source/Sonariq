@@ -19,6 +19,7 @@ import com.music.sonariq.playback.smart.CrossfadeMode
 import com.music.sonariq.playback.smart.FILTER_ECHO_AT
 import com.music.sonariq.playback.smart.FilterTransitionVariant
 import com.music.sonariq.playback.smart.TrackAnalysis
+import com.music.sonariq.playback.smart.EnergySample
 import com.music.sonariq.playback.smart.TransitionStyle
 import com.music.sonariq.playback.smart.TransitionTrackInfo
 import com.music.sonariq.playback.smart.echoTailSeconds
@@ -827,6 +828,11 @@ class CrossfadeController(
             return
         }
 
+        if (AppSettings.djMixEnabled.value) {
+            considerDjMixTransition(player, duration)
+            return
+        }
+
         if (configuredFadeMs() <= 0L) return
         val fade = fadeFor(duration)
         if (fade <= 0L) return
@@ -1050,6 +1056,129 @@ class CrossfadeController(
     }
 
     /**
+     * Arms a DJ mix transition as the playing track runs out.
+     *
+     * The same real two-player crossfade machinery as the standard path —
+     * [begin] with the plain equal-power blend — but the length is decided
+     * per pair by [djFadeFor] instead of the fixed slider. Analysis is queued
+     * for the pair every tick (a no-op once measured), so by the time a
+     * boundary arrives the tempi and energy curves are usually already there.
+     */
+    private fun considerDjMixTransition(player: ExoPlayer, duration: Long) {
+        val currentItem = player.currentMediaItem ?: return
+        val nextIndex = player.nextMediaItemIndex
+        if (nextIndex == C.INDEX_UNSET) return
+        val nextItem = player.getMediaItemAt(nextIndex)
+
+        requestAnalysisAround(player, duration)
+
+        val fade = djFadeFor(currentItem, nextItem, duration)
+        if (fade <= 0L) return
+
+        val remaining = duration - player.currentPosition
+        if (SleepTimer.afterTrack.value) {
+            // Same contract as the other two arm paths: the sleep timer means
+            // there is no next track, so the DJ length is spent fading out
+            // against silence instead — see [beginSleepFadeOut].
+            if (remaining > fade) return
+            beginSleepFadeOut(fade)
+            return
+        }
+        // Same arm-ahead margin as the standard path, so [holdAtEnd] still has
+        // room to keep the outgoing player off the next track's audio.
+        if (remaining > fade + ARM_LEAD_MS && remaining > armBeforeReadAheadMs()) return
+
+        begin(fade, endMs = duration, smart = false, mode = "dj")
+    }
+
+    /**
+     * How long a DJ mix transition runs for this pair, in ms.
+     *
+     * The plain [AppSettings.crossfadeSeconds] setting is the *maximum*: with the slider
+     * at "Off" a fixed default stands in, so DJ mix still mixes. From there
+     * the real evidence shortens it:
+     *
+     *  - **Tempo** (DSP-measured [TrackAnalysis.bpm] on both sides): songs
+     *    within ~8% of each other's tempo get the full blend; past ~20% the
+     *    beats would audibly fight, so the transition collapses toward a
+     *    quick DJ cut.
+     *  - **Energy** ([djEnergyFactor]): an outgoing tail and incoming head at
+     *    similar energy keep the blend; a big energy gap shortens it.
+     *
+     * Until both sides are analysed, the maximum is used as-is — no evidence,
+     * no modulation. Never swallows more than a third of a track, like the
+     * standard path.
+     */
+    private fun djFadeFor(currentItem: MediaItem, nextItem: MediaItem, duration: Long): Long {
+        val configured = configuredFadeMs()
+        val maximum = if (configured > 0L) configured else DEFAULT_DJ_FADE_MS
+        val capped = if (duration > 0L) minOf(maximum, duration / 3) else maximum
+
+        val current = analysisFor(currentItem)
+        val next = analysisFor(nextItem)
+        if (!current.isUsable || !next.isUsable) return capped.coerceAtLeast(0L)
+
+        val tempoRatio = abs(current.bpm - next.bpm) / maxOf(current.bpm, next.bpm)
+        val tempoFactor = when {
+            tempoRatio <= 0.08 -> 1.0
+            tempoRatio <= 0.20 -> 0.6
+            else -> 0.25
+        }
+        val energyFactor = djEnergyFactor(current, next)
+        val fade = (capped * tempoFactor * energyFactor).roundToLong()
+            .coerceIn(DJ_QUICK_CUT_MS, capped)
+
+        // One line per distinct verdict, like the planner's — a per-tick log of
+        // a number that only changes when the pair or its evidence does.
+        val verdict = "dj ${currentItem.mediaId}->${nextItem.mediaId} fade=$fade " +
+            "bpm=${current.bpm.roundToInt()}/${next.bpm.roundToInt()} " +
+            "tempo=${"%.2f".format(Locale.ROOT, tempoFactor)} " +
+            "energy=${"%.2f".format(Locale.ROOT, energyFactor)}"
+        if (verdict != lastPlanVerdict) {
+            lastPlanVerdict = verdict
+            Log.d(TAG, "plan $verdict")
+        }
+        return fade
+    }
+
+    /**
+     * How alike the two tracks' energies are where the transition happens —
+     * the outgoing track's tail against the incoming track's head — as a
+     * 0.5..1.0 multiplier on the fade length.
+     *
+     * Both windows are [DJ_ENERGY_WINDOW_S] of real measured energy samples,
+     * and the energy scale is whatever the analyzer chose, so only the *ratio*
+     * is read: identical energy keeps the full blend, and the wider the gap
+     * the shorter the transition gets. Empty curves are "no evidence", which
+     * never shortens a fade on its own.
+     */
+    private fun djEnergyFactor(current: TrackAnalysis, next: TrackAnalysis): Double {
+        val outCurve = current.energyCurve
+        val inCurve = next.energyCurve
+        if (outCurve.isEmpty() || inCurve.isEmpty()) return 1.0
+        val outEnd = outCurve.last().time
+        val inStart = inCurve.first().time
+        val outAvg = meanEnergy(outCurve, outEnd - DJ_ENERGY_WINDOW_S, outEnd)
+        val inAvg = meanEnergy(inCurve, inStart, inStart + DJ_ENERGY_WINDOW_S)
+        if (outAvg <= 0.0 || inAvg <= 0.0) return 1.0
+        val ratio = minOf(outAvg, inAvg) / maxOf(outAvg, inAvg)
+        return 0.5 + 0.5 * ratio
+    }
+
+    /** Mean energy of the curve's samples inside [from]..[to] seconds. */
+    private fun meanEnergy(curve: List<EnergySample>, from: Double, to: Double): Double {
+        var sum = 0.0
+        var count = 0
+        for (sample in curve) {
+            if (sample.time in from..to) {
+                sum += sample.energy
+                count++
+            }
+        }
+        return if (count == 0) 0.0 else sum / count
+    }
+
+    /**
      * Keeps the stats line describing the pair that is actually playing.
      *
      * Cheap enough to run unconditionally — two concurrent-map lookups and a
@@ -1167,6 +1296,8 @@ class CrossfadeController(
         fade: Long,
         endMs: Long,
         smart: Boolean,
+        /** What the arm log calls this transition: "standard", "smart" or "dj". */
+        mode: String = if (smart) "smart" else "standard",
         cueTimeMs: Long = 0L,
         playbackRate: Double = 1.0,
         outgoingRate: Double = 1.0,
@@ -1203,7 +1334,7 @@ class CrossfadeController(
 
         Log.d(
             TAG,
-            "arm ${if (smart) "smart" else "standard"} fade=${fade}ms end=${endMs}ms " +
+            "arm $mode fade=${fade}ms end=${endMs}ms " +
                 "cue=${incomingCueTimeMs}ms rate=$incomingPlaybackRate at=${out.currentPosition}ms " +
                 "style=${render.style} bassSwap=${render.bassSwap}@${render.swapAt} " +
                 "advanced=${render.advanced} lock=${render.phaseLock} handoff=${render.handoffAt} " +
@@ -2624,6 +2755,25 @@ class CrossfadeController(
          * structure instead and this is never read.
          */
         const val DEFAULT_SMART_FALLBACK_SECONDS = 6.0
+
+        /**
+         * The DJ mix length used when the plain crossfade slider sits at
+         * "Off": DJ mix is its own toggle, so it still has to mix when the
+         * slider it borrows its maximum from is at zero.
+         */
+        const val DEFAULT_DJ_FADE_MS = 8_000L
+
+        /**
+         * The shortest a DJ mix transition ever gets: a quick cut rather than
+         * a hard one, so clashing tempi still change tracks without a click.
+         */
+        const val DJ_QUICK_CUT_MS = 1_500L
+
+        /**
+         * How much of each track's measured energy curve the DJ mix compares:
+         * the outgoing track's tail and the incoming track's head.
+         */
+        const val DJ_ENERGY_WINDOW_S = 20.0
 
         /** Ramp used when a fade is interrupted. */
         const val BAIL_MS = 120L

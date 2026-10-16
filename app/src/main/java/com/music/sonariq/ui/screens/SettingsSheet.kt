@@ -218,6 +218,7 @@ fun SettingsScreen(
     val metered by AppSettings.meteredConnection.collectAsStateWithLifecycle()
     val crossfade by AppSettings.crossfadeSeconds.collectAsStateWithLifecycle()
     val smartFade by AppSettings.smartFadeEnabled.collectAsStateWithLifecycle()
+    val djMix by AppSettings.djMixEnabled.collectAsStateWithLifecycle()
     val automixPerformance by AppSettings.automixPerformanceMode.collectAsStateWithLifecycle()
     val skipSilence by AppSettings.skipSilence.collectAsStateWithLifecycle()
     val dolbyAtmos by AppSettings.dolbyAtmos.collectAsStateWithLifecycle()
@@ -743,6 +744,30 @@ fun SettingsScreen(
                         onSliderValue = { AppSettings.setCrossfadeSeconds(it.roundToInt()) },
                         valueRange = 0f..12f,
                         steps = 11,
+                    )
+                }
+                // DJ mix is its own toggle, distinct from the fixed-length
+                // slider above: when on, each transition's length is decided
+                // from the two tracks' measured tempo and energy — long
+                // blends for matching songs, quick cuts for clashing ones —
+                // with the slider setting only the maximum.
+                val djMixTitle = stringResource(R.string.dj_mix)
+                row(djMixTitle, "dj", "mix", "tempo", "energy", "blend") {
+                    SettingsRow(
+                        icon = Icons.Rounded.GraphicEq,
+                        title = djMixTitle,
+                        subtitle = stringResource(R.string.dj_mix_subtitle),
+                        trailing = {
+                            Switch(
+                                checked = djMix,
+                                onCheckedChange = AppSettings::setDjMixEnabled,
+                                colors = SwitchDefaults.colors(
+                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            )
+                        },
+                        onClick = { AppSettings.setDjMixEnabled(!djMix) },
                     )
                 }
             }
