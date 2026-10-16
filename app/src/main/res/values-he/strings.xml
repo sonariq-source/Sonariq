@@ -1614,4 +1614,11 @@
     <string name="vibe_strictness_subtitle">Pure \u2194 Adventurous</string>
     <string name="vibe_unknown">unknown vibe</string>
     <string name="vibe_workout">Workout</string>
+    <string name="share_to_story">Share to story</string>
+    <string name="share_with_lyrics">Share with lyrics</string>
+    <string name="share_song">Share song</string>
+    <string name="copy_link">Copy link</string>
+    <string name="link_copied">Link copied</string>
+    <string name="preparing_share">Preparing share\u2026</string>
+    <string name="share_song_text">\ud83c\udfb5 %1$s by %2$s \u2014 via Sonariq</string>
 </resources>

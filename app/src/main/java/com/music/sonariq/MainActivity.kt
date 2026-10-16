@@ -324,6 +324,9 @@ import com.music.sonariq.ui.replay.ReplayShareSheet
 import com.music.sonariq.ui.replay.ReplayStories
 import com.music.sonariq.ui.replay.ReplayStoryPage
 import com.music.sonariq.ui.replay.rememberReplayState
+import com.music.sonariq.ui.share.SongShareSheet
+import com.music.sonariq.ui.share.lyricSnippet
+import com.music.sonariq.ui.player.resolveLyricsOffsetMs
 import com.music.sonariq.ui.theme.SonariqTheme
 import com.music.sonariq.ui.theme.rememberArtworkPalette
 import com.music.sonariq.ui.theme.rememberDynamicAccentArgb
@@ -600,6 +603,14 @@ private fun SonariqApp(
     var showReplayShare by rememberSaveable { mutableStateOf(false) }
     /** Which story card the share sheet is for, or null for the whole Replay. */
     var replaySharePage by rememberSaveable { mutableStateOf<ReplayStoryPage?>(null) }
+    /** The Now Playing song share sheet. */
+    var showSongShare by remember { mutableStateOf(false) }
+    /** Artwork URL handed over by the player for the share card. */
+    var songShareArtworkUrl by remember { mutableStateOf<String?>(null) }
+    /** The song the share sheet is for. */
+    var songShareTarget by remember { mutableStateOf<Song?>(null) }
+    /** Real lyric lines around the current position, or null when none. */
+    var songShareLyrics by remember { mutableStateOf<List<String>?>(null) }
     /** The Annual Wrapped story overlay. */
     var showWrapped by rememberSaveable { mutableStateOf(false) }
     // Track which sub-screen was opened from Settings so AnimatedContent keeps
@@ -2469,6 +2480,20 @@ private fun SonariqApp(
                 songMenuOrigin = null
                 songActions = song
             },
+            onShareSong = { artworkUrl ->
+                songShareTarget = displayedSong
+                songShareArtworkUrl = artworkUrl
+                songShareLyrics = lyricSnippet(
+                    lyrics,
+                    player.position.positionMs + resolveLyricsOffsetMs(
+                        AppSettings.lyricsOffsetOverrides.value,
+                        AppSettings.lyricsOffsetMs.value,
+                        displayedSong.videoId,
+                    ),
+                )
+                showSongShare = true
+            },
+            shareSongEnabled = true,
             onOpenAlbum = { id ->
                 dismissPlayer()
                 viewModel.openDetail(
@@ -4364,6 +4389,30 @@ private fun SonariqApp(
                         memberSince = replay.memberSince,
                         page = replaySharePage,
                         onDismiss = { showReplayShare = false },
+                    )
+                }
+            }
+        }
+
+        // ---- Now Playing song share ----
+        // The Spotify-shaped sheet: story card, lyrics card, text share and
+        // link copy for the song the player is on. Mounted out here with the
+        // Replay share sheet, above the player it was opened from.
+        songShareTarget?.let { target ->
+            if (showSongShare) {
+                ModalBottomSheet(
+                    onDismissRequest = { showSongShare = false },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = MaterialTheme.colorScheme.background,
+                ) {
+                    SongShareSheet(
+                        title = target.title,
+                        artist = target.artist,
+                        artworkUrl = songShareArtworkUrl ?: target.thumbnailUrl,
+                        lyricLines = songShareLyrics,
+                        trackUrl = target.localUri?.let { null }
+                            ?: "https://music.youtube.com/watch?v=${target.videoId}",
+                        onDismiss = { showSongShare = false },
                     )
                 }
             }
