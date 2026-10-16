@@ -317,6 +317,7 @@ import com.music.sonariq.ui.screens.MoodGenrePlaylistsScreen
 import com.music.sonariq.ui.screens.SearchScreen
 import com.music.sonariq.data.settings.SongSort
 import com.music.sonariq.ui.replay.ReplayScreen
+import com.music.sonariq.ui.replay.WrappedScreen
 import com.music.sonariq.ui.replay.cards
 import com.music.sonariq.ui.replay.ReplayShareSheet
 import com.music.sonariq.ui.replay.ReplayStories
@@ -598,6 +599,8 @@ private fun SonariqApp(
     var showReplayShare by rememberSaveable { mutableStateOf(false) }
     /** Which story card the share sheet is for, or null for the whole Replay. */
     var replaySharePage by rememberSaveable { mutableStateOf<ReplayStoryPage?>(null) }
+    /** The Annual Wrapped story overlay. */
+    var showWrapped by rememberSaveable { mutableStateOf(false) }
     // Track which sub-screen was opened from Settings so AnimatedContent keeps
     // SettingsSheet mounted underneath and back navigation restores scroll.
     // null = no sub-screen overlay; non-null = that key is rendered as overlay.
@@ -729,7 +732,7 @@ private fun SonariqApp(
     // The modal player owns light status glyphs and its own contrast scrim.
     // Every other surface follows the theme; Replay's page and stories remain
     // dark artwork either way.
-    SystemBarIcons(dark = !darkTheme && !showNowPlaying && !showReplay && replayStory == null)
+    SystemBarIcons(dark = !darkTheme && !showNowPlaying && !showReplay && replayStory == null && !showWrapped)
 
     val homeState by viewModel.home.collectAsStateWithLifecycle()
     // Friend-activity feed: what party members are playing, from the Listen
@@ -790,6 +793,7 @@ private fun SonariqApp(
         showReplay = false
         replayStory = null
         showReplayShare = false
+        showWrapped = false
         showAccountScrobbling = false
         showSources = false
         showEqualizer = false
@@ -2272,7 +2276,7 @@ private fun SonariqApp(
     // picture, so they cannot disagree. Read while any of them is on screen —
     // which includes the Library tab, since the cards live at the top of it.
     // See [rememberReplayState].
-    val replayOpen = showReplay || replayStory != null || showReplayShare ||
+    val replayOpen = showReplay || replayStory != null || showReplayShare || showWrapped ||
         (selectedTab == TAB_LIBRARY && detail == null && !showSettings)
     val (replay, setReplayPeriod) = rememberReplayState(replayOpen)
     val replayCards = remember(replay.summary) {
@@ -2597,6 +2601,7 @@ private fun SonariqApp(
         // every other handler because they are drawn over everything else.
         BackHandler(enabled = showReplayShare) { showReplayShare = false }
         BackHandler(enabled = replayStory != null && !showReplayShare) { replayStory = null }
+        BackHandler(enabled = showWrapped && replayStory == null && !showReplayShare) { showWrapped = false }
         BackHandler(
             enabled = showReplay && replayStory == null && !showReplayShare,
         ) {
@@ -2903,6 +2908,7 @@ private fun SonariqApp(
                                 replaySharePage = null
                                 showReplayShare = true
                             },
+                            onOpenWrapped = { showWrapped = true },
                             contentPadding = listPadding,
                             listState = replayListState,
                             landingPage = replayLandingPage,
@@ -3705,6 +3711,7 @@ private fun SonariqApp(
                                         replaySharePage = null
                                         showReplayShare = true
                                     },
+                                    onOpenWrapped = { showWrapped = true },
                                     contentPadding = listPadding,
                                     listState = replayListState,
                                     landingPage = replayLandingPage,
@@ -4324,6 +4331,13 @@ private fun SonariqApp(
                     paused = showReplayShare,
                 )
             }
+        }
+
+        // ---- Annual Wrapped ----
+        // Mounted out here with the Replay stories: a story covers the window,
+        // so it lives above the panes rather than inside one.
+        if (showWrapped) {
+            WrappedScreen(onClose = { showWrapped = false })
         }
 
         // ---- Share the Replay ----

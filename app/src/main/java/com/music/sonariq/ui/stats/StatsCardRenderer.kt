@@ -98,6 +98,50 @@ suspend fun renderStatsCard(context: Context, period: ReplayPeriod): Bitmap {
 }
 
 /**
+ * The Annual Wrapped as a shareable 1080×1350 (4:5) picture: the year, total
+ * minutes, top 5 songs, top artist and top genre — all from the real
+ * [ListeningStats] year summary.
+ *
+ * Reuses the same offscreen composition machinery as [renderStatsCard]: the
+ * card is a composable drawn into a bitmap with no window, and no artwork is
+ * carried so the picture is complete the moment it is drawn.
+ */
+suspend fun renderWrappedCard(context: Context, year: Int): Bitmap {
+    val summary = ListeningStats.summary(ReplayPeriod.THIS_YEAR)
+    val data = WrappedCardData(
+        title = context.getString(R.string.wrapped_card_title),
+        yearLabel = year.toString(),
+        minutes = grouped(summary.minutes),
+        minutesCaption = context.getString(R.string.minutes_listened),
+        topSongsCaption = context.getString(R.string.top_songs),
+        songs = summary.songs.take(WRAPPED_SONGS).mapIndexed { index, ranked ->
+            SongRow(
+                rank = index + 1,
+                title = ranked.song.title,
+                artist = ranked.song.artist,
+                minutes = context.getString(
+                    R.string.minutes_grouped_short,
+                    formatMinutes(ranked.ms),
+                ),
+            )
+        },
+        topArtistCaption = context.getString(R.string.top_artist),
+        topArtist = summary.artists.firstOrNull()?.title,
+        topGenreCaption = context.getString(R.string.top_genre),
+        topGenre = summary.genres.firstOrNull()?.title,
+        footer = context.getString(R.string.counted_on_device_with_sonariq),
+        empty = summary.isEmpty,
+        emptyTitle = context.getString(R.string.wrapped_empty_title),
+        emptyHint = context.getString(R.string.wrapped_empty_hint),
+    )
+    // Measure, layout and draw must happen on the main thread; the summary
+    // above already did its disk work on Dispatchers.IO internally.
+    return withContext(Dispatchers.Main.immediate) {
+        renderOffscreen(context) { WrappedCard(data) }
+    }
+}
+
+/**
  * Sends [bitmap] to the app of the user's choice.
  *
  * Written into the cache's `shared/` folder — the only cache path the
@@ -134,14 +178,30 @@ fun shareStatsCard(context: Context, bitmap: Bitmap) {
  * composition is applied before measuring; the cap keeps a wedged frame clock
  * from hanging the share button forever.
  */
-private suspend fun renderOffscreen(context: Context, data: StatsCardData): Bitmap {
+private suspend fun renderOffscreen(context: Context, data: StatsCardData): Bitmap =
+    renderOffscreen(context) { StatsCard(data) }
+
+/**
+ * Composes [content] into a view that is never attached to a window and draws
+ * it into a bitmap.
+ *
+ * Without a window, [ComposeView.setContent] only stores the content and waits
+ * for attachment — so the composition is created explicitly against a
+ * [Recomposer] owned by this call. A few frames are awaited so the initial
+ * composition is applied before measuring; the cap keeps a wedged frame clock
+ * from hanging the share button forever.
+ */
+private suspend fun renderOffscreen(
+    context: Context,
+    content: @Composable () -> Unit,
+): Bitmap {
     return kotlinx.coroutines.coroutineScope {
         val recomposer = Recomposer(coroutineContext)
         val view = ComposeView(context)
         val recompose = launch { recomposer.runRecomposeAndApplyChanges() }
         try {
             view.setParentCompositionContext(recomposer)
-            view.setContent { StatsCard(data) }
+            view.setContent(content)
             view.createComposition()
             var frames = 0
             while (view.childCount == 0 && frames < MAX_FRAMES) {
@@ -186,6 +246,24 @@ private data class SongRow(
     val title: String,
     val artist: String,
     val minutes: String,
+)
+
+/** Everything the Wrapped card draws, resolved to plain strings up front. */
+private data class WrappedCardData(
+    val title: String,
+    val yearLabel: String,
+    val minutes: String,
+    val minutesCaption: String,
+    val topSongsCaption: String,
+    val songs: List<SongRow>,
+    val topArtistCaption: String,
+    val topArtist: String?,
+    val topGenreCaption: String,
+    val topGenre: String?,
+    val footer: String,
+    val empty: Boolean,
+    val emptyTitle: String,
+    val emptyHint: String,
 )
 
 /** Prism: matte midnight/plum, coral primary, orchid secondary, cyan highlights. */
@@ -389,12 +467,213 @@ private fun Caption(text: String) {
     )
 }
 
+/**
+ * The Wrapped card: the year, total minutes, top songs, top artist and top
+ * genre on the same 4:5 frame as [StatsCard], in the same Prism language.
+ *
+ * Kept deliberately compact — the type is smaller than the Replay card's and
+ * the song chart runs to three — so everything on it fits the frame instead
+ * of being cut off at the foot.
+ */
+@Composable
+private fun WrappedCard(data: WrappedCardData) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0A0F0A)),
+    ) {
+        // Prism wash: coral light from the top, orchid pooling at the foot.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Coral.copy(alpha = 0.20f),
+                            Color.Transparent,
+                            Orchid.copy(alpha = 0.30f),
+                        ),
+                    ),
+                ),
+        )
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Cyan.copy(alpha = 0.05f),
+                            Color.Transparent,
+                            Orchid.copy(alpha = 0.08f),
+                        ),
+                    ),
+                ),
+        )
+        // The brand bar: coral into orchid, the Wrapped signature.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .background(Brush.horizontalGradient(listOf(Coral, Orchid))),
+        )
+
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 56.dp, vertical = 40.dp),
+        ) {
+            Text(
+                text = data.title.uppercase(),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 6.sp,
+                color = Cyan.copy(alpha = 0.9f),
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = data.yearLabel,
+                fontSize = 40.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Ink,
+                maxLines = 1,
+            )
+
+            if (data.empty) {
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = data.emptyTitle,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Ink,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    text = data.emptyHint,
+                    fontSize = 17.sp,
+                    color = InkDim,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.weight(1f))
+            } else {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = data.minutes,
+                    fontSize = 44.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Coral,
+                    maxLines = 1,
+                )
+                Text(
+                    text = data.minutesCaption.uppercase(),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 4.sp,
+                    color = InkDim,
+                )
+                Spacer(Modifier.height(10.dp))
+                CaptionSmall(data.topSongsCaption)
+                Spacer(Modifier.height(6.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    data.songs.forEach { song ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = song.rank.toString(),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (song.rank == 1) Coral else InkFaint,
+                                modifier = Modifier.width(34.dp),
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    text = song.title,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Ink,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = song.artist,
+                                    fontSize = 11.sp,
+                                    color = InkDim,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                text = song.minutes,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Cyan.copy(alpha = 0.85f),
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                data.topArtist?.let { artist ->
+                    CaptionSmall(data.topArtistCaption)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = artist,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Ink,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                }
+                data.topGenre?.let { genre ->
+                    CaptionSmall(data.topGenreCaption)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = genre,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Ink,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+            }
+
+            Text(
+                text = data.footer,
+                fontSize = 11.sp,
+                color = InkFaint,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CaptionSmall(text: String) {
+    Text(
+        text = text.uppercase(),
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 4.sp,
+        color = InkDim,
+    )
+}
+
 /** 1080×1350, the 4:5 frame every share surface expects. */
 private const val CARD_W = 1080
 private const val CARD_H = 1350
 
 /** How far down the chart the card goes — the same five the Replay shows. */
 private const val TOP_SONGS = 5
+
+/** How far down the chart the Wrapped card goes — three, so it fits the frame. */
+private const val WRAPPED_SONGS = 3
 
 /** Frames awaited for the initial composition before measuring. */
 private const val MAX_FRAMES = 30

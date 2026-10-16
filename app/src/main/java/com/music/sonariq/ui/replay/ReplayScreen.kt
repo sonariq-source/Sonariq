@@ -3,6 +3,7 @@ package com.music.sonariq.ui.replay
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -72,6 +73,7 @@ import com.music.sonariq.ui.player.rememberArtworkColors
 import com.music.sonariq.ui.stats.renderStatsCard
 import com.music.sonariq.ui.stats.shareStatsCard
 import com.music.sonariq.ui.theme.AccentRed
+import java.time.LocalDate
 import kotlinx.coroutines.launch
 
 /** Whether the Replay page is being shown in dark mode (vs light). */
@@ -114,6 +116,8 @@ fun ReplayScreen(
     onOpenArtist: (String?, String) -> Unit,
     onOpenAlbum: (String?, String, String?, String?) -> Unit,
     onShare: () -> Unit,
+    /** Opens the Annual Wrapped story for the current calendar year. */
+    onOpenWrapped: () -> Unit = {},
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
@@ -196,6 +200,9 @@ fun ReplayScreen(
                             onOpenStory(ReplayStoryPage.INTRO)
                         }
                     }
+                    item("wrapped") {
+                        WrappedEntryCard(dark = dark, onClick = onOpenWrapped)
+                    }
 
                     chart(
                         key = "songs",
@@ -249,9 +256,11 @@ fun ReplayScreen(
                     if (state.milestones.isNotEmpty()) {
                         item("milestones") { Milestones(state.milestones, dark) }
                     }
+                    // Real upcoming shows by the listener's top artists — see
                     // ConcertsSection. Drawn only while the toggle is on.
                     item("concerts") {
                         ConcertsSection(dark = dark, onOpenArtist = onOpenArtist)
+                    }
                     item("footnote") {
                         // How the numbers are counted, in the page's own words
                         // rather than only on the story's intro card.
@@ -493,6 +502,66 @@ private fun ReplayActionRow(icon: ImageVector, label: String, dark: Boolean, onC
             tint = textColor.copy(alpha = 0.5f),
             modifier = Modifier.size(16.dp),
         )
+    }
+}
+
+/**
+ * The way in to the Annual Wrapped: a Prism gradient banner — coral into
+ * orchid into cyan over the page — with the year set large. It sits with the
+ * Replay's own action rows rather than in the charts because it is a
+ * destination, not a chart.
+ */
+@Composable
+private fun WrappedEntryCard(dark: Boolean, onClick: () -> Unit) {
+    val year = LocalDate.now().year
+    val textColor = if (dark) Color.White else Color.Black
+    val shape = RoundedCornerShape(20.dp)
+    Box(
+        Modifier
+            .padding(horizontal = PAGE_GUTTER + 4.dp, vertical = 4.dp)
+            .fillMaxWidth()
+            .clip(shape)
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        Color(0xFFFF6B5E).copy(alpha = if (dark) 0.30f else 0.18f),
+                        Color(0xFFDA70D6).copy(alpha = if (dark) 0.24f else 0.14f),
+                        Color(0xFF5EEAD4).copy(alpha = if (dark) 0.16f else 0.10f),
+                    ),
+                ),
+            )
+            .border(1.dp, textColor.copy(alpha = 0.12f), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.wrapped).uppercase(),
+                    style = MaterialTheme.typography.labelLarge,
+                    letterSpacing = 3.sp,
+                    color = Color(0xFFFF6B5E),
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = year.toString(),
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.W800,
+                    color = textColor,
+                )
+                Text(
+                    text = stringResource(R.string.wrapped_entry_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = textColor.copy(alpha = 0.6f),
+                )
+            }
+            Icon(
+                imageVector = SonariqIcons.ChevronRight,
+                contentDescription = null,
+                tint = textColor.copy(alpha = 0.5f),
+                modifier = Modifier.size(20.dp),
+            )
+        }
     }
 }
 
