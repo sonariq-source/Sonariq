@@ -82,6 +82,7 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         override val spotifyCanvasAutoHide get() = AppSettings.spotifyCanvasAutoHide
         override val syncedLyrics get() = AppSettings.syncedLyrics
         override val translationLanguage get() = AppSettings.translationLanguage
+        override val lyricsTranslationOverlay get() = AppSettings.lyricsTranslationOverlay
         override val versionAlignmentInProgress get() = AppSettings.versionAlignmentInProgress
         override val visualizerStyle get() = AppSettings.visualizerStyle
         override val visualizerIntensity get() = AppSettings.visualizerIntensity
@@ -94,6 +95,8 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         override fun setLyricsOffsetMs(value: Int) = AppSettings.setLyricsOffsetMs(value)
         override fun setLyricsOffsetForTrack(videoId: String, offsetMs: Int?) =
             AppSettings.setLyricsOffsetForTrack(videoId, offsetMs)
+        override fun setLyricsTranslationOverlay(value: Boolean) =
+            AppSettings.setLyricsTranslationOverlay(value)
         override fun setVisualizerStyle(value: VisualizerStyle) =
             AppSettings.setVisualizerStyle(value)
         override fun setVisualizerIntensity(value: Float) =

@@ -1178,6 +1178,8 @@
     <string name="translation_language_app_default">Uygulama dili</string>
 
     <string name="translation_language_subtitle">Uygulama dilini izler</string>
+    <string name="lyrics_translation_overlay">Translation subtitles</string>
+    <string name="lyrics_translation_overlay_subtitle">Show translated lines under each lyric automatically</string>
 
     <string name="search_languages">Dil ara</string>
 

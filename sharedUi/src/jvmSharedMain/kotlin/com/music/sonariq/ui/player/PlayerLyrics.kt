@@ -3154,6 +3154,9 @@ internal fun rememberLyricsTranslation(
     val translationUnavailableMessage = stringResource(Res.string.lyrics_translation_unavailable)
     val alreadyRomanizedMessage = stringResource(Res.string.lyrics_already_romanized)
     val romanizationUnavailableMessage = stringResource(Res.string.lyrics_romanization_unavailable)
+    // The Settings "translation subtitles" switch: translated lines appear
+    // under each original line without anyone tapping the translate button.
+    val overlayEnabled by PlayerSettings.lyricsTranslationOverlay.collectAsStateWithLifecycle()
     var translationState by remember(trackId, translationLanguage, lyrics) {
         mutableStateOf<LyricsTranslationUiState>(LyricsTranslationUiState.Idle)
     }
@@ -3188,14 +3191,76 @@ internal fun rememberLyricsTranslation(
     // What the panel draws in small type under each original line, Apple
     // Music style. The panel itself always keeps the original words; only the
     // one-line strip over the scrubber swaps to [displayedLyrics]. One mode at
-    // a time by construction — [lyricsDisplayMode] holds a single value.
-    val lyricsSubLines = when (lyricsDisplayMode) {
-        LyricsDisplayMode.Translated -> (translationState as? LyricsTranslationUiState.Ready)?.lines
-        LyricsDisplayMode.Romanized -> (romanizationState as? LyricsTranslationUiState.Ready)?.lines
-        LyricsDisplayMode.Original -> null
+    // a time by construction — [lyricsDisplayMode] holds a single value —
+    // unless the translation-subtitle overlay is on, which draws the
+    // translated lines under the originals without switching modes.
+    val translatedReadyLines = (translationState as? LyricsTranslationUiState.Ready)?.lines
+    val lyricsSubLines = when {
+        overlayEnabled -> translatedReadyLines
+        else -> when (lyricsDisplayMode) {
+            LyricsDisplayMode.Translated -> translatedReadyLines
+            LyricsDisplayMode.Romanized ->
+                (romanizationState as? LyricsTranslationUiState.Ready)?.lines
+            LyricsDisplayMode.Original -> null
+        }
     }
     val translationScope = rememberCoroutineScope()
-    val toggleTranslation: () -> Unit = toggleTranslation@{
+    // Shared by the manual button and the automatic subtitle overlay: asks
+    // the host to translate, cancelling any romanization in flight. A manual
+    // tap flips the panel to the translated version; the overlay only fills
+    // in the small lines underneath, leaving the originals on screen.
+    val fetchTranslation: (switchDisplayMode: Boolean) -> Unit = fetchTranslation@{ switchDisplayMode ->
+        val source = lyrics.orEmpty()
+        if (source.isEmpty()) return@fetchTranslation
+        if (switchDisplayMode) haptics.play(Haptic.Tap)
+        translationState = LyricsTranslationUiState.Loading
+        romanizationJob?.cancel()
+        if (romanizationState is LyricsTranslationUiState.Loading) {
+            romanizationState = LyricsTranslationUiState.Idle
+        }
+        translationJob?.cancel()
+        translationJob = translationScope.launch {
+            when (
+                val result = PlayerPlatform.host.translateLyrics(
+                    trackId = trackId,
+                    lines = source,
+                    targetLanguageTag = translationLanguage,
+                )
+            ) {
+                is LyricsTranslationResult.Translated -> {
+                    translationState = LyricsTranslationUiState.Ready(result.lines)
+                    if (switchDisplayMode) {
+                        lyricsDisplayMode = LyricsDisplayMode.Translated
+                        translationTransition++
+                        haptics.play(Haptic.ToggleOn)
+                    }
+                }
+                is LyricsTranslationResult.SameLanguage -> {
+                    translationState = LyricsTranslationUiState.SameLanguage
+                    PlayerPlatform.host.showMessage(alreadyInLanguageMessage)
+                }
+                LyricsTranslationResult.Unavailable -> {
+                    translationState = LyricsTranslationUiState.Idle
+                    PlayerPlatform.host.showMessage(translationUnavailableMessage)
+                }
+            }
+        }
+    }
+    // The subtitle overlay translates each track on its own, once per track: a
+    // failed lookup settles back to Idle, and without the attempt flag this
+    // effect would ask again on every recomposition — a toast loop.
+    var overlayAttempted by remember(trackId, translationLanguage, lyrics) {
+        mutableStateOf(false)
+    }
+    LaunchedEffect(trackId, translationLanguage, lyrics, overlayEnabled) {
+        if (overlayEnabled && !overlayAttempted &&
+            translationState is LyricsTranslationUiState.Idle && !lyrics.isNullOrEmpty()
+        ) {
+            overlayAttempted = true
+            fetchTranslation(false)
+        }
+    }
+    val toggleTranslation: () -> Unit = {
         when (val state = translationState) {
             is LyricsTranslationUiState.Ready -> {
                 lyricsDisplayMode = if (showingTranslation) {
@@ -3211,41 +3276,7 @@ internal fun rememberLyricsTranslation(
                 haptics.play(Haptic.Tap)
                 PlayerPlatform.host.showMessage(alreadyInLanguageMessage)
             }
-            LyricsTranslationUiState.Idle -> {
-                val source = lyrics.orEmpty()
-                if (source.isEmpty()) return@toggleTranslation
-                haptics.play(Haptic.Tap)
-                translationState = LyricsTranslationUiState.Loading
-                romanizationJob?.cancel()
-                if (romanizationState is LyricsTranslationUiState.Loading) {
-                    romanizationState = LyricsTranslationUiState.Idle
-                }
-                translationJob?.cancel()
-                translationJob = translationScope.launch {
-                    when (
-                        val result = PlayerPlatform.host.translateLyrics(
-                            trackId = trackId,
-                            lines = source,
-                            targetLanguageTag = translationLanguage,
-                        )
-                    ) {
-                        is LyricsTranslationResult.Translated -> {
-                            translationState = LyricsTranslationUiState.Ready(result.lines)
-                            lyricsDisplayMode = LyricsDisplayMode.Translated
-                            translationTransition++
-                            haptics.play(Haptic.ToggleOn)
-                        }
-                        is LyricsTranslationResult.SameLanguage -> {
-                            translationState = LyricsTranslationUiState.SameLanguage
-                            PlayerPlatform.host.showMessage(alreadyInLanguageMessage)
-                        }
-                        LyricsTranslationResult.Unavailable -> {
-                            translationState = LyricsTranslationUiState.Idle
-                            PlayerPlatform.host.showMessage(translationUnavailableMessage)
-                        }
-                    }
-                }
-            }
+            LyricsTranslationUiState.Idle -> fetchTranslation(true)
         }
     }
     val toggleRomanization: () -> Unit = toggleRomanization@{

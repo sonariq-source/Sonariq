@@ -560,6 +560,13 @@ object AppSettings {
     val translationLanguage = MutableStateFlow("")
 
     /**
+     * Automatic translated subtitle lines under each lyric in the Now Playing
+     * lyrics view. Off by default: a translation costs a network call per
+     * track, and the manual translate button stays the explicit opt-in.
+     */
+    val lyricsTranslationOverlay = MutableStateFlow(false)
+
+    /**
      * Plays a looping video behind the cover art on the player when one is
      * published for the track — Spotify's Canvas, Apple's motion artwork.
      *
@@ -1041,6 +1048,7 @@ object AppSettings {
                 .coerceIn(MIN_VISUALIZER_INTENSITY, MAX_VISUALIZER_INTENSITY)
         visualizerBatterySaver.value = prefs.getBoolean(KEY_VISUALIZER_BATTERY_SAVER, false)
         translationLanguage.value = prefs.getString(KEY_TRANSLATION_LANGUAGE, "").orEmpty()
+        lyricsTranslationOverlay.value = prefs.getBoolean(KEY_LYRICS_TRANSLATION_OVERLAY, false)
         if (highPerformanceMode.value) {
             reduceAnimation.value = false
             reduceDynamicBlur.value = false
@@ -1637,6 +1645,12 @@ object AppSettings {
     fun setTranslationLanguage(value: String) {
         translationLanguage.value = value
         prefs.edit().putString(KEY_TRANSLATION_LANGUAGE, value).apply()
+    }
+
+    fun setLyricsTranslationOverlay(value: Boolean) {
+        if (lyricsTranslationOverlay.value == value) return
+        lyricsTranslationOverlay.value = value
+        prefs.edit().putBoolean(KEY_LYRICS_TRANSLATION_OVERLAY, value).apply()
     }
 
     fun setSyncedLyrics(value: Boolean) {
@@ -2406,6 +2420,7 @@ object AppSettings {
     private const val KEY_VISUALIZER_INTENSITY = "visualizer_intensity"
     private const val KEY_VISUALIZER_BATTERY_SAVER = "visualizer_battery_saver"
     private const val KEY_TRANSLATION_LANGUAGE = "translation_language"
+    private const val KEY_LYRICS_TRANSLATION_OVERLAY = "lyrics_translation_overlay"
     private const val KEY_ANIMATED_CANVAS = "animated_canvas"
     private const val KEY_CANVAS_OVER_CELLULAR = "canvas_over_cellular"
     private const val KEY_SPOTIFY_CANVAS_AUTO_HIDE = "spotify_canvas_auto_hide"

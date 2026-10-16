@@ -247,6 +247,7 @@ fun SettingsScreen(
     val syncedLyrics by AppSettings.syncedLyrics.collectAsStateWithLifecycle()
     val lockscreenLyrics by AppSettings.lockscreenLyrics.collectAsStateWithLifecycle()
     val translationLanguage by AppSettings.translationLanguage.collectAsStateWithLifecycle()
+    val lyricsTranslationOverlay by AppSettings.lyricsTranslationOverlay.collectAsStateWithLifecycle()
     val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
     val accent by AppSettings.accentColor.collectAsStateWithLifecycle()
     val dynamicTheme by AppSettings.dynamicTheme.collectAsStateWithLifecycle()
@@ -1391,6 +1392,25 @@ fun SettingsScreen(
                         },
                         trailing = { Chevron() },
                         onClick = onTranslationLanguage,
+                    )
+                }
+                val translationOverlayTitle = stringResource(R.string.lyrics_translation_overlay)
+                row(translationOverlayTitle, "lyrics", "translate", "subtitle", "translation") {
+                    SettingsRow(
+                        icon = Icons.Rounded.Subtitles,
+                        title = translationOverlayTitle,
+                        subtitle = stringResource(R.string.lyrics_translation_overlay_subtitle),
+                        trailing = {
+                            Switch(
+                                checked = lyricsTranslationOverlay,
+                                onCheckedChange = AppSettings::setLyricsTranslationOverlay,
+                                colors = SwitchDefaults.colors(
+                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            )
+                        },
+                        onClick = { AppSettings.setLyricsTranslationOverlay(!lyricsTranslationOverlay) },
                     )
                 }
             }

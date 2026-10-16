@@ -232,6 +232,7 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
     override val spotifyCanvasAutoHide = MutableStateFlow(true)
     override val syncedLyrics = MutableStateFlow(true)
     override val translationLanguage = MutableStateFlow("")
+    override val lyricsTranslationOverlay = MutableStateFlow(false)
     override val versionAlignmentInProgress = MutableStateFlow(false)
     // The desktop has no capture backend, so these are in-memory only; the
     // strip stays hidden behind NoVisualizer regardless.
@@ -271,6 +272,10 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
     override fun setLyricsKaraokeEffects(value: Boolean) {
         lyricsKaraokeEffects.value = value
         persistence.saveBoolean(KEY_LYRICS_KARAOKE, value)
+    }
+
+    override fun setLyricsTranslationOverlay(value: Boolean) {
+        lyricsTranslationOverlay.value = value
     }
 
     override fun setVisualizerStyle(value: VisualizerStyle) {

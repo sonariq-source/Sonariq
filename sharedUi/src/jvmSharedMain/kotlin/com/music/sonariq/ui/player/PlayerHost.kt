@@ -187,6 +187,11 @@ interface PlayerSettingsSource {
     val spotifyCanvasAutoHide: StateFlow<Boolean>
     val syncedLyrics: StateFlow<Boolean>
     val translationLanguage: StateFlow<String>
+    /**
+     * The Now Playing lyrics view translates each track automatically and
+     * draws the translated lines under the originals. Off by default.
+     */
+    val lyricsTranslationOverlay: StateFlow<Boolean>
     val versionAlignmentInProgress: StateFlow<Boolean>
 
     /** The Now Playing visualizer's rendering mode; [VisualizerStyle.OFF] hides the strip. */
@@ -203,6 +208,7 @@ interface PlayerSettingsSource {
     fun setLyricsOffsetMs(value: Int)
     /** Null clears the track's own offset, handing it back to the global one. */
     fun setLyricsOffsetForTrack(videoId: String, offsetMs: Int?)
+    fun setLyricsTranslationOverlay(value: Boolean)
     fun setVisualizerStyle(value: VisualizerStyle)
     fun setVisualizerIntensity(value: Float)
     fun setVisualizerBatterySaver(value: Boolean)
