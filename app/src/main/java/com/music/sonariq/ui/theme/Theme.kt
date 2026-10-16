@@ -117,6 +117,13 @@ fun SonariqTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     accent: AccentColor = AccentColor.LIME,
     /**
+     * A user-picked accent override for [accent]. When non-null it replaces
+     * the preset's primary in both modes — normalised the same way, so a
+     * near-black pick still reads as an accent. Null means [accent] as usual.
+     * The dynamic artwork accent still wins over both; see [dynamicAccentArgb].
+     */
+    customAccentArgb: Int? = null,
+    /**
      * Artwork-driven accent override for the dynamic theme. When non-null it
      * replaces [accent]'s primary in both modes — darkened for light mode so
      * white on-primary text keeps its contrast. Null means [accent] as usual.
@@ -126,10 +133,12 @@ fun SonariqTheme(
 ) {
     val scheme = if (darkTheme) {
         val primary = dynamicAccentArgb?.let { Color(accentForDark(it)) }
+            ?: customAccentArgb?.let { Color(accentForDark(it)) }
             ?: Color(accent.darkArgb)
         DarkColors.copy(primary = primary, onPrimary = Color(0xFF14110A))
     } else {
         val primary = dynamicAccentArgb?.let { Color(accentForLight(it)) }
+            ?: customAccentArgb?.let { Color(accentForLight(it)) }
             ?: Color(accent.lightArgb)
         LightColors.copy(primary = primary, onPrimary = Color.White)
     }

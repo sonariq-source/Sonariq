@@ -253,6 +253,7 @@ fun SettingsScreen(
     val lyricsTranslationOverlay by AppSettings.lyricsTranslationOverlay.collectAsStateWithLifecycle()
     val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
     val accent by AppSettings.accentColor.collectAsStateWithLifecycle()
+    val customAccentArgb by AppSettings.customAccentArgb.collectAsStateWithLifecycle()
     val dynamicTheme by AppSettings.dynamicTheme.collectAsStateWithLifecycle()
     val sessionId by AppSettings.audioSessionId.collectAsStateWithLifecycle()
     val outputPcmMode by AppSettings.outputPcmMode.collectAsStateWithLifecycle()
@@ -333,6 +334,7 @@ fun SettingsScreen(
     var confirmImport by remember { mutableStateOf(false) }
     var confirmClearHistory by remember { mutableStateOf(false) }
     var confirmClearSongCache by remember { mutableStateOf(false) }
+    var showColorPicker by remember { mutableStateOf(false) }
     var showPerformanceWarning by remember { mutableStateOf(false) }
     var showPerformanceConfirmation by remember { mutableStateOf(false) }
     val backupScope = rememberCoroutineScope()
@@ -1063,7 +1065,9 @@ fun SettingsScreen(
                 SettingsRow(
                     icon = Icons.Rounded.Palette,
                     title = accentColorTitle,
-                    subtitle = accent.localizedLabel(),
+                    subtitle = customAccentArgb?.let {
+                        stringResource(R.string.custom) + " · #" + "%06X".format(0xFFFFFF and it)
+                    } ?: accent.localizedLabel(),
                 )
                 AccentPicker(
                     selected = accent,
@@ -1074,6 +1078,51 @@ fun SettingsScreen(
                         ThemeMode.DARK -> true
                     },
                     modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
+                )
+            }
+            row(stringResource(R.string.custom_color), "custom", "picker", "hex", "any color") {
+                val darkForPicker = when (theme) {
+                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                    ThemeMode.LIGHT -> false
+                    ThemeMode.DARK -> true
+                }
+                SettingsRow(
+                    icon = Icons.Rounded.Palette,
+                    title = stringResource(R.string.custom_color),
+                    subtitle = customAccentArgb?.let {
+                        "#" + "%06X".format(0xFFFFFF and it)
+                    } ?: stringResource(R.string.custom_color_subtitle),
+                    trailing = {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    customAccentArgb?.let { Color(it) }
+                                        ?: Color(
+                                            if (darkForPicker) accent.darkArgb else accent.lightArgb,
+                                        ),
+                                )
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outlineVariant,
+                                    CircleShape,
+                                ),
+                        )
+                    },
+                    onClick = { showColorPicker = true },
+                )
+            }
+            if (showColorPicker) {
+                val darkForPicker = when (theme) {
+                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                    ThemeMode.LIGHT -> false
+                    ThemeMode.DARK -> true
+                }
+                ColorPickerDialog(
+                    initialArgb = customAccentArgb
+                        ?: if (darkForPicker) accent.darkArgb.toInt() else accent.lightArgb.toInt(),
+                    onDismiss = { showColorPicker = false },
                 )
             }
             val dynamicThemeTitle = stringResource(R.string.dynamic_theme)

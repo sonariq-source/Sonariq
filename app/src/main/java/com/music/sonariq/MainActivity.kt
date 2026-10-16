@@ -368,6 +368,7 @@ class MainActivity : AppCompatActivity() {
         setContent {
             val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
             val accent by AppSettings.accentColor.collectAsStateWithLifecycle()
+            val customAccentArgb by AppSettings.customAccentArgb.collectAsStateWithLifecycle()
             val dynamicTheme by AppSettings.dynamicTheme.collectAsStateWithLifecycle()
             // Hoisted above the theme: the dynamic accent is derived from the
             // playing track's artwork, so the player state has to exist before
@@ -394,6 +395,7 @@ class MainActivity : AppCompatActivity() {
             SonariqTheme(
                 darkTheme = darkTheme,
                 accent = accent,
+                customAccentArgb = customAccentArgb,
                 dynamicAccentArgb = dynamicAccentArgb,
             ) {
                 // The glass surfaces sample this layer, and a layer records only
