@@ -126,8 +126,9 @@ object ConcertsRepository {
      * Looks up upcoming shows for the top artists. Returns the number of
      * shows that had not been seen before (and were notified about).
      */
-    suspend fun refresh(context: Context? = null): Int = withContext(Dispatchers.IO) {
-        val ctx = context ?: if (this::appContext.isInitialized) appContext else return@withContext 0
+    suspend fun refresh(context: Context? = null): Int {
+        val ctx = context ?: if (this::appContext.isInitialized) appContext else return 0
+        return withContext(Dispatchers.IO) {
         if (!AppSettings.concertAlertsEnabled.value) return@withContext 0
         val key = AppSettings.ticketmasterApiKey.value.trim()
         if (key.isEmpty()) return@withContext 0
@@ -159,6 +160,7 @@ object ConcertsRepository {
             _state.value = _state.value.copy(loading = false, error = true)
             0
         }
+    }
     }
 
     private fun queryArtist(key: String, artist: String): List<ConcertEvent> {

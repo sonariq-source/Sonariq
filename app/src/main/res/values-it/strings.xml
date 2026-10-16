@@ -1500,6 +1500,7 @@
         <item quantity="one">%1$d new upcoming show from an artist you listen to</item>
         <item quantity="other">%1$d new upcoming shows from artists you listen to</item>
     </plurals>
+
     <string name="collab_playlists_title">Collaborative playlists</string>
     <string name="collab_new_playlist">New collaborative playlist</string>
     <string name="collab_new_playlist_needs_party">Join a party to create one</string>

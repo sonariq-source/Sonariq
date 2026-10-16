@@ -571,11 +571,16 @@ private fun PartyTurns(
             }
         }
     }
-    TextButton(onClick = onQuit, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-        Text(
-            stringResource(R.string.karaoke_party_new_party),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center,
+    ) {
+        TextButton(onClick = onQuit) {
+            Text(
+                stringResource(R.string.karaoke_party_new_party),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

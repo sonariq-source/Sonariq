@@ -278,7 +278,7 @@ private fun WrappedStory(
                 )
             },
     ) {
-        SearchGradientBackground(palette = palette, trackKey = page.name, animated = false)
+        MeshGradientBackground(palette = palette, trackKey = page.name, animated = false)
         // Ink for the white type, weighted to the headline and the controls.
         Box(
             Modifier

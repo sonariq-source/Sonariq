@@ -1562,7 +1562,7 @@ fun SettingsScreen(
                 val translationOverlayTitle = stringResource(R.string.lyrics_translation_overlay)
                 row(translationOverlayTitle, "lyrics", "translate", "subtitle", "translation") {
                     SettingsRow(
-                        icon = Icons.Rounded.Subtitles,
+                        icon = Icons.Rounded.Language,
                         title = translationOverlayTitle,
                         subtitle = stringResource(R.string.lyrics_translation_overlay_subtitle),
                         trailing = {

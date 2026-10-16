@@ -81,7 +81,7 @@ fun MomentStationSection(
     // History can be cleared or re-imported under Settings; rebuild then too.
     val historyVersion by ListeningStats.cleared.collectAsState()
     LaunchedEffect(slot, historyVersion) {
-        val cached = momentCache.takeIf {
+        val cached = momentCache?.takeIf {
             it.slot == slot && it.historyVersion == historyVersion
         }?.station
         if (cached != null) {

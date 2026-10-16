@@ -4078,7 +4078,7 @@ private fun SonariqApp(
                 // a position in the *visible* tabs; offline mode hides
                 // Explore and Search, so it is mapped back to the TAB_*
                 // constant before anything else reasons about it.
-                val onTabSelected: (Int) -> Unit = { visibleIndex ->
+                val onTabSelected: (Int) -> Unit = onTabSelected@{ visibleIndex ->
                     val index = visibleTabs.getOrNull(visibleIndex)?.first ?: return@onTabSelected
                     viewModel.clearDetail()
                     viewModel.closeMoodGenre()
