@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonariq launcher foreground: white waveform mark, centered in the
+     108dp adaptive-icon viewport (safe zone respected). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M30.75,44.7 H30.75 Q33.5917,44.7 33.5917,47.5417 V59.9417 Q33.5917,62.7833 30.75,62.7833 H30.75 Q27.9083,62.7833 27.9083,59.9417 V47.5417 Q27.9083,44.7 30.75,44.7 Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M40.05,39.5333 H40.05 Q42.8917,39.5333 42.8917,42.375 V65.1083 Q42.8917,67.95 40.05,67.95 H40.05 Q37.2083,67.95 37.2083,65.1083 V42.375 Q37.2083,39.5333 40.05,39.5333 Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M49.35,32.3 H49.35 Q52.1917,32.3 52.1917,35.1417 V72.8583 Q52.1917,75.7 49.35,75.7 H49.35 Q46.5083,75.7 46.5083,72.8583 V35.1417 Q46.5083,32.3 49.35,32.3 Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M58.65,36.4333 H58.65 Q61.4917,36.4333 61.4917,39.275 V68.2083 Q61.4917,71.05 58.65,71.05 H58.65 Q55.8083,71.05 55.8083,68.2083 V39.275 Q55.8083,36.4333 58.65,36.4333 Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M67.95,41.6 H67.95 Q70.7917,41.6 70.7917,44.4417 V64.075 Q70.7917,66.9167 67.95,66.9167 H67.95 Q65.1083,66.9167 65.1083,64.075 V44.4417 Q65.1083,41.6 67.95,41.6 Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M77.25,44.7 H77.25 Q80.0917,44.7 80.0917,47.5417 V59.9417 Q80.0917,62.7833 77.25,62.7833 H77.25 Q74.4083,62.7833 74.4083,59.9417 V47.5417 Q74.4083,44.7 77.25,44.7 Z"/>
+</vector>
