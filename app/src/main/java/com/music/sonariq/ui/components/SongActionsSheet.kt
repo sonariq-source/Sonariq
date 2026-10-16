@@ -52,6 +52,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -80,6 +82,7 @@ import com.music.sonariq.data.model.LikeStatus
 import com.music.sonariq.data.model.ROW_ART_PX
 import com.music.sonariq.data.model.Song
 import com.music.sonariq.data.model.artworkAt
+import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.data.webdav.WebDavUploads
 import com.music.sonariq.download.DownloadState
 import com.music.sonariq.download.Downloads
@@ -648,6 +651,7 @@ private fun WebDavUploadRow(
 private fun SleepTimerPicker(palette: ArtworkPalette, onBack: () -> Unit) {
     val chosen by SleepTimer.minutes.collectAsStateWithLifecycle()
     val afterTrack by SleepTimer.afterTrack.collectAsStateWithLifecycle()
+    val fadeOut by AppSettings.sleepTimerFadeOut.collectAsStateWithLifecycle()
     val countdown = sleepTimerCountdown()
 
     Column(Modifier.fillMaxWidth()) {
@@ -706,6 +710,37 @@ private fun SleepTimerPicker(palette: ArtworkPalette, onBack: () -> Unit) {
                 SleepTimer.start(minutes)
                 onBack()
             }
+        }
+        // A persistent setting, not per-timer state: fading the volume out
+        // over the last minute is the default, and the switch stays where it
+        // was left for the next timer.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { AppSettings.setSleepTimerFadeOut(!fadeOut) }
+                .padding(horizontal = 22.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.fade_out),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Text(
+                    text = stringResource(R.string.fade_out_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = fadeOut,
+                onCheckedChange = AppSettings::setSleepTimerFadeOut,
+                colors = SwitchDefaults.colors(
+                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                    checkedBorderColor = MaterialTheme.colorScheme.primary,
+                ),
+            )
         }
         if (chosen != null || afterTrack) {
             ActionRow(Icons.Rounded.Close, stringResource(R.string.turn_off_timer), accent = palette.accent) {

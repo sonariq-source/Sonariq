@@ -5502,17 +5502,51 @@ class PlaybackService : MediaLibraryService() {
      *
      * `collectLatest` is what makes re-setting the timer work: the pending wait
      * is cancelled and restarted on the new deadline instead of both firing.
+     * Cancelling mid-fade restores the volume the fade started from, so a
+     * changed mind never leaves the player quiet.
      */
     private fun watchSleepTimer() {
         scope.launch {
             SleepTimer.deadline.collectLatest { deadline ->
                 if (deadline == null) return@collectLatest
-                val remaining = deadline - SystemClock.elapsedRealtime()
-                if (remaining > 0) delay(remaining)
-                player?.pause()
+                val p = player
+                val startGain = p?.volume ?: 1f
+                try {
+                    val fadeMs = if (AppSettings.sleepTimerFadeOut.value) SLEEP_FADE_OUT_MS else 0L
+                    val remaining = deadline - SystemClock.elapsedRealtime()
+                    if (remaining > fadeMs) delay(remaining - fadeMs)
+                    fadeOutVolumeAndPause(p, fadeMs, startGain)
+                } finally {
+                    // A re-set or cancelled timer must never leave the player
+                    // faded: hand the track back at the volume it had.
+                    p?.volume = startGain
+                }
                 SleepTimer.cancel()
             }
         }
+    }
+
+    /**
+     * Pauses at the sleep timer deadline, fading the volume out over the last
+     * [SLEEP_FADE_OUT_MS] first when [AppSettings.sleepTimerFadeOut] is on.
+     *
+     * A real ramp on the player's own volume, not a mute at the end: a
+     * cosine-eased curve, slow at the start so the fade is barely noticed,
+     * falling steadily into silence — no linear "volume cliff" at the end.
+     */
+    private suspend fun fadeOutVolumeAndPause(p: ExoPlayer?, fadeMs: Long, startGain: Float) {
+        if (p == null) return
+        if (fadeMs <= 0L) {
+            p.pause()
+            return
+        }
+        val stepMs = fadeMs / SLEEP_FADE_OUT_STEPS
+        repeat(SLEEP_FADE_OUT_STEPS) { i ->
+            val t = (i + 1) / SLEEP_FADE_OUT_STEPS.toFloat()
+            p.volume = startGain * (0.5f * (1f + cos(PI.toFloat() * t)))
+            delay(stepMs)
+        }
+        p.pause()
     }
 
     /**
@@ -8241,6 +8275,15 @@ class PlaybackService : MediaLibraryService() {
 
         /** How often played-seconds are sampled off the player. */
         const val PROGRESS_SAMPLE_MS = 5_000L
+
+        /**
+         * How long before a deadline sleep timer fires the volume starts
+         * fading out, when [AppSettings.sleepTimerFadeOut] is on.
+         */
+        const val SLEEP_FADE_OUT_MS = 60_000L
+
+        /** Steps the sleep-timer fade-out ramps through: small enough to track a cancel promptly. */
+        const val SLEEP_FADE_OUT_STEPS = 40
 
         /** Bounds on a track's normalization gain, in millibels: the range the platform LoudnessEnhancer this replaced accepted. */
         const val MIN_LOUDNESS_GAIN_MB = -1500
