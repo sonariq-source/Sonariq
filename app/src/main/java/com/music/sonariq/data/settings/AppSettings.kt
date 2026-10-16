@@ -484,6 +484,28 @@ object AppSettings {
     /** Keep playing similar music once the queue runs out. */
     val autoplay = MutableStateFlow(true)
 
+    /**
+     * Vibe autoplay: when the queue runs out, the next track is picked by
+     * matching the session's vibe — see
+     * [VibeAutoplay][com.music.sonariq.playback.vibe.VibeAutoplay] — rather
+     * than by generic similarity. The badge on the player names the vibe the
+     * session is currently sitting in.
+     */
+    val vibeAutoplay = MutableStateFlow(true)
+
+    /**
+     * Lets vibe autoplay resurface old favorites that fit the session's
+     * vibe, not just tracks that resemble the last one played. Only applies
+     * while [vibeAutoplay] is on.
+     */
+    val vibeForgottenFavorites = MutableStateFlow(true)
+
+    /**
+     * How strictly vibe autoplay must match the session's vibe, 0.3 (pure)
+     * to 0.9 (adventurous). Only applies while [vibeAutoplay] is on.
+     */
+    val vibeStrictness = MutableStateFlow(0.6f)
+
     /** Whether the queue is held in shuffled order (Mix button). */
     val shuffleEnabled = MutableStateFlow(false)
 
@@ -1038,6 +1060,10 @@ object AppSettings {
             ThemeMode.valueOf(prefs.getString(KEY_THEME, null) ?: "DARK")
         }.getOrDefault(ThemeMode.DARK)
         autoplay.value = prefs.getBoolean(KEY_AUTOPLAY, true)
+        vibeAutoplay.value = prefs.getBoolean(KEY_VIBE_AUTOPLAY, true)
+        vibeForgottenFavorites.value = prefs.getBoolean(KEY_VIBE_FORGOTTEN_FAVORITES, true)
+        vibeStrictness.value = prefs.getFloat(KEY_VIBE_STRICTNESS, DEFAULT_VIBE_STRICTNESS)
+            .coerceIn(MIN_VIBE_STRICTNESS, MAX_VIBE_STRICTNESS)
         shuffleEnabled.value = prefs.getBoolean(KEY_SHUFFLE_ENABLED, false)
         repeatMode.value = prefs.getInt(KEY_REPEAT_MODE, Player.REPEAT_MODE_OFF)
         showNerdStats.value = prefs.getBoolean(KEY_NERD_STATS, false)
@@ -1266,6 +1292,22 @@ object AppSettings {
     fun setAutoplay(value: Boolean) {
         autoplay.value = value
         prefs.edit().putBoolean(KEY_AUTOPLAY, value).apply()
+    }
+
+    fun setVibeAutoplay(value: Boolean) {
+        vibeAutoplay.value = value
+        prefs.edit().putBoolean(KEY_VIBE_AUTOPLAY, value).apply()
+    }
+
+    fun setVibeForgottenFavorites(value: Boolean) {
+        vibeForgottenFavorites.value = value
+        prefs.edit().putBoolean(KEY_VIBE_FORGOTTEN_FAVORITES, value).apply()
+    }
+
+    fun setVibeStrictness(value: Float) {
+        val normalized = value.coerceIn(MIN_VIBE_STRICTNESS, MAX_VIBE_STRICTNESS)
+        vibeStrictness.value = normalized
+        prefs.edit().putFloat(KEY_VIBE_STRICTNESS, normalized).apply()
     }
 
     fun setShuffleEnabled(value: Boolean) {
@@ -2389,6 +2431,11 @@ object AppSettings {
     const val MIN_UPGRADE_LENGTH_SLACK_SECONDS = 0
     const val MAX_UPGRADE_LENGTH_SLACK_SECONDS = 10
 
+    /** Vibe strictness slider range: pure at 0.3, adventurous at 0.9. */
+    const val MIN_VIBE_STRICTNESS = 0.3f
+    const val MAX_VIBE_STRICTNESS = 0.9f
+    const val DEFAULT_VIBE_STRICTNESS = 0.6f
+
     private const val DEFAULT_PERFORMANCE_REFRESH_RATE = 120
 
     private fun normalizePerformanceRefreshRate(value: Int): Int =
@@ -2441,6 +2488,9 @@ object AppSettings {
     private const val KEY_ACCENT_COLOR_CUSTOM = "accent_color_custom"
     private const val KEY_DYNAMIC_THEME = "dynamic_theme"
     private const val KEY_AUTOPLAY = "autoplay"
+    private const val KEY_VIBE_AUTOPLAY = "vibe_autoplay"
+    private const val KEY_VIBE_FORGOTTEN_FAVORITES = "vibe_forgotten_favorites"
+    private const val KEY_VIBE_STRICTNESS = "vibe_strictness"
     private const val KEY_SHUFFLE_ENABLED = "shuffle_enabled"
     private const val KEY_REPEAT_MODE = "repeat_mode"
     private const val KEY_NERD_STATS = "show_nerd_stats"

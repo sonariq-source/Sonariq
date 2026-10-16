@@ -221,6 +221,10 @@ fun SettingsScreen(
     val cellularQuality by AppSettings.audioQualityCellular.collectAsStateWithLifecycle()
     val metered by AppSettings.meteredConnection.collectAsStateWithLifecycle()
     val crossfade by AppSettings.crossfadeSeconds.collectAsStateWithLifecycle()
+    val autoplaySetting by AppSettings.autoplay.collectAsStateWithLifecycle()
+    val vibeAutoplay by AppSettings.vibeAutoplay.collectAsStateWithLifecycle()
+    val vibeForgottenFavorites by AppSettings.vibeForgottenFavorites.collectAsStateWithLifecycle()
+    val vibeStrictness by AppSettings.vibeStrictness.collectAsStateWithLifecycle()
     val smartFade by AppSettings.smartFadeEnabled.collectAsStateWithLifecycle()
     val djMix by AppSettings.djMixEnabled.collectAsStateWithLifecycle()
     val automixPerformance by AppSettings.automixPerformanceMode.collectAsStateWithLifecycle()
@@ -760,6 +764,89 @@ fun SettingsScreen(
             }
         }
         SearchableSettingsGroup(search, header = stringResource(R.string.playback)) {
+            // Autoplay: the master switch, then the vibe engine's own rows.
+            // The vibe rows only act while vibe autoplay is on, so they dim
+            // when it is off.
+            val autoplayTitle = stringResource(R.string.autoplay)
+            row(autoplayTitle, "autoplay", "radio", "similar", "queue") {
+                SettingsRow(
+                    icon = Icons.Rounded.AllInclusive,
+                    title = autoplayTitle,
+                    subtitle = stringResource(R.string.autoplay_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = autoplaySetting,
+                            onCheckedChange = AppSettings::setAutoplay,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setAutoplay(!autoplaySetting) },
+                )
+            }
+            val vibeAutoplayTitle = stringResource(R.string.vibe_autoplay)
+            row(vibeAutoplayTitle, "autoplay", "vibe", "mood") {
+                SettingsRow(
+                    icon = Icons.Rounded.Mood,
+                    title = vibeAutoplayTitle,
+                    subtitle = stringResource(R.string.vibe_autoplay_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = vibeAutoplay,
+                            onCheckedChange = AppSettings::setVibeAutoplay,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setVibeAutoplay(!vibeAutoplay) },
+                )
+            }
+            val vibeForgottenFavoritesTitle = stringResource(R.string.vibe_forgotten_favorites)
+            row(vibeForgottenFavoritesTitle, "autoplay", "vibe", "favorites", "rediscover") {
+                SettingsRow(
+                    icon = Icons.Rounded.Favorite,
+                    title = vibeForgottenFavoritesTitle,
+                    subtitle = stringResource(R.string.vibe_forgotten_favorites_subtitle),
+                    enabled = vibeAutoplay,
+                    trailing = {
+                        Switch(
+                            checked = vibeForgottenFavorites,
+                            onCheckedChange = AppSettings::setVibeForgottenFavorites,
+                            enabled = vibeAutoplay,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = {
+                        if (vibeAutoplay) AppSettings.setVibeForgottenFavorites(!vibeForgottenFavorites)
+                    },
+                )
+            }
+            val vibeStrictnessTitle = stringResource(R.string.vibe_strictness)
+            row(vibeStrictnessTitle, "autoplay", "vibe", "strictness", "adventurous") {
+                val strictnessLabel = when {
+                    vibeStrictness < 0.5f -> stringResource(R.string.vibe_pure)
+                    vibeStrictness < 0.7f -> stringResource(R.string.vibe_balanced)
+                    else -> stringResource(R.string.vibe_adventurous)
+                }
+                SliderRow(
+                    icon = Icons.Rounded.Tune,
+                    title = vibeStrictnessTitle,
+                    subtitle = stringResource(R.string.vibe_strictness_subtitle),
+                    value = strictnessLabel,
+                    sliderValue = vibeStrictness,
+                    onSliderValue = AppSettings::setVibeStrictness,
+                    valueRange = AppSettings.MIN_VIBE_STRICTNESS..AppSettings.MAX_VIBE_STRICTNESS,
+                    steps = 5,
+                    enabled = vibeAutoplay,
+                )
+            }
             val preferMusicOnlyTitle = stringResource(R.string.prefer_music_only)
             row(preferMusicOnlyTitle, "video", "audio", "music video") {
                 SettingsRow(
@@ -3284,13 +3371,18 @@ internal fun SliderRow(
     valueRange: ClosedFloatingPointRange<Float>,
     steps: Int,
     subtitle: String? = null,
+    enabled: Boolean = true,
 ) {
     val colors = SliderDefaults.colors(
         thumbColor = MaterialTheme.colorScheme.primary,
         activeTrackColor = MaterialTheme.colorScheme.primary,
         inactiveTrackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f),
     )
-    Column(Modifier.padding(start = ROW_INSET, end = ROW_INSET, top = 12.dp, bottom = 4.dp)) {
+    Column(
+        Modifier
+            .padding(start = ROW_INSET, end = ROW_INSET, top = 12.dp, bottom = 4.dp)
+            .alpha(if (enabled) 1f else 0.45f),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = icon,
@@ -3325,6 +3417,7 @@ internal fun SliderRow(
             onValueChange = onSliderValue,
             valueRange = valueRange,
             steps = steps,
+            enabled = enabled,
             colors = colors,
             // Neon thumb: a lime dot carrying a soft glow, the Sonariq
             // accent at its most literal.

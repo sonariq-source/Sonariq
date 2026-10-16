@@ -218,6 +218,7 @@ import com.music.sonariq.playback.upgradeQuality
 import com.music.sonariq.playback.revertToOriginal
 import com.music.sonariq.playback.swapToVersion
 import com.music.sonariq.playback.smart.VersionAudioAligner
+import com.music.sonariq.playback.vibe.VibeUiState
 import com.music.sonariq.download.DownloadSession
 import com.music.sonariq.download.DownloadStore
 import com.music.sonariq.download.MediaTagger
@@ -708,6 +709,9 @@ private fun SonariqApp(
         browseActions = target
     }
     val autoplay by AppSettings.autoplay.collectAsStateWithLifecycle()
+    // Vibe autoplay badge under the player credits — the flow is already ""
+    // while vibe autoplay is off, so this is a straight pass-through.
+    val vibeBadgeText by VibeUiState.badgeText.collectAsStateWithLifecycle()
     val partyState by ListenTogether.state.collectAsStateWithLifecycle()
     // The same answer the playback service acts on, rather than a second one
     // derived here — see [autoplayEnabledFor]. Drawing the local preference in
@@ -2418,6 +2422,8 @@ private fun SonariqApp(
             repeatMode = player.repeatMode,
             shuffleEnabled = shuffleEnabled,
             autoplayEnabled = autoplayEnabled,
+            vibeBadgeText = vibeBadgeText,
+            onVibeBadgeLongPress = { VibeUiState.notThisVibe(context, displayedSong) },
             signedIn = signedIn,
             likeStatus = likeStatuses[song.videoId] ?: LikeStatus.INDIFFERENT,
             onToggleLike = { viewModel.toggleLike(song.videoId) },

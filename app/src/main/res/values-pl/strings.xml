@@ -1624,4 +1624,29 @@
     <string name="collab_delete_title">Delete this playlist?</string>
     <string name="collab_delete_message">Delete %1$s? Songs already in the party queue stay there.</string>
     <string name="collab_remove">Remove</string>
+
+    <!-- Vibe autoplay -->
+    <string name="autoplay">Autoplay</string>
+    <string name="autoplay_subtitle">Keep playing similar music when the queue ends</string>
+    <string name="vibe_adventurous">Adventurous</string>
+    <string name="vibe_angry">Angry</string>
+    <string name="vibe_autoplay">Vibe autoplay</string>
+    <string name="vibe_autoplay_subtitle">Match the vibe of your session, endlessly</string>
+    <string name="vibe_balanced">Balanced</string>
+    <string name="vibe_chill">Chill</string>
+    <string name="vibe_energetic">Energetic</string>
+    <string name="vibe_focus">Focus</string>
+    <string name="vibe_forgotten_favorites">Forgotten favorites</string>
+    <string name="vibe_forgotten_favorites_subtitle">Rediscover old favorites that fit the vibe</string>
+    <string name="vibe_happy">Happy</string>
+    <string name="vibe_nostalgic">Nostalgic</string>
+    <string name="vibe_party">Party</string>
+    <string name="vibe_pure">Pure</string>
+    <string name="vibe_romantic">Romantic</string>
+    <string name="vibe_sad">Sad</string>
+    <string name="vibe_staying">staying in the vibe</string>
+    <string name="vibe_strictness">Vibe strictness</string>
+    <string name="vibe_strictness_subtitle">Pure \u2194 Adventurous</string>
+    <string name="vibe_unknown">unknown vibe</string>
+    <string name="vibe_workout">Workout</string>
 </resources>

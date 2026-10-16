@@ -28,7 +28,9 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitVerticalTouchSlopOrCancellation
@@ -132,6 +134,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -517,6 +520,42 @@ private const val SPOTIFY_CANVAS_CONTROLS_IDLE_MS = 5_000L
 private const val SPOTIFY_DECK_TOP_FADE_FRACTION = 0.28f
 
 /**
+ * The vibe autoplay badge: a small matte pill under the credits naming the
+ * session's vibe, e.g. "Sad • staying in the vibe".
+ *
+ * Prism-styled — the theme primary (coral under the default Prism theme) on
+ * a translucent tint of itself, the same treatment as the settings [Badge].
+ * Long-press is "not this vibe": negative feedback plus an immediate
+ * re-pick. A plain tap does nothing, so the pill never reads as a button.
+ */
+@Composable
+private fun VibeBadge(
+    text: String,
+    onLongPress: () -> Unit,
+) {
+    val primary = MaterialTheme.colorScheme.primary
+    val pill = RoundedCornerShape(percent = 50)
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color = primary,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .clip(pill)
+            .background(primary.copy(alpha = 0.14f))
+            .border(1.dp, primary.copy(alpha = 0.4f), pill)
+            .combinedClickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {},
+                onLongClick = onLongPress,
+            )
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+    )
+}
+
+/**
  * Sonariq Now Playing: artwork that shrinks when paused, a coral
  * scrubber with elapsed / remaining either side, oversized transport glyphs,
  * a volume capsule flanked by speaker icons, and lyrics / output / queue
@@ -550,6 +589,17 @@ fun NowPlayingScreen(
     repeatMode: Int,
     shuffleEnabled: Boolean,
     autoplayEnabled: Boolean,
+    /**
+     * Vibe autoplay badge text, e.g. "Sad • staying in the vibe" — empty when
+     * vibe autoplay is off or the session has no vibe yet. Passed down from
+     * the host (which reads
+     * [com.music.sonariq.playback.vibe.VibeUiState]) rather than read here,
+     * because the vibe engine lives in the app module and this screen is
+     * shared.
+     */
+    vibeBadgeText: String = "",
+    /** "Not this vibe" long-press on the badge — records negative feedback. */
+    onVibeBadgeLongPress: () -> Unit = {},
     signedIn: Boolean,
     accountName: String?,
     likeStatus: LikeStatus,
@@ -3202,6 +3252,18 @@ fun NowPlayingScreen(
                                     startDelayMillis = if (titleOverflowing) MARQUEE_ARTIST_STAGGER_MS else 0L,
                                     onOpenArtist = onOpenArtist,
                                 )
+                                // Vibe autoplay badge: small, under the
+                                // credits, gone entirely when there is no
+                                // session vibe. Long-press says "not this
+                                // vibe" — records negative feedback and asks
+                                // the engine to re-pick.
+                                if (vibeBadgeText.isNotEmpty()) {
+                                    Spacer(Modifier.height(4.dp))
+                                    VibeBadge(
+                                        text = vibeBadgeText,
+                                        onLongPress = onVibeBadgeLongPress,
+                                    )
+                                }
                             }
                         }
                     }
