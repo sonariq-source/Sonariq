@@ -1562,4 +1562,26 @@
         <item quantity="one">%1$d new upcoming show from an artist you listen to</item>
         <item quantity="other">%1$d new upcoming shows from artists you listen to</item>
     </plurals>
+    <string name="collab_playlists_title">Collaborative playlists</string>
+    <string name="collab_new_playlist">New collaborative playlist</string>
+    <string name="collab_new_playlist_needs_party">Join a party to create one</string>
+    <string name="collab_playlist_name_hint">Playlist name</string>
+    <string name="collab_create">Create</string>
+    <string name="collab_empty">No collaborative playlists yet</string>
+    <string name="collab_no_songs">No songs yet \u2014 add the first one</string>
+    <string name="collab_songs_members">%1$d songs \u00b7 %2$d members</string>
+    <string name="collab_added_by">Added by %1$s</string>
+    <string name="collab_added_via_party">Added via party</string>
+    <string name="collab_add_songs">Add songs</string>
+    <string name="collab_search_hint">Search songs to add</string>
+    <string name="collab_searching">Searching\u2026</string>
+    <string name="collab_add">Add</string>
+    <string name="collab_added_toast">Added to %1$s</string>
+    <string name="collab_play_in_party">Play in party</string>
+    <string name="collab_sync_in_party">Synced with party %1$s</string>
+    <string name="collab_sync_offline">Not in the party \u2014 changes sync when you rejoin</string>
+    <string name="collab_delete">Delete playlist</string>
+    <string name="collab_delete_title">Delete this playlist?</string>
+    <string name="collab_delete_message">Delete %1$s? Songs already in the party queue stay there.</string>
+    <string name="collab_remove">Remove</string>
 </resources>

@@ -94,6 +94,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.music.sonariq.R
+import com.music.sonariq.data.collab.CollabPlaylistStore
 import com.music.sonariq.data.listentogether.ListenTogether
 import com.music.sonariq.data.listentogether.PartyActivity
 import com.music.sonariq.data.listentogether.PartyMember
@@ -179,6 +180,13 @@ fun ListenTogetherScreen(
      */
     var handoffActive by remember { mutableStateOf(false) }
     LaunchedEffect(state.inParty) { if (!state.inParty) handoffActive = false }
+    /**
+     * A collaborative playlist opened from the page below. Drawn over the
+     * page, full-screen, like the settings sub-screens over Settings — the
+     * early return below is what swaps them.
+     */
+    var collabOpenId by remember { mutableStateOf<String?>(null) }
+    var collabCreateOpen by remember { mutableStateOf(false) }
 
     // Hoisted so a sheet can be *animated* away rather than dropped out of the
     // composition, which is the only way one sheet can hand over to another:
@@ -511,6 +519,32 @@ fun ListenTogetherScreen(
         }
     }
 
+    // A collaborative playlist takes over the whole page while open. An early
+    // return rather than a branch around the Column below, so the page body
+    // stays exactly as it was.
+    val collabId = collabOpenId
+    if (collabId != null) {
+        CollabPlaylistDetailPage(
+            playlistId = collabId,
+            onBack = { collabOpenId = null },
+            modifier = modifier,
+            contentPadding = contentPadding,
+        )
+        return
+    }
+
+    if (collabCreateOpen) {
+        CreateCollabPlaylistDialog(
+            onDismiss = { collabCreateOpen = false },
+            onCreate = { name ->
+                collabCreateOpen = false
+                CollabPlaylistStore.createFromParty(name, state)?.let { playlist ->
+                    collabOpenId = playlist.id
+                }
+            },
+        )
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -533,6 +567,15 @@ fun ListenTogetherScreen(
             handingOff = busy,
             onHandOff = handOffToTv,
             onTakeBack = takeBackFromTv,
+        )
+
+        // Playlists the party builds together. They live on this device and
+        // sync through the party's shared queue while connected — see
+        // CollabPlaylistStore.
+        CollabPlaylistsGroup(
+            inParty = state.inParty,
+            onOpen = { collabOpenId = it },
+            onCreate = { collabCreateOpen = true },
         )
 
         if (!signedIn) {

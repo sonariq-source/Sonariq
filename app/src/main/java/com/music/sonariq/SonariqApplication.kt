@@ -120,6 +120,8 @@ class SonariqApplication : Application(), SingletonImageLoader.Factory {
         ListenTogether.init(this)
         // What friends are playing, from the party server's party state.
         com.music.sonariq.data.listentogether.PartyActivityRepository.init(this)
+        // Playlists friends build together through a party.
+        com.music.sonariq.data.collab.CollabPlaylistStore.init(this)
         SearchHistory.init(this)
         LastPlayed.init(this)
         com.music.sonariq.playback.PartyPersonalQueueStash.init(this)
