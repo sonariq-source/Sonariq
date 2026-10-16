@@ -51,7 +51,20 @@ object MoodStations {
             val historySeeds = pickSeeds(mood)
             val seeds =
                 if (historySeeds.size >= MIN_HISTORY_SEEDS) historySeeds
-                else searchFallback(mood)
+                else searchFallback(mood.fallbackQuery)
+            buildStationFromSeeds(seeds)
+        }
+
+    /**
+     * Expands [seeds] into a ~[STATION_TARGET]-track station.
+     *
+     * Public so the time-of-day stations reuse the exact same expansion rather
+     * than duplicating it: each seed is kept, then grown with
+     * [YtMusicRepository.radio] — YouTube Music's own "what to play next"
+     * queue — deduplicated by video id.
+     */
+    suspend fun buildStationFromSeeds(seeds: List<Song>): List<Song> =
+        withContext(Dispatchers.IO) {
             if (seeds.isEmpty()) return@withContext emptyList()
             val station = LinkedHashMap<String, Song>(STATION_TARGET * 2)
             for (seed in seeds.take(SEED_COUNT)) {
@@ -83,10 +96,15 @@ object MoodStations {
         }.take(SEED_COUNT).map { it.toSong() }
     }
 
-    /** Seed songs from a real YouTube Music keyword search when history is thin. */
-    private suspend fun searchFallback(mood: Mood): List<Song> =
+    /**
+     * Seed songs from a real YouTube Music keyword search when history is thin.
+     *
+     * Public so the time-of-day stations share the same last-resort path: an
+     * empty library still produces a real station, never anything invented.
+     */
+    suspend fun searchFallback(query: String): List<Song> =
         runCatching {
-            YtMusicRepository.searchPage(mood.fallbackQuery, SearchFilter.SONGS)
+            YtMusicRepository.searchPage(query, SearchFilter.SONGS)
                 .getOrThrow()
                 .rows
                 .mapNotNull { row ->

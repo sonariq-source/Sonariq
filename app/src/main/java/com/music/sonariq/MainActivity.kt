@@ -203,6 +203,7 @@ import com.music.sonariq.playback.hasYouTubeOriginal
 import com.music.sonariq.playback.loadAutoplayTracks
 import com.music.sonariq.data.mood.Mood
 import com.music.sonariq.data.mood.MoodStations
+import com.music.sonariq.data.mood.MomentSlot
 import com.music.sonariq.playback.playSongs
 import com.music.sonariq.playback.toMediaItem
 import com.music.sonariq.playback.toSong
@@ -303,6 +304,7 @@ import com.music.sonariq.ui.screens.DetailScreen
 import com.music.sonariq.ui.screens.ExploreScreen
 import com.music.sonariq.ui.screens.LocalMusicScreen
 import com.music.sonariq.ui.screens.HomeScreen
+import com.music.sonariq.ui.screens.MomentStationSection
 import com.music.sonariq.ui.screens.MoodStationsRow
 import com.music.sonariq.ui.screens.LibraryGridPage
 import com.music.sonariq.ui.screens.LibraryScreen
@@ -1459,6 +1461,25 @@ private fun SonariqApp(
                         ).show()
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * The "For this moment" card plays its prebuilt station outright — the
+     * section builds it in the background when Home appears, so tapping is
+     * instant. Same queue/play path as the mood chips.
+     */
+    val playMomentStation: (List<Song>, MomentSlot) -> Unit = { station, slot ->
+        val activeController = controller
+        if (activeController != null && !refusedByHost() && station.isNotEmpty()) {
+            scope.launch {
+                activeController.playSongs(station, 0)
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.radio_started, context.getString(slot.labelRes)),
+                    Toast.LENGTH_SHORT,
+                ).show()
             }
         }
     }
@@ -3175,6 +3196,11 @@ private fun SonariqApp(
                             loadingMore = homeLoadingMore,
                             recentlyPlayedLoading = homeRecentlyPlayedLoading,
                             moodRow = {
+                                item {
+                                    MomentStationSection(
+                                        onPlayStation = playMomentStation,
+                                    )
+                                }
                                 item {
                                     MoodStationsRow(
                                         buildingMood = buildingMood,
