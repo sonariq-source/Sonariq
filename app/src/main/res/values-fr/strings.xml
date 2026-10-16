@@ -1438,7 +1438,7 @@
     <string name="moment_title">Pour le moment</string>
     <string name="moment_morning">Énergie du matin</string>
     <string name="moment_midday">Concentration de midi</string>
-    <string name="moment_afternoon">Rythme de l'après-midi</string>
+    <string name="moment_afternoon">Rythme de l\'après-midi</string>
     <string name="moment_evening">Détente du soir</string>
     <string name="moment_night">Ambiance nocturne</string>
     <string name="greeting_morning">Bonjour</string>

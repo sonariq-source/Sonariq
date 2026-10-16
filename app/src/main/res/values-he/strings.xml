@@ -1443,7 +1443,7 @@
     <string name="moment_morning">אנרגיית בוקר</string>
     <string name="moment_midday">מיקוד צהריים</string>
     <string name="moment_afternoon">קצב אחר הצהריים</string>
-    <string name="moment_evening">צ'יל ערב</string>
+    <string name="moment_evening">צ\'יל ערב</string>
     <string name="moment_night">וייבס של לילה</string>
     <string name="greeting_morning">בוקר טוב</string>
     <string name="greeting_afternoon">צהריים טובים</string>

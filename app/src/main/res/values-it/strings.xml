@@ -1384,7 +1384,7 @@
     <string name="greeting_evening">Buonasera</string>
     <string name="greeting_night">Buonanotte</string>
     <string name="moment_subtitle_personal">Creata dai tuoi ascolti</string>
-    <string name="moment_subtitle_fresh">Selezione fresca per quest'ora del giorno</string>
+    <string name="moment_subtitle_fresh">Selezione fresca per quest\'ora del giorno</string>
     <string name="moment_play_station">Riproduci la stazione</string>
     <string name="karaoke">Karaoke</string>
     <string name="karaoke_scoring">Karaoke scoring</string>
