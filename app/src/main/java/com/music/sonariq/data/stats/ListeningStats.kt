@@ -172,6 +172,12 @@ object ListeningStats {
                 track.plays++
                 val day = at.dayOfMonth
                 track.dayPlays[day] = (track.dayPlays[day] ?: 0) + 1
+                // Pattern data for Smart Downloads 2.0: the hour and the
+                // weekday this play landed on, in the device's own time zone.
+                // Filed alongside dayPlays, under the same "a play happened"
+                // condition, so the two can never disagree.
+                track.hourPlays[at.hour]++
+                track.weekdayPlays[at.dayOfWeek.value - 1]++
             }
 
             // The lead artist, not the credit as a string. A track billed
@@ -762,6 +768,8 @@ object ListeningStats {
                 ms = it.ms,
                 plays = it.plays,
                 lastPlayedMs = it.last,
+                hourPlays = it.hourPlays.toList(),
+                weekdayPlays = it.weekdayPlays.toList(),
             )
         }
     }
@@ -869,6 +877,26 @@ data class TrackEntry(
     var dayMs: MutableMap<Int, Long> = mutableMapOf(),
     /** Plays per day-of-month, alongside [dayMs]. */
     var dayPlays: MutableMap<Int, Int> = mutableMapOf(),
+    /**
+     * Plays per hour of the day (0-23), in the device's own time zone.
+     *
+     * What powers Smart Downloads 2.0's time-of-day prediction: a morning
+     * commuter and a night owl leave different 24-bin fingerprints, and the
+     * daily worker boosts whatever the listener actually reaches for in the
+     * hours coming up. Bounded at 24 ints per track — the same order of cost
+     * as the per-day maps already kept here. Buckets written before this
+     * field read back with an empty array, which the scorer treats as "no
+     * pattern yet" rather than guessing.
+     */
+    var hourPlays: IntArray = IntArray(24),
+    /**
+     * Plays per day of week, Monday-first (DayOfWeek.value - 1).
+     *
+     * Weekend listening genuinely differs from weekday listening; the worker
+     * boosts tracks that historically land on today's weekday. Bounded at 7
+     * ints per track.
+     */
+    var weekdayPlays: IntArray = IntArray(7),
 ) {
     fun absorb(other: TrackEntry) {
         ms += other.ms
@@ -880,6 +908,19 @@ data class TrackEntry(
         if (art == null) art = other.art
         other.dayMs.forEach { (day, ms) -> dayMs[day] = (dayMs[day] ?: 0L) + ms }
         other.dayPlays.forEach { (day, plays) -> dayPlays[day] = (dayPlays[day] ?: 0) + plays }
+        // Reassigned rather than added in place: copies made by copy() and
+        // windowed() share these arrays with their source, and an in-place
+        // add would write the merge back into the entry being merged from.
+        val mergedHours = IntArray(24)
+        repeat(minOf(24, hourPlays.size, other.hourPlays.size)) {
+            mergedHours[it] = hourPlays[it] + other.hourPlays[it]
+        }
+        hourPlays = mergedHours
+        val mergedWeekdays = IntArray(7)
+        repeat(minOf(7, weekdayPlays.size, other.weekdayPlays.size)) {
+            mergedWeekdays[it] = weekdayPlays[it] + other.weekdayPlays[it]
+        }
+        weekdayPlays = mergedWeekdays
     }
 
     /**
@@ -906,7 +947,14 @@ data class TrackEntry(
             }
         }
         if (windowMs == 0L && windowPlays == 0) return null
-        return copy(ms = windowMs, plays = windowPlays, dayMs = windowDayMs, dayPlays = windowDayPlays)
+        // The pattern arrays ride along as month-level truth: they describe
+        // the entry's whole month, not the window. Copied so a later absorb
+        // of this windowed entry cannot alias the month's own arrays.
+        return copy(
+            ms = windowMs, plays = windowPlays,
+            dayMs = windowDayMs, dayPlays = windowDayPlays,
+            hourPlays = hourPlays.copyOf(), weekdayPlays = weekdayPlays.copyOf(),
+        )
     }
 }
 
@@ -1097,6 +1145,14 @@ data class TrackStats(
     val plays: Int,
     /** Epoch millis of the last recorded listening, 0 when unknown. */
     val lastPlayedMs: Long,
+    /**
+     * Plays per hour of day (0-23), in the device's own time zone.
+     * Empty when the history predates pattern recording — the scorer treats
+     * that as "no pattern yet", never as a zero to average in.
+     */
+    val hourPlays: List<Int> = emptyList(),
+    /** Plays per weekday, Monday-first. Empty under the same condition. */
+    val weekdayPlays: List<Int> = emptyList(),
 ) {
     fun toSong(): Song = Song(
         videoId = id,

@@ -14,7 +14,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
+import java.time.Instant
+import java.time.ZoneId
 import java.util.Locale
+import kotlin.math.ln
 
 /**
  * Smart Downloads: the device keeps the listener's most-played tracks on disk
@@ -120,6 +123,124 @@ object SmartDownloads {
     }
 
     /**
+     * Pattern-aware score for one track, from its real listening history.
+     *
+     * Pure: stats in, a number out — which is what makes it unit-testable.
+     * Three honest signals multiply the base popularity ranking:
+     *
+     * - time of day: plays are bucketed by hour, and tracks the listener
+     *   reaches for in the *upcoming* hours score up to 2x (the daily worker
+     *   runs at dawn, so this is the morning commute and the workday ahead);
+     * - day of week: tracks historically played on today's weekday score up
+     *   to 1.5x — weekend listening genuinely differs;
+     * - rotation: played in the last 3 days scores 1.25x, in the last week
+     *   1.1x, untouched for over a month 0.9x.
+     *
+     * A track with no pattern data yet (history recorded before these
+     * buckets existed) scores exactly its base ranking — no guessing, no
+     * defaults that pretend to be listening. There is deliberately no
+     * skip-demotion: the history keeps plays, not skips, and inventing a
+     * penalty from data that was never recorded would be fake precision.
+     */
+    fun scoreTrack(stats: TrackStats, nowMs: Long): Double {
+        return baseScore(stats) *
+            timeOfDayBoost(stats.hourPlays, nowMs) *
+            dayOfWeekBoost(stats.weekdayPlays, nowMs) *
+            rotationBoost(stats.lastPlayedMs, nowMs)
+    }
+
+    /**
+     * Pattern-aware candidate selection: the same filtering as
+     * [selectCandidates] — real plays only, nothing already on the device —
+     * ordered by [scoreTrack] instead of raw play counts.
+     *
+     * Pure, like [selectCandidates]: history in, ranked tracks out. This is
+     * what [refresh] feeds the queue, so the daily worker picks whatever the
+     * listener is about to want rather than just their all-time top.
+     */
+    fun selectPatternCandidates(
+        history: List<TrackStats>,
+        alreadyDownloaded: Set<String>,
+        limit: Int,
+        nowMs: Long,
+    ): List<TrackStats> {
+        if (limit <= 0) return emptyList()
+        return history
+            .asSequence()
+            .filter { it.plays > 0 }
+            .filter { it.id !in alreadyDownloaded }
+            .sortedByDescending { scoreTrack(it, nowMs) }
+            .distinctBy { it.id }
+            .take(limit)
+            .toList()
+    }
+
+    /**
+     * The base ranking as a score: plays dominate, listening time and then
+     * recency break ties — the same priority order as [selectCandidates].
+     * Log-compressed so one monster track can't bury everything and so the
+     * pattern boosts can actually move tracks around.
+     */
+    private fun baseScore(stats: TrackStats): Double {
+        val popularity = ln(1.0 + stats.plays) * 10.0
+        val depth = ln(1.0 + stats.ms / 60_000.0)
+        // Far below any real gap in the terms above: equal plays and time
+        // order by recency, exactly like selectCandidates.
+        val recency = if (stats.lastPlayedMs > 0) stats.lastPlayedMs.toDouble() / 1e15 else 0.0
+        return popularity + depth + recency
+    }
+
+    /**
+     * Up to 2x for tracks the listener reaches for in the coming hours.
+     *
+     * The window is "now through the next four hours": a track whose plays
+     * cluster there scores up to twice a track the listener never touches
+     * before noon. Uniform listening scores 1.0 — no pattern, no boost —
+     * and so does empty history, rather than guessing.
+     */
+    private fun timeOfDayBoost(hourPlays: List<Int>, nowMs: Long): Double {
+        val total = hourPlays.sum()
+        if (total <= 0 || hourPlays.isEmpty()) return 1.0
+        val bins = hourPlays.size
+        val nowHour = Instant.ofEpochMilli(nowMs).atZone(ZoneId.systemDefault()).hour
+        val windowHours = 4
+        var inWindow = 0
+        repeat(windowHours) { i -> inWindow += hourPlays.getOrElse((nowHour + i) % bins) { 0 } }
+        val expected = windowHours.toDouble() / bins
+        return (inWindow.toDouble() / total / expected).coerceIn(0.5, 2.0)
+    }
+
+    /**
+     * Up to 1.5x for tracks historically played on today's weekday.
+     * Same shape as [timeOfDayBoost]: no pattern data, no boost.
+     */
+    private fun dayOfWeekBoost(weekdayPlays: List<Int>, nowMs: Long): Double {
+        val total = weekdayPlays.sum()
+        if (total <= 0 || weekdayPlays.isEmpty()) return 1.0
+        val bins = weekdayPlays.size
+        // Monday-first, matching how the recorder files DayOfWeek.value - 1.
+        val today = Instant.ofEpochMilli(nowMs).atZone(ZoneId.systemDefault()).dayOfWeek.value - 1
+        val share = weekdayPlays.getOrElse(today) { 0 }.toDouble() / total
+        return (share / (1.0 / bins)).coerceIn(0.75, 1.5)
+    }
+
+    /**
+     * Rotation: played in the last 3 days scores 1.25x, in the last week
+     * 1.1x, untouched for over a month 0.9x. Unknown or future timestamps
+     * stay neutral — a moved clock is not a listening signal.
+     */
+    private fun rotationBoost(lastPlayedMs: Long, nowMs: Long): Double {
+        if (lastPlayedMs <= 0 || lastPlayedMs > nowMs) return 1.0
+        val daysAgo = (nowMs - lastPlayedMs) / 86_400_000.0
+        return when {
+            daysAgo <= 3.0 -> 1.25
+            daysAgo <= 7.0 -> 1.1
+            daysAgo <= 30.0 -> 1.0
+            else -> 0.9
+        }
+    }
+
+    /**
      * How many of [candidates] fit in the space left on the download volume.
      *
      * A download that cannot finish is worse than one never started — it
@@ -162,7 +283,11 @@ object SmartDownloads {
         val limit = AppSettings.smartDownloadsCount.value.coerceIn(1, 100)
         val history = runCatching { ListeningStats.allTracks() }.getOrDefault(emptyList())
         val alreadyDownloaded = Downloads.saved.value.keys
-        val candidates = selectCandidates(history, alreadyDownloaded, limit)
+        // Pattern-aware ranking: the worker runs at dawn, so scoreTrack's
+        // time-of-day boost leans the batch towards what the listener
+        // actually reaches for in the coming hours. The base order inside
+        // the score is the same popularity ranking selectCandidates uses.
+        val candidates = selectPatternCandidates(history, alreadyDownloaded, limit, System.currentTimeMillis())
         if (candidates.isEmpty()) {
             Log.d(TAG, "smart downloads: nothing new in the top $limit")
             return@withContext 0
