@@ -133,6 +133,7 @@ import com.music.sonariq.data.AppUpdateChecker
 import com.music.sonariq.data.LocalMediaRepository
 import com.music.sonariq.data.listentogether.JamInviteLink
 import com.music.sonariq.data.listentogether.ListenTogether
+import com.music.sonariq.data.listentogether.PartyActivityRepository
 import com.music.sonariq.data.listentogether.partyQueueIndexOf
 import com.music.sonariq.data.NerdStats
 import com.music.sonariq.data.TrackLog
@@ -307,6 +308,7 @@ import com.music.sonariq.ui.screens.DetailScreen
 import com.music.sonariq.ui.screens.ExploreScreen
 import com.music.sonariq.ui.screens.LocalMusicScreen
 import com.music.sonariq.ui.screens.HomeScreen
+import com.music.sonariq.ui.screens.FriendActivitySection
 import com.music.sonariq.ui.screens.MomentStationSection
 import com.music.sonariq.ui.screens.MoodStationsRow
 import com.music.sonariq.ui.screens.LibraryGridPage
@@ -726,6 +728,10 @@ private fun SonariqApp(
     SystemBarIcons(dark = !darkTheme && !showNowPlaying && !showReplay && replayStory == null)
 
     val homeState by viewModel.home.collectAsStateWithLifecycle()
+    // Friend-activity feed: what party members are playing, from the Listen
+    // Together server. Collected here so the Home section below stays a pure
+    // function of it.
+    val friendFeed by PartyActivityRepository.feed.collectAsStateWithLifecycle()
     val homeLoadingMore by viewModel.homeLoadingMore.collectAsStateWithLifecycle()
     val homeRecentlyPlayedLoading by viewModel.homeRecentlyPlayedLoading.collectAsStateWithLifecycle()
 
@@ -3229,7 +3235,10 @@ private fun SonariqApp(
                             onItemLongPress = onShelfLongPress,
                             onRetry = viewModel::loadHome,
                             refreshing = MainViewModel.Feed.HOME in refreshing,
-                            onRefresh = { viewModel.refresh(MainViewModel.Feed.HOME) },
+                            onRefresh = {
+                                viewModel.refresh(MainViewModel.Feed.HOME)
+                                scope.launch { PartyActivityRepository.refresh() }
+                            },
                             pullState = homePull,
                             contentPadding = listPadding,
                             onLoadMore = viewModel::loadMoreHome,
@@ -3245,6 +3254,34 @@ private fun SonariqApp(
                                     MoodStationsRow(
                                         buildingMood = buildingMood,
                                         onMoodClick = playMoodStation,
+                                    )
+                                }
+                            },
+                            // What friends are playing, from the Listen
+                            // Together party server — real party members and
+                            // real party-state tracks only. Hidden by the
+                            // section itself when there is nothing to show.
+                            friendActivityRow = {
+                                item {
+                                    FriendActivitySection(
+                                        entries = friendFeed,
+                                        onJoin = { entry ->
+                                            scope.launch {
+                                                PartyActivityRepository.join(entry.partyCode)
+                                                    .onSuccess {
+                                                        showSettings = true
+                                                        showListenTogether = true
+                                                    }
+                                                    .onFailure { failure ->
+                                                        Toast.makeText(
+                                                            context,
+                                                            failure.message
+                                                                ?: context.getString(R.string.friend_activity_join_failed),
+                                                            Toast.LENGTH_SHORT,
+                                                        ).show()
+                                                    }
+                                            }
+                                        },
                                     )
                                 }
                             },

@@ -118,6 +118,8 @@ class SonariqApplication : Application(), SingletonImageLoader.Factory {
         // and the clock offset are not restored — both are re-established on
         // the next connect, which is the only way to be sure they are current.
         ListenTogether.init(this)
+        // What friends are playing, from the party server's party state.
+        com.music.sonariq.data.listentogether.PartyActivityRepository.init(this)
         SearchHistory.init(this)
         LastPlayed.init(this)
         com.music.sonariq.playback.PartyPersonalQueueStash.init(this)

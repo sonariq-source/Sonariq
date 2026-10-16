@@ -300,6 +300,12 @@ fun HomeScreen(
      * the desktop. Kept last so existing call sites are untouched.
      */
     moodRow: (LazyListScope.() -> Unit)? = null,
+    /**
+     * Same injection point for the friend-activity feed — the phone's "what
+     * friends are playing" section, fed by the Listen Together party server.
+     * Null everywhere the phone does not inject it.
+     */
+    friendActivityRow: (LazyListScope.() -> Unit)? = null,
 ) {
     val recentsViewType by AppUi.host.homeRecentsViewType.collectAsStateWithLifecycle()
 
@@ -334,6 +340,9 @@ fun HomeScreen(
             // Injected by callers that own playback — the phone's mood station
             // chips — and absent everywhere else.
             moodRow?.let { row -> row() }
+            // Same rule for the friend-activity feed: the phone injects it,
+            // the desktop never does.
+            friendActivityRow?.let { row -> row() }
             when (state) {
                 is UiState.Loading -> {
                     if (recentlyPlayedLoading) {
