@@ -40,6 +40,7 @@ import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.ConfirmationNumber
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Add
@@ -688,34 +689,76 @@ fun SettingsScreen(
 
         // Concert alerts: upcoming shows by the listener's top artists, via
         // Ticketmaster's Discovery API. The API is free but keyed, and the key
+        // is the user's to bring — see the dialog below.
         SearchableSettingsGroup(search, header = stringResource(R.string.concerts)) {
             val concertAlertsTitle = stringResource(R.string.concert_alerts)
             row(concertAlertsTitle, "concerts", "shows", "gigs", "tour", "live") {
+                SettingsRow(
                     icon = Icons.Rounded.ConfirmationNumber,
                     title = concertAlertsTitle,
                     subtitle = stringResource(R.string.concert_alerts_subtitle),
+                    trailing = {
+                        Switch(
                             checked = concertAlertsEnabled,
                             onCheckedChange = AppSettings::setConcertAlertsEnabled,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
                     onClick = { AppSettings.setConcertAlertsEnabled(!concertAlertsEnabled) },
+                )
+            }
             if (concertAlertsEnabled) {
                 val apiKeyTitle = stringResource(R.string.ticketmaster_api_key)
                 row(apiKeyTitle, "ticketmaster", "api key", "key", divided = false) {
+                    SettingsRow(
+                        icon = Icons.Rounded.Key,
+                        title = apiKeyTitle,
                         subtitle = if (ticketmasterApiKey.isBlank()) {
                             stringResource(R.string.ticketmaster_api_key_subtitle)
+                        } else {
                             ticketmasterApiKey
+                        },
+                        trailing = {},
                         onClick = { showTicketmasterKeyDialog = true },
+                    )
+                }
                 val checkNowTitle = stringResource(R.string.concerts_check_now)
                 row(checkNowTitle, "concerts", "check", "refresh", "update", divided = false) {
+                    SettingsRow(
+                        icon = Icons.Rounded.Refresh,
+                        title = checkNowTitle,
                         subtitle = concertsRefreshResult,
                         enabled = !concertsRefreshing && ticketmasterApiKey.isNotBlank(),
+                        trailing = {
                             if (concertsRefreshing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                            }
+                        },
+                        onClick = {
                             concertsRefreshing = true
                             concertsRefreshResult = null
                             concertsScope.launch {
+                                val fresh = runCatching {
                                     com.music.sonariq.data.concerts.ConcertsRepository.refresh(context)
+                                }.getOrDefault(0)
                                 concertsRefreshResult = context.resources.getQuantityString(
                                     R.plurals.concerts_check_result,
+                                    fresh,
+                                    fresh,
+                                )
                                 concertsRefreshing = false
+                            }
+                        },
+                    )
+                }
+            }
+        }
         SearchableSettingsGroup(search, header = stringResource(R.string.playback)) {
             val preferMusicOnlyTitle = stringResource(R.string.prefer_music_only)
             row(preferMusicOnlyTitle, "video", "audio", "music video") {
@@ -2349,15 +2392,39 @@ fun SettingsScreen(
 
     // The Ticketmaster consumer key concert alerts look shows up with. Free
     // from developer.ticketmaster.com — the dialog says so, because a key
+    // field with no explanation is a dead end.
     if (showTicketmasterKeyDialog) {
         var keyInput by remember { mutableStateOf(ticketmasterApiKey) }
+        AlertDialog(
             onDismissRequest = { showTicketmasterKeyDialog = false },
             title = { Text(stringResource(R.string.ticketmaster_api_key)) },
-                        text = stringResource(R.string.ticketmaster_api_key_hint),
+            text = {
+                Column {
+                    Text(stringResource(R.string.ticketmaster_api_key_hint))
+                    OutlinedTextField(
+                        value = keyInput,
+                        onValueChange = { keyInput = it },
                         label = { Text(stringResource(R.string.api_key)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
                     AppSettings.setTicketmasterApiKey(keyInput.trim())
                     showTicketmasterKeyDialog = false
+                }) {
+                    Text(stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
                 TextButton(onClick = { showTicketmasterKeyDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
     if (showLastfmLoginDialog) {
         var usernameInput by remember { mutableStateOf("") }
         var passwordInput by remember { mutableStateOf("") }
