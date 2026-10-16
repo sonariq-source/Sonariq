@@ -504,6 +504,8 @@ private fun SonariqApp(
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
+    // Concert alerts' daily check needs an application context for WorkManager
+        com.music.sonariq.data.concerts.ConcertsRepository.init(context)
     val hazeState = remember { HazeState() }
     // Recording the backdrop layer costs a draw pass, so it only runs when a
     // liquid-glass surface (the nav bar or artwork-page back button) can sample it.

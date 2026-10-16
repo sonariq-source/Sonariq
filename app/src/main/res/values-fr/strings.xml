@@ -1513,4 +1513,28 @@
     <string name="offline_mode_subtitle">Only downloaded tracks play, and the streaming tabs are hidden</string>
     <string name="offline_playback_blocked">Offline mode is on — only your downloads can play (%1$d skipped)</string>
     <string name="offline_library_empty">Nothing downloaded yet. Download tracks to play them offline.</string>
+    <string name="concerts">Concerts</string>
+    <string name="concert_alerts">Concert alerts</string>
+    <string name="concert_alerts_subtitle">Upcoming shows by your top artists, on your Replay page</string>
+    <string name="upcoming_concerts">Upcoming concerts</string>
+    <string name="ticketmaster_api_key">Ticketmaster API key</string>
+    <string name="ticketmaster_api_key_subtitle">Free key from developer.ticketmaster.com \u2014 5,000 lookups a day</string>
+    <string name="ticketmaster_api_key_hint">Get a free consumer key at developer.ticketmaster.com and paste it here. Concert alerts need it to look up shows.</string>
+    <string name="api_key">API key</string>
+    <string name="concerts_check_now">Check now</string>
+    <string name="concerts_no_key">Add your Ticketmaster API key in Settings to see upcoming concerts.</string>
+    <string name="concerts_empty">No upcoming concerts found for your top artists.</string>
+    <string name="concerts_error">Could not check concerts \u2014 the key may be wrong or the network down.</string>
+    <string name="concerts_tickets">Tickets</string>
+    <string name="concerts_notification_title">Upcoming concerts</string>
+    <string name="concerts_channel_name">Concert alerts</string>
+    <string name="concerts_channel_description">New upcoming concerts by your top artists.</string>
+    <plurals name="concerts_check_result">
+        <item quantity="one">%1$d new upcoming show</item>
+        <item quantity="other">%1$d new upcoming shows</item>
+    </plurals>
+    <plurals name="concerts_notification_text">
+        <item quantity="one">%1$d new upcoming show from an artist you listen to</item>
+        <item quantity="other">%1$d new upcoming shows from artists you listen to</item>
+    </plurals>
 </resources>

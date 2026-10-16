@@ -245,6 +245,21 @@ object AppSettings {
     val offlineMode = MutableStateFlow(false)
 
     /**
+     * Concert alerts: upcoming shows by the listener's top artists (from
+     * [com.music.sonariq.data.stats.ListeningStats]), shown on the Replay
+     * page and announced by notification. Needs [ticketmasterApiKey] —
+     * without it there is nothing to look the shows up with.
+     */
+    val concertAlertsEnabled = MutableStateFlow(false)
+
+    /**
+     * Ticketmaster Discovery API consumer key. The API is free (5,000 calls
+     * a day) but every request needs a key, and it is the user's to bring:
+     * developer.ticketmaster.com hands one out after a free signup.
+     */
+    val ticketmasterApiKey = MutableStateFlow("")
+
+    /**
      * Show synced lyrics on the TV while casting.
      *
      * Needs a custom Sonariq receiver (see [castReceiverAppId]); with the
@@ -962,6 +977,8 @@ object AppSettings {
         smartDownloadsCount.value = prefs.getInt(KEY_SMART_DOWNLOADS_COUNT, 50).coerceIn(25, 100)
         smartDownloadsWifiOnly.value = prefs.getBoolean(KEY_SMART_DOWNLOADS_WIFI_ONLY, true)
         offlineMode.value = prefs.getBoolean(KEY_OFFLINE_MODE, false)
+        concertAlertsEnabled.value = prefs.getBoolean(KEY_CONCERT_ALERTS_ENABLED, false)
+        ticketmasterApiKey.value = prefs.getString(KEY_TICKETMASTER_API_KEY, "").orEmpty()
         castTvLyricsEnabled.value = prefs.getBoolean(KEY_CAST_TV_LYRICS_ENABLED, true)
         castReceiverAppId.value = prefs.getString(KEY_CAST_RECEIVER_APP_ID, "").orEmpty()
         crossfadeSeconds.value = prefs.getInt(KEY_CROSSFADE, 0)
@@ -1932,6 +1949,20 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_OFFLINE_MODE, value).apply()
     }
 
+    fun setConcertAlertsEnabled(value: Boolean) {
+        concertAlertsEnabled.value = value
+        prefs.edit().putBoolean(KEY_CONCERT_ALERTS_ENABLED, value).apply()
+        // The daily check follows the switch immediately, like Smart
+        // Downloads' worker does — see SmartDownloads.applySchedule.
+        com.music.sonariq.data.concerts.ConcertsRepository.applySchedule()
+    }
+
+    fun setTicketmasterApiKey(value: String) {
+        ticketmasterApiKey.value = value
+        prefs.edit().putString(KEY_TICKETMASTER_API_KEY, value).apply()
+        com.music.sonariq.data.concerts.ConcertsRepository.applySchedule()
+    }
+
     fun setCastTvLyricsEnabled(value: Boolean) {
         castTvLyricsEnabled.value = value
         prefs.edit().putBoolean(KEY_CAST_TV_LYRICS_ENABLED, value).apply()
@@ -2374,6 +2405,8 @@ object AppSettings {
     private const val KEY_SMART_DOWNLOADS_COUNT = "smart_downloads_count"
     private const val KEY_SMART_DOWNLOADS_WIFI_ONLY = "smart_downloads_wifi_only"
     private const val KEY_OFFLINE_MODE = "offline_mode"
+    private const val KEY_CONCERT_ALERTS_ENABLED = "concert_alerts_enabled"
+    private const val KEY_TICKETMASTER_API_KEY = "ticketmaster_api_key"
     private const val KEY_CAST_TV_LYRICS_ENABLED = "cast_tv_lyrics_enabled"
     private const val KEY_CAST_RECEIVER_APP_ID = "cast_receiver_app_id"
     private const val KEY_LOSSLESS = "lossless_audio"

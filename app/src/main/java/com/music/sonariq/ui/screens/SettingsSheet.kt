@@ -38,6 +38,7 @@ import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.ConfirmationNumber
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Remove
@@ -269,6 +270,8 @@ fun SettingsScreen(
     val smartDownloadsEnabled by AppSettings.smartDownloadsEnabled.collectAsStateWithLifecycle()
     val smartDownloadsCount by AppSettings.smartDownloadsCount.collectAsStateWithLifecycle()
     val offlineMode by AppSettings.offlineMode.collectAsStateWithLifecycle()
+    val concertAlertsEnabled by AppSettings.concertAlertsEnabled.collectAsStateWithLifecycle()
+    val ticketmasterApiKey by AppSettings.ticketmasterApiKey.collectAsStateWithLifecycle()
     val smartDownloadsWifiOnly by AppSettings.smartDownloadsWifiOnly.collectAsStateWithLifecycle()
     val stopOnTaskRemoved by AppSettings.stopOnTaskRemoved.collectAsStateWithLifecycle()
     val hideVolumeBar by AppSettings.hideVolumeBar.collectAsStateWithLifecycle()
@@ -394,6 +397,10 @@ fun SettingsScreen(
     }
     var showListenBrainzTokenDialog by remember { mutableStateOf(false) }
     var showCastAppIdDialog by remember { mutableStateOf(false) }
+    var showTicketmasterKeyDialog by remember { mutableStateOf(false) }
+    var concertsRefreshing by remember { mutableStateOf(false) }
+    var concertsRefreshResult by remember { mutableStateOf<String?>(null) }
+    val concertsScope = rememberCoroutineScope()
     var showLastfmLoginDialog by remember { mutableStateOf(false) }
     val scrobbleScope = rememberCoroutineScope()
 
@@ -677,6 +684,36 @@ fun SettingsScreen(
             }
         }
 
+        // Concert alerts: upcoming shows by the listener's top artists, via
+        // Ticketmaster's Discovery API. The API is free but keyed, and the key
+        SearchableSettingsGroup(search, header = stringResource(R.string.concerts)) {
+            val concertAlertsTitle = stringResource(R.string.concert_alerts)
+            row(concertAlertsTitle, "concerts", "shows", "gigs", "tour", "live") {
+                    icon = Icons.Rounded.ConfirmationNumber,
+                    title = concertAlertsTitle,
+                    subtitle = stringResource(R.string.concert_alerts_subtitle),
+                            checked = concertAlertsEnabled,
+                            onCheckedChange = AppSettings::setConcertAlertsEnabled,
+                    onClick = { AppSettings.setConcertAlertsEnabled(!concertAlertsEnabled) },
+            if (concertAlertsEnabled) {
+                val apiKeyTitle = stringResource(R.string.ticketmaster_api_key)
+                row(apiKeyTitle, "ticketmaster", "api key", "key", divided = false) {
+                        subtitle = if (ticketmasterApiKey.isBlank()) {
+                            stringResource(R.string.ticketmaster_api_key_subtitle)
+                            ticketmasterApiKey
+                        onClick = { showTicketmasterKeyDialog = true },
+                val checkNowTitle = stringResource(R.string.concerts_check_now)
+                row(checkNowTitle, "concerts", "check", "refresh", "update", divided = false) {
+                        subtitle = concertsRefreshResult,
+                        enabled = !concertsRefreshing && ticketmasterApiKey.isNotBlank(),
+                            if (concertsRefreshing) {
+                            concertsRefreshing = true
+                            concertsRefreshResult = null
+                            concertsScope.launch {
+                                    com.music.sonariq.data.concerts.ConcertsRepository.refresh(context)
+                                concertsRefreshResult = context.resources.getQuantityString(
+                                    R.plurals.concerts_check_result,
+                                concertsRefreshing = false
         SearchableSettingsGroup(search, header = stringResource(R.string.playback)) {
             val preferMusicOnlyTitle = stringResource(R.string.prefer_music_only)
             row(preferMusicOnlyTitle, "video", "audio", "music video") {
@@ -2261,6 +2298,17 @@ fun SettingsScreen(
         )
     }
 
+    // The Ticketmaster consumer key concert alerts look shows up with. Free
+    // from developer.ticketmaster.com — the dialog says so, because a key
+    if (showTicketmasterKeyDialog) {
+        var keyInput by remember { mutableStateOf(ticketmasterApiKey) }
+            onDismissRequest = { showTicketmasterKeyDialog = false },
+            title = { Text(stringResource(R.string.ticketmaster_api_key)) },
+                        text = stringResource(R.string.ticketmaster_api_key_hint),
+                        label = { Text(stringResource(R.string.api_key)) },
+                    AppSettings.setTicketmasterApiKey(keyInput.trim())
+                    showTicketmasterKeyDialog = false
+                TextButton(onClick = { showTicketmasterKeyDialog = false }) {
     if (showLastfmLoginDialog) {
         var usernameInput by remember { mutableStateOf("") }
         var passwordInput by remember { mutableStateOf("") }

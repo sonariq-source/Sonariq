@@ -249,6 +249,9 @@ fun ReplayScreen(
                     if (state.milestones.isNotEmpty()) {
                         item("milestones") { Milestones(state.milestones, dark) }
                     }
+                    // ConcertsSection. Drawn only while the toggle is on.
+                    item("concerts") {
+                        ConcertsSection(dark = dark, onOpenArtist = onOpenArtist)
                     item("footnote") {
                         // How the numbers are counted, in the page's own words
                         // rather than only on the story's intro card.
