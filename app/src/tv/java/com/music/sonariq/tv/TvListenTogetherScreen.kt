@@ -40,10 +40,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.music.sonariq.R
 import com.music.sonariq.data.listentogether.ListenTogether
 import kotlinx.coroutines.launch
 
@@ -60,6 +62,11 @@ import kotlinx.coroutines.launch
 fun TvListenTogetherScreen(onBack: () -> Unit) {
     val state by ListenTogether.state.collectAsStateWithLifecycle()
     var enteringCode by remember { mutableStateOf(false) }
+    /**
+     * Whether the code entry was opened as "Receive from phone" — the TV is
+     * about to join a handoff party, so the screen says what the code is for.
+     */
+    var handoffHint by remember { mutableStateOf(false) }
 
     // Faster server health checks while this screen is up, like the phone.
     DisposableEffect(Unit) {
@@ -99,15 +106,18 @@ fun TvListenTogetherScreen(onBack: () -> Unit) {
 
         when {
             state.inParty -> TvPartyScreen(state = state)
-            enteringCode -> TvJoinCodeScreen()
-            else -> TvPartyLobby(onJoinCode = { enteringCode = true })
+            enteringCode -> TvJoinCodeScreen(handoffHint = handoffHint)
+            else -> TvPartyLobby(onJoinCode = { hint ->
+                handoffHint = hint
+                enteringCode = true
+            })
         }
     }
 }
 
-/** Lobby: host a new party or go to code entry. */
+/** Lobby: host a new party, receive a handoff from the phone, or go to code entry. */
 @Composable
-private fun TvPartyLobby(onJoinCode: () -> Unit) {
+private fun TvPartyLobby(onJoinCode: (handoffHint: Boolean) -> Unit) {
     val state by ListenTogether.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
@@ -156,9 +166,15 @@ private fun TvPartyLobby(onJoinCode: () -> Unit) {
     )
     Spacer(Modifier.height(16.dp))
     TvTextButton(
+        label = stringResource(R.string.handoff_receive_from_phone),
+        enabled = canJoin && hasServer && !busy,
+        onClick = { onJoinCode(true) },
+    )
+    Spacer(Modifier.height(16.dp))
+    TvTextButton(
         label = "Join with code",
         enabled = canJoin && hasServer && !busy,
-        onClick = onJoinCode,
+        onClick = { onJoinCode(false) },
     )
     Spacer(Modifier.height(24.dp))
     if (busy) {
@@ -176,7 +192,7 @@ private fun TvPartyLobby(onJoinCode: () -> Unit) {
 
 /** Code entry: the TV on-screen keyboard, then the phone's join call. */
 @Composable
-private fun TvJoinCodeScreen() {
+private fun TvJoinCodeScreen(handoffHint: Boolean) {
     val state by ListenTogether.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var code by remember { mutableStateOf("") }
@@ -206,6 +222,14 @@ private fun TvJoinCodeScreen() {
         color = MaterialTheme.colorScheme.onSurface,
         fontWeight = FontWeight.SemiBold,
     )
+    if (handoffHint) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = stringResource(R.string.handoff_receive_hint),
+            fontSize = 22.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
     Spacer(Modifier.height(16.dp))
     // The code as typed, with dots for the missing characters.
     Text(
@@ -255,14 +279,24 @@ private fun TvJoinCodeScreen() {
     }
 }
 
-/** In a party: big code, members, current track, leave. */
+/** In a party: big code, members, current track, hand off to phone, leave. */
 @Composable
 private fun TvPartyScreen(state: ListenTogether.State) {
     val scope = rememberCoroutineScope()
     var leaving by remember { mutableStateOf(false) }
+    var showingHandoffCode by remember { mutableStateOf(false) }
     val leaveFocus = remember { FocusRequester() }
 
     LaunchedEffect(Unit) { leaveFocus.requestFocus() }
+    BackHandler(enabled = showingHandoffCode) { showingHandoffCode = false }
+
+    if (showingHandoffCode) {
+        TvHandoffCodeDisplay(
+            code = state.code.orEmpty(),
+            onBack = { showingHandoffCode = false },
+        )
+        return
+    }
 
     val track = state.playback.track
 
@@ -361,6 +395,12 @@ private fun TvPartyScreen(state: ListenTogether.State) {
         Spacer(Modifier.height(8.dp))
     }
     TvTextButton(
+        label = stringResource(R.string.handoff_to_phone),
+        enabled = !leaving,
+        onClick = { showingHandoffCode = true },
+    )
+    Spacer(Modifier.height(16.dp))
+    TvTextButton(
         label = "Leave party",
         enabled = !leaving,
         focusRequester = leaveFocus,
@@ -372,6 +412,53 @@ private fun TvPartyScreen(state: ListenTogether.State) {
             }
         },
     )
+    }
+}
+
+/**
+ * "Hand off to phone": the party code, big, for the phone to join with.
+ *
+ * The phone joins through its existing Listen Together join flow, and its
+ * PartySync starts the handed-off track at the handed-off position on its own —
+ * the same auto-follow the TV gets when it joins a handoff party from the
+ * phone. Nothing here moves a player; joining is the whole action.
+ */
+@Composable
+private fun TvHandoffCodeDisplay(code: String, onBack: () -> Unit) {
+    val backFocus = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) { backFocus.requestFocus() }
+
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = stringResource(R.string.handoff_to_phone),
+            fontSize = 32.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = stringResource(R.string.handoff_phone_join_hint),
+            fontSize = 24.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(32.dp))
+        Text(
+            text = code.toList().joinToString(" "),
+            fontSize = 96.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.height(48.dp))
+        TvTextButton(
+            label = stringResource(R.string.handoff_back),
+            focusRequester = backFocus,
+            onClick = onBack,
+        )
     }
 }
 

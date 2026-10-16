@@ -42,6 +42,8 @@ import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Tv
+import androidx.compose.material.icons.rounded.Undo
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -93,6 +95,10 @@ import com.music.sonariq.data.listentogether.PartyActivity
 import com.music.sonariq.data.listentogether.PartyMember
 import com.music.sonariq.data.listentogether.ServerConnectionState
 import com.music.sonariq.data.listentogether.ServerUrlError
+import com.music.sonariq.data.listentogether.handoffSource
+import com.music.sonariq.data.listentogether.startHandoff
+import com.music.sonariq.data.listentogether.takeBack
+import com.music.sonariq.playback.rememberMediaController
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -157,6 +163,13 @@ fun ListenTogetherScreen(
     var maxMembers by remember { mutableIntStateOf(5) }
     var pendingServerSwitchInvite by remember { mutableStateOf<Pair<String, String>?>(null) }
     var sheet by remember { mutableStateOf<PartySheet?>(null) }
+    val controller = rememberMediaController()
+    /**
+     * A handoff is in flight: this phone published its playback to a party for
+     * the TV to pick up. Ends with the party — leaving clears it.
+     */
+    var handoffActive by remember { mutableStateOf(false) }
+    LaunchedEffect(state.inParty) { if (!state.inParty) handoffActive = false }
 
     // Hoisted so a sheet can be *animated* away rather than dropped out of the
     // composition, which is the only way one sheet can hand over to another:
@@ -184,6 +197,57 @@ fun ListenTogetherScreen(
         // and being interrupted by a drawer nobody asked for is worse than not
         // being offered the link.
         if (sheet == null) sheet = PartySheet.Invite
+    }
+
+    /**
+     * Hands what this phone is playing to the TV, through a party.
+     *
+     * Creates a party when this phone is not in one (reusing it otherwise),
+     * publishes the current track and position with setTrack, then raises the
+     * big-code invite sheet — the same code-only pattern as a normal invite —
+     * for the TV to join with. The TV's PartySync starts the handed-off track
+     * on its own once it joins.
+     */
+    val handOffToTv: () -> Unit = {
+        val source = controller?.handoffSource()
+        if (source == null) {
+            failure = context.getString(R.string.handoff_no_song)
+            return
+        }
+        busy = true
+        failure = null
+        scope.launch {
+            startHandoff(source)
+                .onSuccess {
+                    handoffActive = true
+                    showInviteAfterCreate()
+                }
+                .onFailure { failure = it.message }
+            busy = false
+        }
+    }
+
+    /**
+     * Brings playback back to this phone.
+     *
+     * Leaves the party, then resumes locally at the party's current position —
+     * read before the leave, because after it there is no party position.
+     */
+    val takeBackFromTv: () -> Unit = {
+        val target = controller
+        if (target == null) {
+            failure = context.getString(R.string.handoff_no_song)
+            return
+        }
+        busy = true
+        failure = null
+        scope.launch {
+            val resumeAt = ListenTogether.partyPositionMs() ?: state.playback.positionMs
+            takeBack(target, resumeAt)
+                .onFailure { failure = it.message }
+            handoffActive = false
+            busy = false
+        }
     }
 
     /**
@@ -449,6 +513,16 @@ fun ListenTogetherScreen(
             Spacer(Modifier.height(3.dp))
             Text("Press play together, wherever you are.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+
+        HandoffSection(
+            inParty = state.inParty,
+            handoffActive = handoffActive,
+            tvJoined = state.members.size > 1,
+            canHandOff = signedIn && ListenTogether.hasServer && !busy && controller?.handoffSource() != null,
+            handingOff = busy,
+            onHandOff = handOffToTv,
+            onTakeBack = takeBackFromTv,
+        )
 
         if (!signedIn) {
             SettingsGroup(footer = stringResource(R.string.listen_together_sign_in_footer)) {
@@ -900,6 +974,63 @@ private fun InAParty(
             subtitle = stringResource(R.string.listen_together_leave_subtitle),
             onClick = onLeave,
         )
+    }
+}
+
+/**
+ * Cross-device handoff, through the party server.
+ *
+ * "Hand off to TV" creates (or reuses) a party and publishes what this phone
+ * is playing; the TV joins with the code and its PartySync starts the track
+ * on its own. While a handoff is live this shows whether the TV has picked it
+ * up yet — a second member in the party is the real signal — and offers to
+ * take playback back to this phone.
+ */
+@Composable
+private fun HandoffSection(
+    inParty: Boolean,
+    handoffActive: Boolean,
+    tvJoined: Boolean,
+    canHandOff: Boolean,
+    handingOff: Boolean,
+    onHandOff: () -> Unit,
+    onTakeBack: () -> Unit,
+) {
+    if (handoffActive && inParty) {
+        SettingsGroup(header = stringResource(R.string.handoff_title)) {
+            SettingsRow(
+                icon = Icons.Rounded.Tv,
+                title = stringResource(
+                    if (tvJoined) R.string.handoff_playing_on_tv
+                    else R.string.handoff_waiting_tv,
+                ),
+                subtitle = if (tvJoined) stringResource(R.string.handoff_playing_on_tv_subtitle) else null,
+                trailing = if (handingOff) ({ Spinner() }) else null,
+                onClick = null,
+            )
+            RowDivider()
+            SettingsRow(
+                icon = Icons.Rounded.Undo,
+                title = stringResource(R.string.handoff_take_back),
+                subtitle = stringResource(R.string.handoff_take_back_subtitle),
+                enabled = !handingOff,
+                onClick = onTakeBack,
+            )
+        }
+    } else {
+        SettingsGroup(
+            header = stringResource(R.string.handoff_title),
+            footer = stringResource(R.string.handoff_to_tv_subtitle),
+        ) {
+            SettingsRow(
+                icon = Icons.Rounded.Tv,
+                title = stringResource(R.string.handoff_to_tv),
+                subtitle = if (canHandOff) null else stringResource(R.string.handoff_no_song),
+                enabled = canHandOff,
+                trailing = if (handingOff) ({ Spinner() }) else null,
+                onClick = onHandOff,
+            )
+        }
     }
 }
 
