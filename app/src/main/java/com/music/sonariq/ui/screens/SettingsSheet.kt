@@ -74,6 +74,10 @@ import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Shield
+import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material.icons.rounded.VisibilityOff
@@ -448,21 +452,9 @@ fun SettingsScreen(
     ) {
         Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp)) {
             Text(
-                text = "Make it yours",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.height(5.dp))
-            Text(
                 text = stringResource(R.string.settings),
                 style = MaterialTheme.typography.displayLarge,
                 color = MaterialTheme.colorScheme.onBackground,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "Fine-tune your listening experience.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         SearchField(
@@ -510,7 +502,7 @@ fun SettingsScreen(
         // above lists that as the module's own row now. Lossless itself is no
         // longer a setting at all — see
         // [SourceResolver.requestForNow][com.music.sonariq.data.sources.SourceResolver.requestForNow].
-        SearchableSettingsGroup(search, header = stringResource(R.string.audio_quality)) {
+        SearchableSettingsGroup(search, header = stringResource(R.string.audio_quality), headerIcon = Icons.Rounded.GraphicEq) {
             val sourceTitle = stringResource(R.string.source)
             val sourceSubtitle = stringResource(R.string.sources_subtitle)
             row(sourceTitle, sourceSubtitle, "addon", "lossless") {
@@ -585,7 +577,7 @@ fun SettingsScreen(
         // does this minute cost"; these answer "what am I keeping, and when may
         // it be fetched" — and those two questions only make sense read
         // together, which is what puts them side by side here.
-        SearchableSettingsGroup(search, header = stringResource(R.string.downloads)) {
+        SearchableSettingsGroup(search, header = stringResource(R.string.downloads), headerIcon = Icons.Rounded.Download) {
             val downloadQualityTitle = stringResource(R.string.download_quality)
             row(downloadQualityTitle, "offline", "lossless") {
                 SettingsRow(
@@ -697,7 +689,7 @@ fun SettingsScreen(
         // Concert alerts: upcoming shows by the listener's top artists, via
         // Ticketmaster's Discovery API. The API is free but keyed, and the key
         // is the user's to bring — see the dialog below.
-        SearchableSettingsGroup(search, header = stringResource(R.string.concerts)) {
+        SearchableSettingsGroup(search, header = stringResource(R.string.concerts), headerIcon = Icons.Rounded.ConfirmationNumber) {
             val concertAlertsTitle = stringResource(R.string.concert_alerts)
             row(concertAlertsTitle, "concerts", "shows", "gigs", "tour", "live") {
                 SettingsRow(
@@ -766,7 +758,7 @@ fun SettingsScreen(
                 }
             }
         }
-        SearchableSettingsGroup(search, header = stringResource(R.string.playback)) {
+        SearchableSettingsGroup(search, header = stringResource(R.string.playback), headerIcon = Icons.Rounded.PlayArrow) {
             // Autoplay: the master switch, then the vibe engine's own rows.
             // The vibe rows only act while vibe autoplay is on, so they dim
             // when it is off.
@@ -1078,7 +1070,7 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.karaoke)) {
+        SearchableSettingsGroup(search, header = stringResource(R.string.karaoke), headerIcon = Icons.Rounded.Mic) {
             val pitch by AppSettings.karaokePitch.collectAsStateWithLifecycle()
             row("key changer", "pitch", "semitone", "karaoke") {
                 SettingsRow(
@@ -1182,7 +1174,7 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.appearance)) {
+        SearchableSettingsGroup(search, header = stringResource(R.string.appearance), headerIcon = Icons.Rounded.Palette) {
             val themeTitle = stringResource(R.string.theme)
             row(themeTitle, "dark mode", "light mode") {
                 SettingsRow(icon = Icons.Rounded.Brightness4, title = themeTitle)
@@ -1671,7 +1663,7 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.performance)) {
+        SearchableSettingsGroup(search, header = stringResource(R.string.performance), headerIcon = Icons.Rounded.Bolt) {
             val highPerformanceModeTitle = stringResource(R.string.high_performance_mode)
             row(highPerformanceModeTitle, "frame rate", "refresh rate", "hz", "battery", "smooth") {
                 SettingsRow(
@@ -1730,7 +1722,7 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.local_music)) {
+        SearchableSettingsGroup(search, header = stringResource(R.string.local_music), headerIcon = Icons.Rounded.Folder) {
             val localMusicFolderTitle = stringResource(R.string.local_music_folder)
             row(localMusicFolderTitle, "folder", "offline", "files") {
                 SettingsRow(
@@ -1779,7 +1771,7 @@ fun SettingsScreen(
         val cacheLimitMb = if (cacheUnlimited) CACHE_UNLIMITED_STOP_MB else (cacheLimitBytes / (1024 * 1024)).toInt()
         val unlimitedLabel = stringResource(R.string.song_cache_unlimited)
         val cacheLimitLabel = if (cacheUnlimited) unlimitedLabel else formatCacheSize(cacheLimitMb)
-        SearchableSettingsGroup(search, header = stringResource(R.string.storage)) {
+        SearchableSettingsGroup(search, header = stringResource(R.string.storage), headerIcon = Icons.Rounded.Storage) {
             val showCacheFolderTitle = stringResource(R.string.show_cache_folder)
             row(showCacheFolderTitle, "cache", "cached songs", "library", "folder") {
                 SettingsRow(
@@ -1845,7 +1837,7 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.your_data)) {
+        SearchableSettingsGroup(search, header = stringResource(R.string.your_data), headerIcon = Icons.Rounded.Shield) {
             val replayTitle = stringResource(R.string.replay)
             row(replayTitle, "stats", "history", "wrapped") {
                 SettingsRow(
@@ -1911,7 +1903,7 @@ fun SettingsScreen(
 
         // No footer: it only restated the stop-on-close row's own subtitle,
         // which sits four rows above it and says the same thing in fewer words.
-        SearchableSettingsGroup(search, header = stringResource(R.string.app_updates)) {
+        SearchableSettingsGroup(search, header = stringResource(R.string.app_updates), headerIcon = Icons.Rounded.SystemUpdate) {
             val autoUpdateCheck by AppSettings.autoUpdateCheck.collectAsStateWithLifecycle()
             val updateScope = rememberCoroutineScope()
             var updateChecking by remember { mutableStateOf(false) }
@@ -1991,7 +1983,7 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.miscellaneous)) {
+        SearchableSettingsGroup(search, header = stringResource(R.string.miscellaneous), headerIcon = Icons.Rounded.MoreHoriz) {
             val playNextOnSwipeTitle = stringResource(R.string.play_next_on_swipe)
             row(playNextOnSwipeTitle, "swipe", "queue") {
                 SettingsRow(
@@ -2093,7 +2085,7 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.language)) {
+        SearchableSettingsGroup(search, header = stringResource(R.string.language), headerIcon = Icons.Rounded.Language) {
             val appLanguageTitle = stringResource(R.string.app_language)
             row(appLanguageTitle, "locale", "translate") {
                 val selectedLanguage = AppCompatDelegate.getApplicationLocales().get(0)?.language
@@ -2107,7 +2099,7 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.advanced_options)) {
+        SearchableSettingsGroup(search, header = stringResource(R.string.advanced_options), headerIcon = Icons.Rounded.Build) {
             val smartAlignmentTitle = stringResource(R.string.smart_version_alignment)
             row(smartAlignmentTitle, "alignment", "sync", "waveform", "video", "audio", "skit", "intro") {
                 SettingsRow(
@@ -3105,6 +3097,7 @@ private class SettingsGroupScope(
 private fun SearchableSettingsGroup(
     search: SettingsSearch,
     header: String? = null,
+    headerIcon: ImageVector? = null,
     footer: String? = null,
     topSpacing: Dp = 26.dp,
     content: @Composable SettingsGroupScope.() -> Unit,
@@ -3112,7 +3105,7 @@ private fun SearchableSettingsGroup(
     val scope = SettingsGroupScope(search, header)
     scope.content()
     if (scope.entries.isEmpty()) return
-    SettingsGroup(header = header, footer = footer, topSpacing = topSpacing) {
+    SettingsGroup(header = header, headerIcon = headerIcon, footer = footer, topSpacing = topSpacing) {
         scope.entries.forEachIndexed { index, entry ->
             when {
                 index > 0 && entry.divided -> RowDivider()
@@ -3133,24 +3126,39 @@ private fun SearchableSettingsGroup(
 @Composable
 internal fun SettingsGroup(
     header: String? = null,
+    /** Optional icon drawn before the header text, for quick visual scanning. */
+    headerIcon: ImageVector? = null,
     footer: String? = null,
     /** Room above the card, where there is no [header] to provide it. */
     topSpacing: Dp = 20.dp,
     content: @Composable () -> Unit,
 ) {
     if (header != null) {
-        Text(
-            text = header.uppercase(Locale.ROOT),
-            // Space Grotesk, the Sonariq display face, for section headers.
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(
                 start = GROUP_INSET + 4.dp,
                 end = GROUP_INSET,
                 top = 20.dp,
                 bottom = 10.dp,
             ),
-        )
+        ) {
+            if (headerIcon != null) {
+                Icon(
+                    imageVector = headerIcon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(
+                // Space Grotesk, the Sonariq display face, for section headers.
+                text = header.uppercase(Locale.ROOT),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     } else {
         Spacer(Modifier.height(topSpacing))
     }

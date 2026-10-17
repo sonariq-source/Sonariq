@@ -744,17 +744,12 @@ internal fun PlayerActionRow(
     onListenTogether: () -> Unit,
     /** Opens [ListenTogetherMembersSheet] rather than settings directly. */
     onOpenListenTogetherMembers: () -> Unit,
-    /** Opens the song share sheet — the same share as the top-right button. */
-    onShare: () -> Unit = {},
-    /** Whether the share glyph is drawn. */
-    shareEnabled: Boolean = false,
 ) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         // Sized for the wider of the two capsules — the three-up one — in both
         // states. Computed for whichever was on screen it would change as they
         // swap, and the lyrics and queue glyphs would slide with it.
-        val glyphCount = if (shareEnabled) 3 else 2
-        val widestRow = BOTTOM_ACTION_SIZE * glyphCount + pillWidth(3)
+        val widestRow = BOTTOM_ACTION_SIZE * 2 + pillWidth(3)
         val edgeInset = ((maxWidth - widestRow) / 4).coerceAtLeast(0.dp)
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = edgeInset),
@@ -839,13 +834,6 @@ internal fun PlayerActionRow(
                     )
                 }
             }
-            if (shareEnabled) {
-                BottomGlyph(
-                    icon = Icons.Rounded.Share,
-                    contentDescription = stringResource(Res.string.share),
-                    onClick = onShare,
-                )
-            }
             BottomGlyph(
                 icon = SonariqIcons.Queue,
                 contentDescription = stringResource(Res.string.up_next),
@@ -873,10 +861,6 @@ internal fun AppleUtilityRow(
     onToggleLyrics: () -> Unit,
     onToggleQueue: () -> Unit,
     onOpenOutput: () -> Unit,
-    /** Opens the song share sheet — the same share as the top-right button. */
-    onShare: () -> Unit = {},
-    /** Whether the share glyph is drawn. */
-    shareEnabled: Boolean = false,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -894,13 +878,6 @@ internal fun AppleUtilityRow(
             contentDescription = stringResource(Res.string.audio_output),
             onClick = onOpenOutput,
         )
-        if (shareEnabled) {
-            BottomGlyph(
-                icon = Icons.Rounded.Share,
-                contentDescription = stringResource(Res.string.share),
-                onClick = onShare,
-            )
-        }
         BottomGlyph(
             icon = SonariqIcons.Queue,
             contentDescription = stringResource(Res.string.up_next),

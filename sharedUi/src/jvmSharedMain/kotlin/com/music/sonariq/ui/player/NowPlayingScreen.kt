@@ -1467,8 +1467,6 @@ fun NowPlayingScreen(
             onOpenOutput = openAudioOutput,
             onListenTogether = onListenTogether,
             onOpenListenTogetherMembers = openListenTogetherMembers,
-            onShare = { onShareSong(remoteArt ?: song.thumbnailUrl) },
-            shareEnabled = shareSongEnabled,
         )
         // Keep the current output caption visible in every state.
         Spacer(Modifier.height(18.dp))
@@ -1499,8 +1497,6 @@ fun NowPlayingScreen(
             onToggleLyrics = toggleLyrics,
             onToggleQueue = toggleQueue,
             onOpenOutput = openAudioOutput,
-            onShare = { onShareSong(remoteArt ?: song.thumbnailUrl) },
-            shareEnabled = shareSongEnabled,
         )
         // Keep the current output caption visible in every state.
         Spacer(Modifier.height(18.dp))
@@ -3426,6 +3422,21 @@ fun NowPlayingScreen(
                             onCopy = copyPickedLyrics,
                             modifier = Modifier.align(Alignment.BottomCenter),
                         )
+                    } else if (lyricsShareEnabled && translateFade > 0.01f) {
+                        // An explicit way into picking mode: a share disc
+                        // centred at the foot of the lyrics, where the pick
+                        // bar will sit once it is open. Long-pressing a line
+                        // still works, but nobody has to discover it.
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .graphicsLayer { alpha = translateFade },
+                        ) {
+                            LyricsShareButton(
+                                enabled = translateShown && !lyrics.isNullOrEmpty(),
+                                onClick = lyricPicker.beginPicking,
+                            )
+                        }
                     }
                 }
 

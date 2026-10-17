@@ -56,6 +56,7 @@ import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -1391,6 +1392,40 @@ internal fun RomanizationToggleButton(
                 modifier = Modifier.size(19.dp),
             )
         }
+    }
+}
+
+/**
+ * The lyrics screen's way into share-card picking: a disc matching the
+ * translate toggles' size, centred at the foot of the panel. One tap opens
+ * picking mode so the reader taps the lines they want on the story card —
+ * no long-press to discover.
+ */
+@Composable
+internal fun LyricsShareButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val tint = if (enabled) Color.White.copy(alpha = 0.78f) else Color.White.copy(alpha = 0.42f)
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.18f))
+            .clickable(
+                enabled = enabled,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Share,
+            contentDescription = stringResource(Res.string.share),
+            tint = tint,
+            modifier = Modifier.size(19.dp),
+        )
     }
 }
 

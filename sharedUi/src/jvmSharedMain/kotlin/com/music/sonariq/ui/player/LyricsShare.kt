@@ -133,6 +133,8 @@ internal class LyricsPicker(
     val cancel: () -> Unit,
     /** Hands the chosen lines over as a card request. */
     val share: () -> Unit,
+    /** Enters picking mode with nothing chosen yet — for an explicit share button. */
+    val beginPicking: () -> Unit,
 )
 
 /**
@@ -229,6 +231,14 @@ internal fun rememberLyricsPicker(
         picks = emptySet()
         overBudget = false
     }
+    // An explicit share button's way in: opens picking mode with nothing
+    // chosen, so the reader taps the lines they want on the card.
+    val beginPicking: () -> Unit = {
+        haptics.play(Haptic.Select)
+        picking = true
+        picks = emptySet()
+        overBudget = false
+    }
     val share: () -> Unit = {
         val source = lines.orEmpty()
         val chosen = picks.sorted()
@@ -266,6 +276,7 @@ internal fun rememberLyricsPicker(
         toggle = toggle,
         cancel = cancel,
         share = share,
+        beginPicking = beginPicking,
     )
 }
 
