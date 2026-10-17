@@ -90,7 +90,7 @@
 - **Prism design system** — matte midnight/plum surfaces, coral primary, orchid secondary, cyan highlights.
 - **Liquid glass** — milkier blur, vivid refraction, luminous rims and top-light sheen, on by default.
 - **Animated navigation** — tabs bloom, pages slide, modals rise. The whole app breathes.
-- **Redesigned Now Playing** — glowing scrubber, luminous transport controls, live audio visualiser.
+- **Redesigned Now Playing** — glowing scrubber, luminous transport controls, live audio visualiser. The bottom row now has a share button, and the caption under it shows your phone's real model.
 - **Animated album canvas** — motion artwork on the now-playing screen.
 
 ### 🔄 In-app updates
