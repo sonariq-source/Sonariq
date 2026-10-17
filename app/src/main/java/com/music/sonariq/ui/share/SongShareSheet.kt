@@ -38,14 +38,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.music.sonariq.R
+import com.music.sonariq.data.model.Song
 import com.music.sonariq.ui.haptics.Haptic
 import com.music.sonariq.ui.haptics.rememberHaptics
+import com.music.sonariq.ui.player.LyricsShareLine
+import com.music.sonariq.ui.player.LyricsShareRequest
+import com.music.sonariq.ui.player.renderLyricsShareCard
 import com.music.sonariq.ui.replay.cacheForSharing
 import com.music.sonariq.ui.replay.sendIntent
 import kotlinx.coroutines.launch
 
 /**
- * What to do with the song, Spotify-style.
+ * What to do with the song: share it as a picture card.
  *
  * The card is rendered on demand — artwork is already warm in Coil's cache
  * from the player, so the sheet answers instantly and the share target gets a
@@ -55,8 +59,8 @@ import kotlinx.coroutines.launch
  * the track has no lyrics — the "Share with lyrics" row is then hidden rather
  * than offered with nothing to put on the card.
  * @param allLyricLines every lyric line of the track, in order, blanks
- * removed — when present, "Share with lyrics" opens the Spotify-style line
- * picker instead of auto-sharing the snippet. Null falls back to the snippet.
+ * removed — when present, "Share with lyrics" opens the line picker instead
+ * of auto-sharing the snippet. Null falls back to the snippet.
  * @param trackUrl the shareable link, or null for local files with no link —
  * the "Copy link" row is then hidden.
  */
@@ -76,17 +80,34 @@ fun SongShareSheet(
     val haptics = rememberHaptics()
     var busy by remember { mutableStateOf(false) }
     var showSelector by remember { mutableStateOf(false) }
-    var showStylePicker by remember { mutableStateOf(false) }
-    var pickedLines by remember { mutableStateOf<List<String>>(emptyList()) }
 
     /** Renders the card and hands the picture to the app of the user's choice. */
-    fun sendCard(lines: List<String>?, text: String? = null, style: ShareCardStyle = ShareCardStyle.Classic) {
+    fun sendCard(lines: List<String>?, text: String? = null) {
         if (busy) return
         busy = true
         haptics.play(Haptic.Tap)
         scope.launch {
             val bitmap = runCatching {
-                renderSongShareCard(context, title, artist, artworkUrl, lines, style)
+                if (lines.isNullOrEmpty()) {
+                    // No lyrics: a plain card with the sleeve and title.
+                    renderSongShareCard(context, title, artist, artworkUrl, null)
+                } else {
+                    // The lyrics card theme — the same one the lyrics screen
+                    // uses, so every share looks like one family.
+                    val song = Song(
+                        videoId = "",
+                        title = title,
+                        artist = artist,
+                        thumbnailUrl = artworkUrl,
+                    )
+                    val shareLines = lines.map { LyricsShareLine(text = it, subText = null) }
+                    val request = LyricsShareRequest(
+                        song = song,
+                        artworkUrl = artworkUrl,
+                        lines = shareLines,
+                    )
+                    renderLyricsShareCard(context, request, story = true)
+                }
             }.getOrNull()
             busy = false
             if (bitmap == null) {
@@ -120,26 +141,16 @@ fun SongShareSheet(
             .padding(bottom = 24.dp),
     ) {
         when {
-            showStylePicker -> {
-                ShareStylePickerSheet(
-                    title = title,
-                    artist = artist,
-                    artworkUrl = artworkUrl,
-                    lyricLines = pickedLines,
-                    onShare = { style -> sendCard(pickedLines, style = style) },
-                    onDismiss = { showStylePicker = false },
-                )
-                return@Column
-            }
             showSelector -> {
                 val all = allLyricLines
                 if (all != null) {
                     LyricSelectorSheet(
                         lines = all,
                         onContinue = { lines ->
-                            pickedLines = lines
                             showSelector = false
-                            showStylePicker = true
+                            // Straight to the card — one theme, the lyrics
+                            // screen's, no style picker in between.
+                            sendCard(lines)
                         },
                         onDismiss = { showSelector = false },
                     )
@@ -190,9 +201,9 @@ fun SongShareSheet(
                     icon = Icons.Rounded.FormatQuote,
                     label = stringResource(R.string.share_with_lyrics),
                     onClick = {
-                        // Spotify-style: let the user pick the lines when the
-                        // full lyrics are on hand; otherwise share the snippet
-                        // the old way.
+                        // Let the user pick the lines when the full lyrics
+                        // are on hand; otherwise share the snippet the old
+                        // way.
                         if (!allLyricLines.isNullOrEmpty()) {
                             haptics.play(Haptic.Tap)
                             showSelector = true

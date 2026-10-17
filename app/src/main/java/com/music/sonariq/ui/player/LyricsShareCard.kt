@@ -49,7 +49,7 @@ import kotlinx.coroutines.withContext
  * in, so a passage too long for the frame lengthens the card instead of being
  * cut, or made small enough to hold a phone at arm's length to read.
  */
-internal suspend fun renderLyricsShareCard(
+suspend fun renderLyricsShareCard(
     context: Context,
     card: LyricsShareRequest,
     /** Pad out to the full 1080×1920 frame, the passage centred in the room. */
