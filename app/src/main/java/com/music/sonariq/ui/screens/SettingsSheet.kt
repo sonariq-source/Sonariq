@@ -2191,9 +2191,7 @@ fun SettingsScreen(
                             textDecoration = TextDecoration.Underline,
                         ),
                     )
-                    // Sonariq is now the owner's app: the credits point to the
-                    // Sonariq GitHub. (The fork credit to the original
-                    // BitChord project lives on the GitHub README.)
+                    // The credits point to the Sonariq GitHub.
                     withLink(LinkAnnotation.Url("https://github.com/sonariq-source/Sonariq", linkStyles)) {
                         append("sonariq-source")
                     }
