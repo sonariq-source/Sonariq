@@ -79,7 +79,7 @@
 - **Your logo everywhere** — the white Sonariq waveform mark replaces every leftover placeholder.
 
 ### 📱 Widgets & sharing
-- **Share songs** — share button in Now Playing with story cards, text share and copy link. Tap "Share with lyrics" to pick your favourite lines (up to 5), then choose a card style — Classic, Wide or Minimal — before sharing the 1080×1920 card.
+- **Share songs** — story cards, text share and copy link. Tap "Share with lyrics" to pick your favourite lines (up to 5) and share the 1080×1920 lyrics card — the same theme as the lyrics screen, everywhere.
 - **Now-playing + lyrics widget** — artwork, controls and a live lyric-line peek on your home screen.
 - **Shareable Replay cards** — beautiful 1080×1350 stats cards rendered from your real listening, ready to share.
 - **Annual Wrapped** — year-in-review story with shareable cards.
