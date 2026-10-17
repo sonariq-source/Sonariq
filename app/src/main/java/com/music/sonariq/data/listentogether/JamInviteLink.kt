@@ -16,10 +16,10 @@ data class ParsedJamInvite(
 /** Relays a Sonariq web or scheme invite from [com.music.sonariq.MainActivity] to Compose. */
 object JamInviteLink {
 
-    const val ORIGIN = "https://bitchord.kushagrasingh.in"
+    const val ORIGIN = "https://sonariq.giize.com"
 
     private const val EXTRA_CONSUMED = "sonariq.jamInviteConsumed"
-    private const val HOST = "bitchord.kushagrasingh.in"
+    private const val HOST = "sonariq.giize.com"
     private const val CUSTOM_SCHEME = "sonariq"
     private const val CUSTOM_HOST = "party"
 
@@ -50,7 +50,7 @@ object JamInviteLink {
     /**
      * Parses an incoming invite:
      * 1. sonariq://party/<CODE>?server=<SERVER>
-     * 2. https://bitchord.kushagrasingh.in/invite/<CODE>?server=<SERVER>
+     * 2. https://sonariq.giize.com/party/<CODE>?server=<SERVER>
      */
     fun parseInvite(value: String?): ParsedJamInvite? {
         val uri = runCatching { URI(value ?: return null) }.getOrNull() ?: return null
@@ -67,7 +67,7 @@ object JamInviteLink {
             return ParsedJamInvite(code = code, serverUrl = server)
         }
 
-        // 2. Official web domain: https://bitchord.kushagrasingh.in/invite/<CODE>
+        // 2. Official web domain: https://sonariq.giize.com/party/<CODE>
         if (scheme == "https" && host == HOST) {
             val match = INVITE_PATH.matchEntire(uri.path.orEmpty()) ?: return null
             val code = match.groupValues[1].uppercase()
@@ -80,9 +80,9 @@ object JamInviteLink {
     fun url(code: String, customServer: String? = null): String {
         val base = customServer?.trim()?.trimEnd('/')
         return if (!base.isNullOrBlank() && !base.equals(ORIGIN, ignoreCase = true)) {
-            "$base/invite/${code.uppercase()}"
+            "$base/party/${code.uppercase()}"
         } else {
-            "$ORIGIN/invite/${code.uppercase()}"
+            "$ORIGIN/party/${code.uppercase()}"
         }
     }
 
@@ -124,6 +124,6 @@ object JamInviteLink {
         return withScheme
     }
 
-    private val INVITE_PATH = Regex("""/invite/([A-Za-z0-9]{${ListenTogether.CODE_LENGTH}})""")
+    private val INVITE_PATH = Regex("""/party/([A-Za-z0-9]{${ListenTogether.CODE_LENGTH}})""")
 }
 

@@ -4,6 +4,7 @@ import android.app.SearchManager
 import android.content.Intent
 import android.net.Uri
 import android.provider.MediaStore
+import com.music.sonariq.data.SonariqLinks
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -108,6 +109,20 @@ object MusicLink {
     fun parse(uri: Uri): LinkRequest? {
         val host = uri.host?.lowercase()?.removePrefix("www.") ?: return null
         val segments = uri.pathSegments.orEmpty()
+        // Sonariq's own song links: sonariq://s/<videoId> from the website's
+        // "Open in app" button.
+        if (uri.scheme?.lowercase() == SonariqLinks.SCHEME && host == "s") {
+            return segments.firstOrNull()?.let(::track)
+        }
+        // https://sonariq.giize.com/s/<videoId> — a shared song.
+        if (host == SonariqLinks.WEB_HOST) {
+            return if (segments.firstOrNull() == "s") {
+                segments.getOrNull(1)?.let(::track)
+            } else {
+                // /party/ links are party invites, handled by JamInviteLink.
+                null
+            }
+        }
         if (host == "youtu.be") {
             return segments.firstOrNull()?.let(::track)
         }

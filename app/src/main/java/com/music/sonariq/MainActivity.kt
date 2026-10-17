@@ -131,6 +131,7 @@ import com.music.sonariq.auth.WebSessionMode
 import com.music.sonariq.auth.YtMusicLoginScreen
 import com.music.sonariq.data.AppUpdateChecker
 import com.music.sonariq.data.LocalMediaRepository
+import com.music.sonariq.data.SonariqLinks
 import com.music.sonariq.data.listentogether.JamInviteLink
 import com.music.sonariq.data.listentogether.ListenTogether
 import com.music.sonariq.data.listentogether.PartyActivityRepository
@@ -4420,7 +4421,7 @@ private fun SonariqApp(
                         lyricLines = songShareLyrics,
                         allLyricLines = songShareAllLyrics,
                         trackUrl = target.localUri?.let { null }
-                            ?: "https://music.youtube.com/watch?v=${target.videoId}",
+                            ?: SonariqLinks.songUrl(target.videoId),
                         onDismiss = { showSongShare = false },
                     )
                 }
@@ -4440,7 +4441,7 @@ private fun SonariqApp(
             val share: () -> Unit = {
                 val sendIntent = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, "https://music.youtube.com/watch?v=${song.videoId}")
+                    putExtra(Intent.EXTRA_TEXT, SonariqLinks.songUrl(song.videoId))
                 }
                 context.startActivity(Intent.createChooser(sendIntent, song.title))
                 songActions = null

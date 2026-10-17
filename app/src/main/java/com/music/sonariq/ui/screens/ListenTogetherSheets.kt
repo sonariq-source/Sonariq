@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.music.sonariq.R
+import com.music.sonariq.data.SonariqLinks
 import com.music.sonariq.data.YtMusicRepository
 import com.music.sonariq.data.listentogether.ListenTogether
 import com.music.sonariq.data.listentogether.PartyPreview
@@ -673,15 +674,14 @@ internal fun JoinConfirmSheet(
 }
 
 /**
- * How somebody else gets in: just the party code, big and copyable.
- *
- * The share-link button and QR code were removed — reading the code out
- * (or pasting it) is the whole flow now.
+ * How somebody else gets in: the party code, big and copyable, plus a
+ * Sonariq link that opens the party straight in the app.
  */
 @Composable
 internal fun InviteSheet(
     code: String,
     onCopyCode: () -> Unit,
+    onCopyLink: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
@@ -715,6 +715,16 @@ internal fun InviteSheet(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Spacer(Modifier.height(16.dp))
+        TextButton(onClick = onCopyLink) {
+            Text(
+                text = SonariqLinks.partyUrl(code),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         Spacer(Modifier.height(24.dp))
     }
 }

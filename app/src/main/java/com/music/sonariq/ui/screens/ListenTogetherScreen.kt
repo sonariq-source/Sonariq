@@ -94,6 +94,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.music.sonariq.R
+import com.music.sonariq.data.SonariqLinks
 import com.music.sonariq.data.collab.CollabPlaylistStore
 import com.music.sonariq.data.listentogether.ListenTogether
 import com.music.sonariq.data.listentogether.PartyActivity
@@ -509,6 +510,14 @@ fun ListenTogetherScreen(
                         Toast.makeText(
                             context,
                             context.getString(R.string.copy_code),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    },
+                    onCopyLink = {
+                        clipboard.setText(AnnotatedString(SonariqLinks.partyUrl(state.code.orEmpty())))
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.link_copied),
                             Toast.LENGTH_SHORT,
                         ).show()
                     },
