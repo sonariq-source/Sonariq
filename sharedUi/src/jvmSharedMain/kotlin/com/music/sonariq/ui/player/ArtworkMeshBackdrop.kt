@@ -2,6 +2,10 @@ package com.music.sonariq.ui.player
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -146,6 +150,26 @@ fun FullArtworkBlurBackdrop(
         animationSpec = tween(320, easing = FastOutSlowInEasing),
         label = "preparedBackdropImage",
     )
+    // A slow Ken Burns drift so the backdrop feels alive rather than pasted
+    // on: the blur breathes between a gentle zoom-in and zoom-out while
+    // wandering a few percent across the frame. Skipped entirely when the
+    // user asked for reduced animation.
+    val reduceAnimation by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
+    val drift = rememberInfiniteTransition(label = "backdropDrift")
+    val driftT by drift.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 24000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "backdropDriftT",
+    )
+    // The image is overscaled so the drift never exposes an edge: scale
+    // stays above 1.06 and the translation stays within the extra margin.
+    val driftScale = if (reduceAnimation) 1f else 1.06f + 0.05f * driftT
+    val driftX = if (reduceAnimation) 0f else (driftT - 0.5f) * 0.06f
+    val driftY = if (reduceAnimation) 0f else (0.5f - driftT) * 0.04f
     Box(modifier = modifier.fillMaxSize().background(FallbackBackdrop)) {
         image?.let { bitmap ->
             val painter = remember(bitmap) { BitmapPainter(bitmap) }
@@ -153,7 +177,13 @@ fun FullArtworkBlurBackdrop(
                 painter = painter,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = imageAlpha },
+                modifier = Modifier.fillMaxSize().graphicsLayer {
+                    alpha = imageAlpha
+                    scaleX = driftScale
+                    scaleY = driftScale
+                    translationX = size.width * driftX
+                    translationY = size.height * driftY
+                },
             )
         }
 

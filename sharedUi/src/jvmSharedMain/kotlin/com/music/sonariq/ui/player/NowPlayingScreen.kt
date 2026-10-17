@@ -1467,6 +1467,8 @@ fun NowPlayingScreen(
             onOpenOutput = openAudioOutput,
             onListenTogether = onListenTogether,
             onOpenListenTogetherMembers = openListenTogetherMembers,
+            onShare = { onShareSong(remoteArt ?: song.thumbnailUrl) },
+            shareEnabled = shareSongEnabled,
         )
         // Keep the current output caption visible in every state.
         Spacer(Modifier.height(18.dp))
