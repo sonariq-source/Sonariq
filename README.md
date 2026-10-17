@@ -55,7 +55,7 @@
 - **Background playback** via a proper foreground media session.
 
 ### 🎤 Karaoke lyrics
-- **Word-synced lyrics** — true word timings from KuGou KRC and YouTube timed text, Apple Music-style.
+- **Word-synced lyrics** — true word timings from KuGou KRC and YouTube timed text, with clean karaoke-style highlighting.
 - **Fully automatic** — every provider is raced in parallel; the best sync wins with zero setup.
 - **Smart timing** — cross-checks providers so the first line never jumps the gun on instrumental intros.
 - **Karaoke pause-hold** — each word lands discretely and holds through the silence, just like the pros.
@@ -79,7 +79,7 @@
 - **Your logo everywhere** — the white Sonariq waveform mark replaces every leftover placeholder.
 
 ### 📱 Widgets & sharing
-- **Share songs like Spotify** — share button in Now Playing with story cards, text share and copy link. Tap "Share with lyrics" to pick your favourite lines (up to 5), then choose a card style — Classic, Wide or Minimal — before sharing the 1080×1920 card.
+- **Share songs** — share button in Now Playing with story cards, text share and copy link. Tap "Share with lyrics" to pick your favourite lines (up to 5), then choose a card style — Classic, Wide or Minimal — before sharing the 1080×1920 card.
 - **Now-playing + lyrics widget** — artwork, controls and a live lyric-line peek on your home screen.
 - **Shareable Replay cards** — beautiful 1080×1350 stats cards rendered from your real listening, ready to share.
 - **Annual Wrapped** — year-in-review story with shareable cards.
@@ -115,7 +115,7 @@
 
 ### 🔗 Connectivity
 - **Sign in with your Google account** for personalized content.
-- **Spotify integration** — play your playlists and Liked Songs.
+- **Streaming integration** — link your streaming account to play your playlists and Liked Songs.
 - **Discord Rich Presence** — live track/artist/album and progress.
 - **Scrobbling** to Last.fm and ListenBrainz.
 - **Cast to TV** — audio casting plus synced karaoke lyrics on a custom receiver.
