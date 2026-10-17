@@ -611,6 +611,8 @@ private fun SonariqApp(
     var songShareTarget by remember { mutableStateOf<Song?>(null) }
     /** Real lyric lines around the current position, or null when none. */
     var songShareLyrics by remember { mutableStateOf<List<String>?>(null) }
+    /** Every lyric line of the shared track, in order — for the line picker. */
+    var songShareAllLyrics by remember { mutableStateOf<List<String>?>(null) }
     /** The Annual Wrapped story overlay. */
     var showWrapped by rememberSaveable { mutableStateOf(false) }
     // Track which sub-screen was opened from Settings so AnimatedContent keeps
@@ -2491,6 +2493,12 @@ private fun SonariqApp(
                         displayedSong.videoId,
                     ),
                 )
+                // The full lyric text for the Spotify-style line picker —
+                // blanks dropped, order kept. Null when the track has none,
+                // and the picker step is skipped in favour of the snippet.
+                songShareAllLyrics = lyrics
+                    ?.mapNotNull { it.text.takeIf(String::isNotBlank) }
+                    ?.takeIf { it.isNotEmpty() }
                 showSongShare = true
             },
             shareSongEnabled = true,
@@ -4410,6 +4418,7 @@ private fun SonariqApp(
                         artist = target.artist,
                         artworkUrl = songShareArtworkUrl ?: target.thumbnailUrl,
                         lyricLines = songShareLyrics,
+                        allLyricLines = songShareAllLyrics,
                         trackUrl = target.localUri?.let { null }
                             ?: "https://music.youtube.com/watch?v=${target.videoId}",
                         onDismiss = { showSongShare = false },

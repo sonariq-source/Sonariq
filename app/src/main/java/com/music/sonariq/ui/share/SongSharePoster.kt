@@ -46,6 +46,7 @@ fun lyricSnippet(lines: List<LyricLine>?, positionMs: Long): List<String>? {
  * @param lyricLines 2–3 real lyric lines around the current position, or null
  * for the plain card. Never synthesized — the caller passes lines from the
  * synced lyrics engine, and a track without lyrics gets the plain card.
+ * @param style which card look to draw; defaults to [ShareCardStyle.Classic].
  */
 suspend fun renderSongShareCard(
     context: Context,
@@ -53,17 +54,27 @@ suspend fun renderSongShareCard(
     artist: String,
     artworkUrl: String?,
     lyricLines: List<String>? = null,
+    style: ShareCardStyle = ShareCardStyle.Classic,
 ): Bitmap = withContext(Dispatchers.Default) {
     val art = artworkUrl?.let { loadBitmap(context, it) }
     val bitmap = Bitmap.createBitmap(CARD_W, CARD_H, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
     val type = Fonts(context)
 
-    drawBlurredBackdrop(canvas, art)
+    if (style == ShareCardStyle.Minimal) {
+        // Minimal skips the sleeve entirely: the words on a clean dark field.
+        canvas.drawColor(0xFF0E0A12.toInt())
+    } else {
+        drawBlurredBackdrop(canvas, art)
+    }
     if (lyricLines.isNullOrEmpty()) {
         drawPlainCard(canvas, type, title, artist, art)
     } else {
-        drawLyricsCard(canvas, type, title, artist, art, lyricLines.take(3))
+        when (style) {
+            ShareCardStyle.Classic -> drawLyricsCard(canvas, type, title, artist, art, lyricLines.take(5))
+            ShareCardStyle.Wide -> drawLyricsCardWide(canvas, type, title, artist, art, lyricLines.take(5))
+            ShareCardStyle.Minimal -> drawLyricsCardMinimal(canvas, type, lyricLines.take(5))
+        }
     }
     drawBrandFoot(canvas, context, type)
     bitmap
@@ -188,9 +199,76 @@ private fun drawLyricsCard(
     )
 }
 
+/**
+ * Wide: the lyric set larger and spread across the frame, fewer words per
+ * line, more air between them — built for the lines the user hand-picked.
+ */
+private fun drawLyricsCardWide(
+    canvas: Canvas,
+    type: Fonts,
+    title: String,
+    artist: String,
+    art: Bitmap?,
+    lines: List<String>,
+) {
+    val cx = CARD_W / 2f
+    val linePaint = type.heading(96f, 0xFFFFFFFF.toInt()).apply {
+        textAlign = Paint.Align.CENTER
+    }
+
+    val wrapped = lines.flatMap { wrapLine(it, linePaint, CONTENT_W) }.take(8)
+    val lineHeight = linePaint.fontSpacing + 26f
+    val blockH = wrapped.size * lineHeight
+    var y = (CARD_H - blockH) / 2f - 80f
+
+    wrapped.forEach { line ->
+        y += lineHeight
+        canvas.drawText(line, cx, y, linePaint)
+    }
+
+    val idY = y + 150f
+    val titlePaint = type.body(44f, 0xFFFFFFFF.toInt(), bold = true).apply {
+        textAlign = Paint.Align.CENTER
+    }
+    val artistPaint = type.body(36f, 0xB3FFFFFF.toInt()).apply {
+        textAlign = Paint.Align.CENTER
+    }
+    canvas.drawText(ellipsised(title, titlePaint, CONTENT_W), cx, idY, titlePaint)
+    canvas.drawText(
+        ellipsised(artist, artistPaint, CONTENT_W),
+        cx,
+        idY + artistPaint.fontSpacing + 10f,
+        artistPaint,
+    )
+}
+
+/**
+ * Minimal: the picked lines on a clean dark field, nothing else competing —
+ * the waveform mark at the foot (drawn by [drawBrandFoot]) is the only brand.
+ */
+private fun drawLyricsCardMinimal(
+    canvas: Canvas,
+    type: Fonts,
+    lines: List<String>,
+) {
+    val cx = CARD_W / 2f
+    val linePaint = type.heading(84f, 0xFFFFFFFF.toInt()).apply {
+        textAlign = Paint.Align.CENTER
+    }
+
+    val wrapped = lines.flatMap { wrapLine(it, linePaint, CONTENT_W) }.take(8)
+    val lineHeight = linePaint.fontSpacing + 30f
+    val blockH = wrapped.size * lineHeight
+    var y = (CARD_H - blockH) / 2f
+
+    wrapped.forEach { line ->
+        y += lineHeight
+        canvas.drawText(line, cx, y, linePaint)
+    }
+}
+
 /** The mark and the name, small at the foot — the card is the song's, not ours. */
-private fun drawBrandFoot(canvas: Canvas, context: Context, type: Fonts) {
-    val baseline = CARD_H - 72f
+private fun drawBrandFoot(canvas: Canvas, context: Context, type: Fonts) {    val baseline = CARD_H - 72f
     val right = CARD_W - 96f
     drawLogo(canvas, context, right, baseline)
     val label = type.label(26f, 0xB3FFFFFF.toInt(), tracking = 0.14f)
