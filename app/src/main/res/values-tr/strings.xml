@@ -1573,4 +1573,12 @@
     <string name="link_copied">Link copied</string>
     <string name="preparing_share">Preparing share\u2026</string>
     <string name="share_song_text">\ud83c\udfb5 %1$s by %2$s \u2014 via Sonariq</string>
+    <string name="select_lyrics">Select Lyrics</string>
+    <string name="lines_selected">%1$d lines selected</string>
+    <string name="max_lines_reached">You can select up to 5 lines</string>
+    <string name="continue_label">Continue</string>
+    <string name="card_style_classic">Classic</string>
+    <string name="card_style_wide">Wide</string>
+    <string name="card_style_minimal">Minimal</string>
+    <string name="share_card">Share</string>
 </resources>
