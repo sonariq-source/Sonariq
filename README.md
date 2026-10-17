@@ -79,7 +79,8 @@
 - **Your logo everywhere** — the white Sonariq waveform mark replaces every leftover placeholder.
 
 ### 📱 Widgets & sharing
-- **Share songs** — story cards, text share and copy link. Tap "Share with lyrics" to pick your favourite lines (up to 5) and share the 1080×1920 lyrics card — the same theme as the lyrics screen, everywhere.
+- **Share songs** — story cards, text share and Sonariq links. Tap "Share with lyrics" to pick your favourite lines (up to 5) and share the 1080×1920 lyrics card — the same theme as the lyrics screen, everywhere. Copy link gives a Sonariq link that opens the song straight in the app.
+- **Sonariq links** — every song and party invite gets its own Sonariq link. With the app installed it opens straight into the song or party; without it, a page offers the download.
 - **Now-playing + lyrics widget** — artwork, controls and a live lyric-line peek on your home screen.
 - **Shareable Replay cards** — beautiful 1080×1350 stats cards rendered from your real listening, ready to share.
 - **Annual Wrapped** — year-in-review story with shareable cards.
