@@ -860,6 +860,10 @@ internal fun AppleUtilityRow(
     onToggleLyrics: () -> Unit,
     onToggleQueue: () -> Unit,
     onOpenOutput: () -> Unit,
+    /** Opens the song share sheet — the same share as the top-right button. */
+    onShare: () -> Unit = {},
+    /** Whether the share glyph is drawn. */
+    shareEnabled: Boolean = false,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -877,6 +881,13 @@ internal fun AppleUtilityRow(
             contentDescription = stringResource(Res.string.audio_output),
             onClick = onOpenOutput,
         )
+        if (shareEnabled) {
+            BottomGlyph(
+                icon = Icons.Rounded.Share,
+                contentDescription = stringResource(Res.string.share),
+                onClick = onShare,
+            )
+        }
         BottomGlyph(
             icon = SonariqIcons.Queue,
             contentDescription = stringResource(Res.string.up_next),

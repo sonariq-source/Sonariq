@@ -99,6 +99,14 @@ interface PlayerHost {
     /** Casting to a network receiver. Absent, and so never drawn, where the platform has none. */
     val castState: StateFlow<CastUi> get() = NoCast
 
+    /**
+     * This device's own model name — e.g. "Nothing Phone (2)", "Pixel 8 Pro".
+     * The output caption shows it when the music plays on this device itself,
+     * the same identity the TV app shows on its home screen. Blank where the
+     * platform does not name itself; the caption falls back as before.
+     */
+    val deviceModelName: String get() = ""
+
     /** The device picker the output drawer's Cast row opens, in the pipeline dialog's card. */
     @Composable
     fun CastDialog(hazeState: HazeState, onDismiss: () -> Unit) = Unit

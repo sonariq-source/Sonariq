@@ -25,6 +25,7 @@ import com.music.sonariq.playback.AudioRouting
 import com.music.sonariq.playback.KaraokeScorer
 import com.music.sonariq.playback.VisualizerController
 import com.music.sonariq.playback.cast.CastController
+import com.music.sonariq.util.DeviceInfo
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +50,9 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
     private val app = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val main = Handler(Looper.getMainLooper())
+
+    /** This phone's own model — the output caption shows it, like the TV home screen shows its model. */
+    override val deviceModelName: String get() = DeviceInfo.displayName
 
     override val settings: PlayerSettingsSource = object : PlayerSettingsSource {
         override val animatedCanvas get() = AppSettings.animatedCanvas

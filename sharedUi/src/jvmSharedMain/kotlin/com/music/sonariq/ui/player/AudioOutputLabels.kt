@@ -10,13 +10,21 @@ import org.jetbrains.compose.resources.stringResource
  * Bluetooth and USB devices carry their own name and keep it. The phone's own
  * speaker and a pair of wired headphones do not — `productName` gives the
  * *phone's* model for both, which is why the caption used to read "SM-S911B"
- * — so those get a label from here instead.
+ * — so those get a label from here instead. The phone's own speaker now shows
+ * this device's real model name ("Nothing Phone (2)"), the same identity the
+ * TV app shows on its home screen.
  */
 @Composable
 internal fun outputLabel(device: AudioOutputDevice, accountName: String?): String {
     val firstName = accountName?.trim()?.split(Regex("\\s+"))?.firstOrNull()?.takeIf { it.isNotBlank() }
     return when {
         device.name.isNotBlank() -> device.name
+        device.kind == AudioOutputKind.PHONE -> {
+            PlayerPlatform.host.deviceModelName.ifBlank {
+                if (firstName != null) stringResource(Res.string.personal_phone, firstName)
+                else stringResource(Res.string.this_phone)
+            }
+        }
         device.kind == AudioOutputKind.WIRED -> stringResource(Res.string.wired_headphones)
         device.kind == AudioOutputKind.USB -> stringResource(Res.string.usb_audio)
         device.kind == AudioOutputKind.HDMI -> stringResource(Res.string.hdmi_output)

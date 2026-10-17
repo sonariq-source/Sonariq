@@ -1497,6 +1497,8 @@ fun NowPlayingScreen(
             onToggleLyrics = toggleLyrics,
             onToggleQueue = toggleQueue,
             onOpenOutput = openAudioOutput,
+            onShare = { onShareSong(remoteArt ?: song.thumbnailUrl) },
+            shareEnabled = shareSongEnabled,
         )
         // Keep the current output caption visible in every state.
         Spacer(Modifier.height(18.dp))
