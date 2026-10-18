@@ -78,12 +78,21 @@ fun CanvasBackdrop(
     ) {
         val w = size.width
         val h = size.height
-        val radius = minOf(w, h) * BLOB_RADIUS_FRACTION
+        // Portrait needs bigger blobs: the radius follows the short edge, so
+        // on a tall screen the blobs would cluster in the middle and leave
+        // the top and bottom empty. Scale up when the frame is taller than
+        // it is wide so the canvas fills a phone or tablet held vertically.
+        val portrait = h > w && w > 0f
+        val aspectBoost = if (portrait) (h / w).coerceIn(1f, 2.2f) else 1f
+        val radius = minOf(w, h) * BLOB_RADIUS_FRACTION * aspectBoost
         BLOB_ORBITS.forEachIndexed { index, orbit ->
             val t = times[index % times.size]
             val angle = (t * orbit.cycles + orbit.phase) * 2f * PI.toFloat()
+            // In portrait the blobs travel further vertically so they reach
+            // the top and bottom edges instead of hovering around the middle.
+            val yAmp = if (portrait) (orbit.yAmp * 1.35f).coerceAtMost(0.42f) else orbit.yAmp
             val cx = w * (0.5f + orbit.xAmp * cos(angle))
-            val cy = h * (0.5f + orbit.yAmp * sin(angle * orbit.wobble))
+            val cy = h * (0.5f + yAmp * sin(angle * orbit.wobble))
             val colour = colours[index % colours.size]
             drawCircle(
                 brush = Brush.radialGradient(
