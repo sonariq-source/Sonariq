@@ -778,6 +778,12 @@ fun NowPlayingScreen(
     val canvasCover = remember(canvas?.url) { mutableFloatStateOf(0f) }
     // v1.5's backdrop, kept behind a switch — see [PlayerSettings.legacyMeshGradient].
     val legacyMesh by PlayerSettings.legacyMeshGradient.collectAsStateWithLifecycle()
+    // The animated canvas backdrop — see [CanvasBackdrop].
+    val canvasBackdropEnabled by PlayerSettings.canvasBackdropEnabled.collectAsStateWithLifecycle()
+    // Double-tap the artwork's left/right half to seek ∓10 seconds —
+    // see [PlayerArtworkGestures]. Layered after `skipSwipeGesture` so a
+    // swipe still skips and never seeks.
+    val artworkGesturesEnabled by PlayerSettings.artworkGesturesEnabled.collectAsStateWithLifecycle()
     // The backdrop's colours, taken off the artwork's own arrangement rather
     // than quantised out of it — see [ArtworkMesh].
     //
@@ -1819,6 +1825,12 @@ fun NowPlayingScreen(
                                 }
                             }
                             .then(skipSwipeGesture)
+                            .artworkDoubleTapSeek(
+                                enabled = artworkGesturesEnabled,
+                                onSeekBy = { deltaMs ->
+                                    onSeek((position.positionMs + deltaMs).coerceAtLeast(0L))
+                                },
+                            )
                             .graphicsLayer {
                                 // The paused shrink and the swipe nudge are
                                 // let go of on the way, as the portrait
@@ -2047,15 +2059,26 @@ fun NowPlayingScreen(
         // behind them once the video has handed off.
         val legacyMeshBackdrop = !tabletArtworkBackdrop && !spotifyCanvasPresentation &&
             legacyMesh && !canvasFirstPortrait
+        // The animated canvas takes the still backdrop's slot for tracks with
+        // no provider clip playing — see [CanvasBackdrop]. It rides the same
+        // crossfade the legacy mesh uses, so the blurred artwork yields to it
+        // exactly as it yields to the mesh.
+        val canvasBackdropOn = canvasBackdropEnabled && heroClip == null
+        val stillBackdropOn = canvasBackdropOn || legacyMeshBackdrop
         val fullArtworkBackdropAlpha by animateFloatAsState(
             targetValue = if (
-                !legacyMeshBackdrop &&
+                !stillBackdropOn &&
                 (tabletArtworkBackdrop || fullArtworkBlurImage != null)
             ) 1f else 0f,
             animationSpec = tween(durationMillis = 360, easing = FastOutSlowInEasing),
             label = "fullArtworkBackdropCrossfade",
         )
-        if (legacyMeshBackdrop) {
+        if (canvasBackdropOn) {
+            CanvasBackdrop(
+                mesh = rememberArtworkMesh(imageUrl = remoteArt, canvasFrame = canvasFrame),
+                modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
+            )
+        } else if (legacyMeshBackdrop) {
             // v1.5's backdrop, restored verbatim: no seam, because the blobs
             // are not anchored to anything on screen — they fill the player and
             // the artwork simply sits on top of them. Keyed on the track, so
@@ -2292,7 +2315,13 @@ fun NowPlayingScreen(
                     enabled = spotifyCanvasPresentation && !mixing,
                     onToggle = { spotifyCanvasControlsOpen = !spotifyCanvasControlsOpen },
                 )
-                .then(skipSwipeGesture),
+                .then(skipSwipeGesture)
+                .artworkDoubleTapSeek(
+                    enabled = artworkGesturesEnabled,
+                    onSeekBy = { deltaMs ->
+                        onSeek((position.positionMs + deltaMs).coerceAtLeast(0L))
+                    },
+                ),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // The only strip that passes drags through to the sheet, so the

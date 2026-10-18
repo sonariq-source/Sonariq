@@ -14,6 +14,7 @@ import com.music.sonariq.data.AppUpdateChecker
 import com.music.sonariq.data.LocalMediaRepository
 import com.music.sonariq.data.LikeState
 import com.music.sonariq.data.YtMusicRepository
+import com.music.sonariq.data.library.AutoDownloads
 import com.music.sonariq.data.model.SPOTIFY_MISSING_PREFIX
 import com.music.sonariq.data.model.SPOTIFY_PENDING_PREFIX
 import com.music.sonariq.data.spotify.SPOTIFY_PAGE_PREFIX
@@ -26,6 +27,10 @@ import com.music.sonariq.data.lyrics.LyricsRepository
 import com.music.sonariq.data.lyrics.LyricsSource
 import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.data.stats.SmartPlaylists
+import com.music.sonariq.data.stats.ListeningStats
+import com.music.sonariq.data.settings.AppSettings
+import com.music.sonariq.ui.home.HomeSectionRanking
+import com.music.sonariq.ui.home.HomeSectionOrderStore
 import com.music.sonariq.data.innertube.Innertube
 import com.music.sonariq.data.innertube.PlaybackTracker
 import com.music.sonariq.data.innertube.StreamResolver
@@ -620,6 +625,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     // Liked Music is now out of date either way.
                     libraryStale = true
                     if (status != LikeStatus.LIKE) dropFromLikedLists(videoId)
+                    // The auto-download worker reads liked songs from a
+                    // persisted snapshot rather than UI state — refresh it on
+                    // every confirmed like/unlike. A fresh like only appears
+                    // on the next library fetch; the snapshot is at most one
+                    // refresh late by design — see [AutoDownloads].
+                    (_library.value as? UiState.Success)?.data?.likedSongs?.let { liked ->
+                        AutoDownloads.snapshotLiked(getApplication(), liked)
+                    }
                     // Clearing the heart means forgetting the song, not
                     // demoting it — see [forgetFromLibrary].
                     val unliked = previous == LikeStatus.LIKE &&
@@ -1661,7 +1674,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         val added = shelves.withoutRepeatsOf(existing)
             .filter { homeSeenTitles.add(it.title.lowercase(Locale.ROOT)) }
-        if (added.isNotEmpty()) _home.value = UiState.Success(existing + added)
+        if (added.isNotEmpty()) {
+            val ranked = rankHomeShelves(existing + added)
+            _home.value = UiState.Success(ranked)
+        }
+    }
+
+    /**
+     * Orders the home feed's sections by the listener's behaviour (and their
+     * manual drag order, which always wins) — see [HomeSectionRanking]. The
+     * screen itself is untouched; only the sections' order changes.
+     */
+    private fun rankHomeShelves(shelves: List<HomeShelf>): List<HomeShelf> {
+        return HomeSectionRanking.rankSections(
+            shelves = shelves,
+            recentArtists = ListeningStats.recentTopArtistNames().toSet(),
+            manualOrder = HomeSectionOrderStore.order.value,
+            learn = AppSettings.homeSectionLearningEnabled.value,
+        )
     }
 
     /** Refreshes the core feed without blanking the current Play page first. */
@@ -1673,7 +1703,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             homeSeenTitles.clear()
             val shelves = feed.shelves.withoutRepeatsOf(emptyList())
                 .filter { homeSeenTitles.add(it.title.lowercase(Locale.ROOT)) }
-            if (shelves.isNotEmpty()) _home.value = UiState.Success(shelves)
+            if (shelves.isNotEmpty()) _home.value = UiState.Success(rankHomeShelves(shelves))
         }
         recent?.await()?.onSuccess { shelf ->
             if (identity == listenerKey()) shelf?.let { publishHomeShelves(listOf(it), prepend = true) }
@@ -1700,7 +1730,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     // itself rather than run dry with a token still attached —
                     // treat it the same as exhausted so scrolling can't spin here.
                     homeContinuation = feed.continuation.takeIf { added.isNotEmpty() }
-                    if (added.isNotEmpty()) _home.value = UiState.Success(existing + added)
+                    if (added.isNotEmpty()) _home.value = UiState.Success(rankHomeShelves(existing + added))
                 }
             }
             if (identity == listenerKey()) _homeLoadingMore.value = false

@@ -158,6 +158,7 @@ import kotlinx.coroutines.withContext
 import com.music.sonariq.data.model.durationMillis
 import com.music.sonariq.data.scrobbling.LastFM
 import com.music.sonariq.data.settings.AppSettings
+import com.music.sonariq.data.settings.EqPresetLink
 import com.music.sonariq.data.settings.LibrarySort
 import com.music.sonariq.data.settings.ThemeMode
 import com.music.sonariq.ui.components.AccountProfileSelector
@@ -167,12 +168,18 @@ import com.music.sonariq.ui.screens.DiscordDialog
 import com.music.sonariq.ui.screens.DiscordDialogHost
 import com.music.sonariq.ui.screens.DiscordScreen
 import com.music.sonariq.ui.screens.EqualizerScreen
+import com.music.sonariq.ui.screens.EqPresetImportDialog
 import com.music.sonariq.ui.screens.HistoryScreen
 import com.music.sonariq.ui.screens.LibraryReplayEntry
 import com.music.sonariq.ui.screens.libraryDeviceItems
 import com.music.sonariq.ui.screens.rememberSmartPlaylistItems
 import com.music.sonariq.ui.screens.SPOTIFY_BROWSE_ID
 import com.music.sonariq.ui.screens.HISTORY_BROWSE_ID
+import com.music.sonariq.ui.library.LibraryFoldersScreen
+import com.music.sonariq.ui.screens.INSIGHTS_BROWSE_ID
+import com.music.sonariq.ui.screens.RADAR_BROWSE_ID
+import com.music.sonariq.ui.screens.RECAP_BROWSE_ID
+import com.music.sonariq.ui.screens.FOLDERS_BROWSE_ID
 import com.music.sonariq.ui.screens.LIBRARY_SHELF_ROW_PREFIX
 import com.music.sonariq.ui.screens.libraryLinks
 import com.music.sonariq.ui.screens.CACHE_FOLDER_BROWSE_ID
@@ -205,6 +212,8 @@ import com.music.sonariq.playback.commitRadioQueue
 import com.music.sonariq.playback.fromAutoplay
 import com.music.sonariq.playback.hasYouTubeOriginal
 import com.music.sonariq.playback.loadAutoplayTracks
+import com.music.sonariq.playback.radio.RadioSession
+import com.music.sonariq.playback.radio.RadioSource
 import com.music.sonariq.data.mood.Mood
 import com.music.sonariq.data.mood.MoodStations
 import com.music.sonariq.data.mood.MomentSlot
@@ -318,6 +327,11 @@ import com.music.sonariq.ui.screens.LibraryScreen
 import com.music.sonariq.ui.screens.MoodGenrePlaylistsScreen
 import com.music.sonariq.ui.screens.SearchScreen
 import com.music.sonariq.data.settings.SongSort
+import com.music.sonariq.ui.discovery.CoverMakerScreen
+import com.music.sonariq.ui.discovery.DiscoveryRoutes
+import com.music.sonariq.ui.discovery.MonthlyRecapScreen
+import com.music.sonariq.ui.discovery.RadarScreen
+import com.music.sonariq.ui.discovery.Stats2Screen
 import com.music.sonariq.ui.replay.ReplayScreen
 import com.music.sonariq.ui.replay.WrappedScreen
 import com.music.sonariq.ui.replay.cards
@@ -371,6 +385,8 @@ class MainActivity : AppCompatActivity() {
         JamInviteLink.consume(intent)
         // Likewise for a link tapped or shared from another app — see [MusicLink].
         MusicLink.consume(intent)
+        // A shared EQ preset link — see [EqPresetLink].
+        EqPresetLink.consume(intent)
         setContent {
             val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
             val accent by AppSettings.accentColor.collectAsStateWithLifecycle()
@@ -485,6 +501,7 @@ class MainActivity : AppCompatActivity() {
         PlayerDeepLink.consume(intent)
         JamInviteLink.consume(intent)
         MusicLink.consume(intent)
+        EqPresetLink.consume(intent)
     }
 }
 
@@ -625,6 +642,15 @@ private fun SonariqApp(
     var showListenTogether by rememberSaveable { mutableStateOf(false) }
     var showKaraokeParty by rememberSaveable { mutableStateOf(false) }
     var showEqualizer by rememberSaveable { mutableStateOf(false) }
+    // Discovery pages: listening insights, the new-release radar and the
+    // monthly recap. Opened from Library/Home rows via these flags.
+    var showInsights by rememberSaveable { mutableStateOf(false) }
+    var showRadar by rememberSaveable { mutableStateOf(false) }
+    var showMonthlyRecap by rememberSaveable { mutableStateOf(false) }
+    var showFolders by rememberSaveable { mutableStateOf(false) }
+    // The playlist cover maker's args (browse id, title), or null when it is
+    // closed. Set from a playlist's overflow menu.
+    var coverMakerArgs by remember { mutableStateOf<Pair<String, String>?>(null) }
     var showSpotifyCanvasAuth by remember { mutableStateOf(false) }
 
     // Hosted here rather than inside SourcesScreen so its frosted card has
@@ -797,6 +823,8 @@ private fun SonariqApp(
     val libraryResults by viewModel.libraryResults.collectAsStateWithLifecycle()
     val signedIn by viewModel.signedIn.collectAsStateWithLifecycle()
     val incomingJamInvite by JamInviteLink.pending.collectAsStateWithLifecycle()
+    // A shared EQ preset link waiting on the user's choice — see [EqPresetLink].
+    val pendingEqPreset by EqPresetLink.pending.collectAsStateWithLifecycle()
     var activeJamInviteCode by rememberSaveable { mutableStateOf<String?>(null) }
     var activeJamInviteServer by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -818,6 +846,11 @@ private fun SonariqApp(
         showHistory = false
         showDiscord = false
         showSpotify = false
+        showInsights = false
+        showRadar = false
+        showMonthlyRecap = false
+        showFolders = false
+        coverMakerArgs = null
         libraryShowAll = null
         viewModel.clearDetail()
         webSession = null
@@ -1175,6 +1208,7 @@ private fun SonariqApp(
     val searchLabel = stringResource(R.string.search)
     val historyLabel = stringResource(R.string.history)
     val replayLabel = stringResource(R.string.replay)
+    val insightsLabel = stringResource(R.string.discovery_insights_title)
     val queueLabel = stringResource(R.string.queue)
     val sharedLinkLabel = stringResource(R.string.shared_link)
     val tabs = remember(homeLabel, exploreLabel, libraryLabel, searchLabel) {
@@ -1377,6 +1411,9 @@ private fun SonariqApp(
         val index = songs.indexOf(allSongs.getOrNull(allIndex)).coerceAtLeast(0)
         playRequestGeneration++
         activeRadioSeed = null
+        // A station does not survive the user picking new music: the refill
+        // contract ends with the queue it was feeding.
+        RadioSession.stop()
         scope.launch {
             if (refusedByHost()) return@launch
             val c = controller ?: return@launch
@@ -1516,6 +1553,9 @@ private fun SonariqApp(
                     ).show()
                     else -> {
                         activeController.playSongs(station, 0)
+                        // The mood station owns the queue now; a previous
+                        // radio session must not refill into it.
+                        RadioSession.stop()
                         Toast.makeText(
                             context,
                             context.getString(R.string.radio_started, context.getString(mood.labelRes)),
@@ -1537,6 +1577,9 @@ private fun SonariqApp(
         if (activeController != null && !refusedByHost() && station.isNotEmpty()) {
             scope.launch {
                 activeController.playSongs(station, 0)
+                // The moment station owns the queue now; a previous radio
+                // session must not refill into it.
+                RadioSession.stop()
                 Toast.makeText(
                     context,
                     context.getString(R.string.radio_started, context.getString(slot.labelRes)),
@@ -1569,6 +1612,8 @@ private fun SonariqApp(
                 source = source,
             )
             c.playSongs(oneOffQueue, 0)
+            // The one-off pick replaces whatever was playing, station included.
+            RadioSession.stop()
             // Start radio in the mini-player; the user opens the full view by tapping it.
         }
     }
@@ -1638,9 +1683,13 @@ private fun SonariqApp(
                     if (currentIndex > 0) activeController.removeMediaItems(0, currentIndex)
                     activeController.addMediaItems(1, related.map { it.toMediaItem() })
                     activeRadioSeed = song.videoId to song.title
+                    // The explicit station owns its own refill contract from
+                    // here — see [RadioSession].
+                    RadioSession.start(RadioSource.Song(song))
                 } else {
                     activeRadioSeed = null
                     activeController.playSongs(listOf(seed) + related, 0)
+                    RadioSession.start(RadioSource.Song(song))
                 }
                 // Make this station — never the queue from before it — what a
                 // fresh process restores, even if it is killed immediately.
@@ -2096,6 +2145,22 @@ private fun SonariqApp(
             if (id == HISTORY_BROWSE_ID) {
                 showHistory = true
                 viewModel.loadHistory()
+                return@let
+            }
+            if (id == INSIGHTS_BROWSE_ID) {
+                showInsights = true
+                return@let
+            }
+            if (id == RADAR_BROWSE_ID) {
+                showRadar = true
+                return@let
+            }
+            if (id == RECAP_BROWSE_ID) {
+                showMonthlyRecap = true
+                return@let
+            }
+            if (id == FOLDERS_BROWSE_ID) {
+                showFolders = true
                 return@let
             }
             if (id.startsWith(LIBRARY_SHELF_ROW_PREFIX)) {
@@ -2570,6 +2635,11 @@ private fun SonariqApp(
                 showListenTogether = false
                 showEqualizer = false
                 showReplay = false
+                showInsights = false
+                showRadar = false
+                showMonthlyRecap = false
+        showFolders = false
+                coverMakerArgs = null
                 settingsSubScreen = null
                 showHistory = false
                 showDiscord = false
@@ -2655,7 +2725,7 @@ private fun SonariqApp(
         }
         BackHandler(
             enabled = detail != null && !showSettings && !showAccountScrobbling && !showSources && !showListenTogether && !showKaraokeParty &&
-                !showEqualizer && !showReplay,
+                !showEqualizer && !showReplay && !showInsights && !showRadar && !showMonthlyRecap && coverMakerArgs == null,
         ) { viewModel.closeDetail() }
         BackHandler(enabled = selectedMoodGenre != null && detail == null && !showSettings && !showReplay) {
             viewModel.closeMoodGenre()
@@ -2685,10 +2755,15 @@ private fun SonariqApp(
             showEqualizer = false
             if (settingsSubScreen == "equalizer") settingsSubScreen = null
         }
+        BackHandler(enabled = showInsights) { showInsights = false }
+        BackHandler(enabled = showRadar) { showRadar = false }
+        BackHandler(enabled = showMonthlyRecap) { showMonthlyRecap = false }
+        BackHandler(enabled = showFolders) { showFolders = false }
+        BackHandler(enabled = coverMakerArgs != null) { coverMakerArgs = null }
         // One back step out of Settings, or out of any tab but Home, lands on
         // Home rather than exiting — only Home itself hands back to the system,
         // which is what actually closes/minimizes the app.
-        BackHandler(enabled = showSettings && !showSpotify && !showAccountScrobbling && !showSources && !showListenTogether && !showKaraokeParty && !showEqualizer && !showReplay) {
+        BackHandler(enabled = showSettings && !showSpotify && !showAccountScrobbling && !showSources && !showListenTogether && !showKaraokeParty && !showEqualizer && !showReplay && !showInsights && !showRadar && !showMonthlyRecap && coverMakerArgs == null) {
             showSettings = false
             // Only when Settings was the whole of what was on screen. Opened
             // over Replay or over a release page, closing it reveals that again
@@ -2697,7 +2772,8 @@ private fun SonariqApp(
         }
         BackHandler(
             enabled = detail == null && !showSettings && !showAccountScrobbling && !showSpotify &&
-                !showSources && !showListenTogether && !showKaraokeParty && !showEqualizer && !showReplay && selectedMoodGenre == null &&
+                !showSources && !showListenTogether && !showKaraokeParty && !showEqualizer && !showReplay && !showInsights &&
+                !showRadar && !showMonthlyRecap && coverMakerArgs == null && selectedMoodGenre == null &&
                 selectedTab != TAB_HOME,
         ) {
             selectedTab = TAB_HOME
@@ -2743,6 +2819,13 @@ private fun SonariqApp(
                         showListenTogether -> "listen_together"
                         showKaraokeParty -> "karaoke_party"
                         showEqualizer -> "equalizer"
+                        // Discovery pages sit above the detail stack they can
+                        // be opened over, like Replay does.
+                        showInsights -> DiscoveryRoutes.INSIGHTS
+                        showRadar -> DiscoveryRoutes.RADAR
+                        showMonthlyRecap -> DiscoveryRoutes.RECAP
+                        showFolders -> "folders"
+                        coverMakerArgs != null -> DiscoveryRoutes.COVER_MAKER
                         // Above Replay, not below it. The top bar's account
                         // button sets `showSettings` from every page including
                         // this one, so with Replay winning the tie the button
@@ -2953,6 +3036,54 @@ private fun SonariqApp(
                             listState = replayListState,
                             landingPage = replayLandingPage,
                         )
+                    } else if (key == DiscoveryRoutes.INSIGHTS) {
+                        Stats2Screen(
+                            onBack = { showInsights = false },
+                            // A track tapped on a chart is one the user
+                            // already knows they like, so it starts a station
+                            // off itself — the same reading the Replay page
+                            // makes of a tapped song.
+                            onPlaySong = { song ->
+                                playRadio(song, QueueSource(insightsLabel, PlaybackSourceType.REPLAY))
+                            },
+                        )
+                    } else if (key == DiscoveryRoutes.RADAR) {
+                        RadarScreen(
+                            onBack = { showRadar = false },
+                            onOpenRelease = { item ->
+                                openByName(
+                                    item.browseId,
+                                    item.title,
+                                    item.subtitle,
+                                    viewModel.browseTypeOf(item.browseId.orEmpty()),
+                                    item.thumbnailUrl,
+                                )
+                            },
+                            // The screen only passes the browse id; the page
+                            // swaps in the artist's own name and picture once
+                            // they arrive — see [MainViewModel.openDetail].
+                            onOpenArtist = { browseId ->
+                                openByName(browseId, "", null, BrowseType.ARTIST)
+                            },
+                        )
+                    } else if (key == DiscoveryRoutes.RECAP) {
+                        MonthlyRecapScreen(onBack = { showMonthlyRecap = false })
+                    } else if (key == "folders") {
+                        LibraryFoldersScreen(
+                            playlistTitles = playlists.associate { it.playlistId to it.title },
+                            onOpenSmartFolder = { /* smart folder detail opens from the folders screen itself */ },
+                            onEditSmartFolder = { /* editing is handled inside the folders screen */ },
+                            onBack = { showFolders = false },
+                        )
+                    } else if (key == DiscoveryRoutes.COVER_MAKER) {
+                        coverMakerArgs?.let { (browseId, title) ->
+                            CoverMakerScreen(
+                                playlistBrowseId = browseId,
+                                initialTitle = title,
+                                onBack = { coverMakerArgs = null },
+                                onSaved = { coverMakerArgs = null },
+                            )
+                        }
                     } else if (key == "spotify") {
                         SpotifyLibraryScreen(
                             onOpenPlaylist = { playlist ->
@@ -3858,6 +3989,11 @@ private fun SonariqApp(
                         showListenTogether -> ({ showListenTogether = false })
                         showKaraokeParty -> ({ showKaraokeParty = false })
                         showEqualizer -> ({ showEqualizer = false })
+                        showInsights -> ({ showInsights = false })
+                        showRadar -> ({ showRadar = false })
+                        showMonthlyRecap -> ({ showMonthlyRecap = false })
+                        showFolders -> ({ showFolders = false })
+                        coverMakerArgs != null -> ({ coverMakerArgs = null })
                         settingsSubScreen != null -> ({ settingsSubScreen = null })
                         showSettings -> ({ showSettings = false })
                         showReplay -> ({ showReplay = false })
@@ -4128,6 +4264,11 @@ private fun SonariqApp(
                     showListenTogether = false
                     showEqualizer = false
                     showReplay = false
+                    showInsights = false
+                    showRadar = false
+                    showMonthlyRecap = false
+        showFolders = false
+                    coverMakerArgs = null
                     settingsSubScreen = null
                     showHistory = false
                     libraryShowAll = null
@@ -5026,6 +5167,14 @@ private fun SonariqApp(
                         scope.launch { Downloads.deleteCollection(context, id) }
                     }
                 },
+                onMakeCover = target.browseId
+                    ?.takeIf { target.type == BrowseType.PLAYLIST }
+                    ?.let { id ->
+                        {
+                            browseActions = null
+                            coverMakerArgs = id to target.title
+                        }
+                    },
             )
         }
         browseActions?.takeIf { browseMenuOrigin == null }?.let { target ->
@@ -5227,6 +5376,20 @@ private fun SonariqApp(
                     },
                 )
             }
+        }
+
+        // ---- Incoming EQ preset link ----
+        val eqPreset = pendingEqPreset
+        if (eqPreset != null) {
+            BackHandler { EqPresetLink.handled() }
+            EqPresetImportDialog(
+                preset = eqPreset,
+                onImport = {
+                    EqPresetLink.import(eqPreset)
+                    EqPresetLink.handled()
+                },
+                onDismiss = { EqPresetLink.handled() },
+            )
         }
 
         if (songSortMenuOpen) {

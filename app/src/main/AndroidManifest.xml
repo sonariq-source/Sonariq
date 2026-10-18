@@ -214,6 +214,7 @@
                 <data android:host="sonariq.giize.com" />
                 <data android:pathPrefix="/s/" />
                 <data android:pathPrefix="/party/" />
+                <data android:pathPrefix="/eq/" />
             </intent-filter>
 
             <!-- Custom scheme for Sonariq song and party links. -->

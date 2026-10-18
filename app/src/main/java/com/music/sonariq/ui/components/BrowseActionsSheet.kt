@@ -164,6 +164,11 @@ fun BrowseActionsSheet(
     onReorder: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     /**
+     * Opens the playlist cover maker — set for playlists only, where a
+     * custom cover has something to attach to.
+     */
+    onMakeCover: (() -> Unit)? = null,
+    /**
      * Removes the files this release was downloaded as, when it was downloaded
      * whole — see [BrowseTarget.downloadId]. Independent of [onDelete]: that one
      * deletes the playlist from the account, this one only ever touches what's
@@ -293,6 +298,9 @@ fun BrowseActionsSheet(
             }
             onReorder?.let {
                 ActionRow(Icons.Rounded.SwapVert, stringResource(R.string.reorder_songs), onClick = it)
+            }
+            if (onMakeCover != null && playlist != null) {
+                ActionRow(Icons.Rounded.Palette, stringResource(R.string.discovery_cover_make), onClick = onMakeCover)
             }
             if (onDelete != null) {
                 if (confirmingDelete) {

@@ -136,6 +136,9 @@ private val NoKaraokeScore = MutableStateFlow<Int?>(null)
 
 private val NoCast = MutableStateFlow(CastUi())
 
+private val DefaultCanvasBackdropEnabled = MutableStateFlow(true)
+private val DefaultArtworkGesturesEnabled = MutableStateFlow(true)
+
 /** What the output drawer needs to know about casting to draw its row. */
 data class CastUi(
     /** Whether this device can cast at all. False hides the row. */
@@ -163,6 +166,8 @@ interface PlayerSettingsSource {
     val animatedCanvas: StateFlow<Boolean>
     val audioQualityCellular: StateFlow<AudioQuality>
     val audioQualityWifi: StateFlow<AudioQuality>
+    val canvasBackdropEnabled: StateFlow<Boolean> get() = DefaultCanvasBackdropEnabled
+    val artworkGesturesEnabled: StateFlow<Boolean> get() = DefaultArtworkGesturesEnabled
     val canvasOverCellular: StateFlow<Boolean>
     /** Duet karaoke: split each word-synced line into lead and harmony halves. */
     val duetKaraoke: StateFlow<Boolean>

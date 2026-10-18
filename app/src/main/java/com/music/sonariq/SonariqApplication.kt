@@ -110,6 +110,19 @@ class SonariqApplication : Application(), SingletonImageLoader.Factory {
         // Smart Downloads' persisted ids, and the daily job if the switch is on.
         com.music.sonariq.download.SmartDownloads.init(this)
         com.music.sonariq.download.SmartDownloads.applySchedule()
+        // Massive update integrations: persisted state each subsystem owns,
+        // read once before anything else needs it; the download schedulers
+        // only arm when their switch is on.
+        com.music.sonariq.data.library.PlaylistFolders.init(this)
+        if (AppSettings.autoDownloadsEnabled.value) com.music.sonariq.data.library.AutoDownloads.schedule(this)
+        if (AppSettings.scheduledDownloadsEnabled.value) com.music.sonariq.data.library.ScheduledDownloads.schedule(this)
+        com.music.sonariq.ui.home.HomeSectionOrderStore.load()
+        com.music.sonariq.playback.SavedQueueStore.load()
+        com.music.sonariq.data.scrobbling.PrivateSession.load()
+        com.music.sonariq.data.listentogether.PartyVoting.init()
+        com.music.sonariq.data.listentogether.PartyRecapCollector.init(this)
+        com.music.sonariq.data.discovery.FollowedArtists.init(this)
+        com.music.sonariq.data.discovery.PlaylistCovers.init(this)
         // Before anything resolves a track: an addon with `checkValidLossless`
         // is gated on this, and the gate reads "no" until it has looked.
         com.music.sonariq.playback.audio.LosslessOutput.init(this)

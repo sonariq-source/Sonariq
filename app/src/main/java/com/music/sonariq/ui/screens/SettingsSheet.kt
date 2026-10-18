@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -57,11 +58,14 @@ import androidx.compose.material.icons.rounded.Brightness4
 import androidx.compose.material.icons.rounded.Cached
 import androidx.compose.material.icons.rounded.Cast
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.FileUpload
@@ -97,6 +101,7 @@ import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.SurroundSound
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.VerticalAlignCenter
 import androidx.compose.material.icons.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.VolumeUp
@@ -118,6 +123,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -155,6 +161,7 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
 import com.music.sonariq.ui.components.isGlassSupported
@@ -162,14 +169,22 @@ import com.music.sonariq.ui.components.languageDisplayNameRes
 import com.music.sonariq.ui.components.MessageState
 import com.music.sonariq.ui.components.SearchField
 import com.music.sonariq.ui.components.thumbnailBorder
+import com.music.sonariq.ui.MainViewModel
+import com.music.sonariq.ui.home.SectionReorderSheet
+import com.music.sonariq.ui.library.AutoDownloadSettings
+import com.music.sonariq.ui.library.LibraryBackupScreen
+import com.music.sonariq.ui.library.LibraryCleanupScreen
+import com.music.sonariq.ui.library.StorageManagerScreen
 import com.music.sonariq.ui.icons.SonariqIcons
 import com.music.sonariq.ui.performance.resolvePerformanceRefreshRate
 import com.music.sonariq.ui.performance.supportedPerformanceRefreshRates
 import com.music.sonariq.data.model.Account
+import com.music.sonariq.data.model.UiState
 import com.music.sonariq.data.LocalMediaRepository
 import com.music.sonariq.data.NerdStats
 import com.music.sonariq.data.scrobbling.LastFM
 import com.music.sonariq.data.listentogether.ListenTogether
+import com.music.sonariq.data.spotify.LocalPlaylistStore
 import com.music.sonariq.BuildConfig
 import com.music.sonariq.data.AppUpdateChecker
 import com.music.sonariq.data.settings.AppSettings
@@ -325,6 +340,21 @@ fun SettingsScreen(
     val castTvLyricsEnabled by AppSettings.castTvLyricsEnabled.collectAsStateWithLifecycle()
     val castReceiverAppId by AppSettings.castReceiverAppId.collectAsStateWithLifecycle()
 
+    // Phase-2 rows below read these: home-section learning, artwork gestures,
+    // the TV ambient style, and the local playlists the auto-download picker
+    // offers.
+    val homeSectionLearningEnabled by AppSettings.homeSectionLearningEnabled.collectAsStateWithLifecycle()
+    val artworkGesturesEnabled by AppSettings.artworkGesturesEnabled.collectAsStateWithLifecycle()
+    val tvAmbient2Enabled by AppSettings.tvAmbient2Enabled.collectAsStateWithLifecycle()
+    val localPlaylists by LocalPlaylistStore.playlists.collectAsStateWithLifecycle()
+    // The home feed's sections, for the Appearance → "Reorder home sections"
+    // sheet. Resolved from the activity-scoped MainViewModel — the same
+    // viewModel() lookup MainActivity's own content uses — so the row works
+    // with no new parameter on this screen.
+    val mainViewModel: MainViewModel = viewModel()
+    val homeFeed by mainViewModel.home.collectAsStateWithLifecycle()
+    val homeShelves = (homeFeed as? UiState.Success)?.data.orEmpty()
+
     val replayGenres by AppSettings.replayGenres.collectAsStateWithLifecycle()
 
     // Read here so the row can say "In a party · ABC123" rather than making
@@ -411,6 +441,14 @@ fun SettingsScreen(
     }
     var showListenBrainzTokenDialog by remember { mutableStateOf(false) }
     var showCastAppIdDialog by remember { mutableStateOf(false) }
+    // Full-screen sub-screens opened from the rows below. Each renders as an
+    // overlay at the bottom of this composable and dismisses itself, so the
+    // rows stay self-contained with no MainActivity navigation changes.
+    var showSoundAndData by rememberSaveable { mutableStateOf(false) }
+    var showStorageManager by rememberSaveable { mutableStateOf(false) }
+    var showLibraryBackup by rememberSaveable { mutableStateOf(false) }
+    var showLibraryCleanup by rememberSaveable { mutableStateOf(false) }
+    var showSectionReorder by rememberSaveable { mutableStateOf(false) }
     var showTicketmasterKeyDialog by remember { mutableStateOf(false) }
     var concertsRefreshing by remember { mutableStateOf(false) }
     var concertsRefreshResult by remember { mutableStateOf<String?>(null) }
@@ -570,6 +608,19 @@ fun SettingsScreen(
                     onClick = { AppSettings.setDolbyAtmos(!dolbyAtmos) },
                 )
             }
+            // The overflow for everything audio that isn't a quality ceiling:
+            // per-device EQ, mono + balance, the animated canvas, and data
+            // saver. One row in, so the audio group keeps its shape.
+            val soundAndDataTitle = stringResource(R.string.sound_and_data)
+            row(soundAndDataTitle, "sound", "data", "equalizer", "mono", "canvas", "data saver") {
+                SettingsRow(
+                    icon = Icons.Rounded.Tune,
+                    title = soundAndDataTitle,
+                    subtitle = stringResource(R.string.sound_and_data_subtitle),
+                    trailing = { Chevron() },
+                    onClick = { showSoundAndData = true },
+                )
+            }
         }
 
         // Its own group rather than rows bolted onto the two above, because a
@@ -683,6 +734,15 @@ fun SettingsScreen(
                     },
                     onClick = { AppSettings.setOfflineMode(!offlineMode) },
                 )
+            }
+            // Auto-downloads and scheduled downloads. The composable emits its
+            // own rows and manages its own dialogs; it reads and writes
+            // AppSettings directly and schedules its workers, so the group
+            // only hands it the local playlists for the picker. One entry so
+            // the block filters and divides as a unit.
+            val autoDownloadsTitle = stringResource(R.string.library_auto_downloads)
+            row(autoDownloadsTitle, "auto", "download", "schedule", "scheduled", "liked", "playlist", "wi-fi", "overnight") {
+                AutoDownloadSettings(playlists = localPlaylists.map { it.id to it.title })
             }
         }
 
@@ -1066,6 +1126,27 @@ fun SettingsScreen(
                     title = equalizerTitle,
                     subtitle = stringResource(R.string.equalizer_subtitle),
                     onClick = onEqualizer,
+                )
+            }
+            // Double-tap the artwork's left/right halves to seek -/+10s. The
+            // gesture layer reads this itself; the row is only the switch.
+            val artworkGesturesTitle = stringResource(R.string.ux_gestures_title)
+            row(artworkGesturesTitle, "artwork", "gesture", "double-tap", "seek", "double tap") {
+                SettingsRow(
+                    icon = Icons.Rounded.TouchApp,
+                    title = artworkGesturesTitle,
+                    subtitle = stringResource(R.string.ux_gestures_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = artworkGesturesEnabled,
+                            onCheckedChange = AppSettings::setArtworkGesturesEnabled,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setArtworkGesturesEnabled(!artworkGesturesEnabled) },
                 )
             }
         }
@@ -1661,6 +1742,37 @@ fun SettingsScreen(
                     )
                 }
             }
+            // Home sections that learn: the feed order follows what gets
+            // played, unless a manual order is dragged in below.
+            val homeLearnTitle = stringResource(R.string.ux_home_learn_title)
+            row(homeLearnTitle, "home", "learn", "order", "sections") {
+                SettingsRow(
+                    icon = Icons.Rounded.AutoAwesome,
+                    title = homeLearnTitle,
+                    subtitle = stringResource(R.string.ux_home_learn_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = homeSectionLearningEnabled,
+                            onCheckedChange = AppSettings::setHomeSectionLearningEnabled,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setHomeSectionLearningEnabled(!homeSectionLearningEnabled) },
+                )
+            }
+            val homeReorderTitle = stringResource(R.string.ux_home_reorder_title)
+            row(homeReorderTitle, "home", "reorder", "drag", "sections", "order") {
+                SettingsRow(
+                    icon = Icons.Rounded.DragHandle,
+                    title = homeReorderTitle,
+                    subtitle = stringResource(R.string.ux_home_reorder_subtitle),
+                    trailing = { Chevron() },
+                    onClick = { showSectionReorder = true },
+                )
+            }
         }
 
         SearchableSettingsGroup(search, header = stringResource(R.string.performance), headerIcon = Icons.Rounded.Bolt) {
@@ -1835,6 +1947,17 @@ fun SettingsScreen(
                     },
                 )
             }
+            // Measured numbers and the cache-clear flow live on their own
+            // screen; this row is the door in.
+            val storageManagerTitle = stringResource(R.string.library_storage_title)
+            row(storageManagerTitle, "storage", "space", "disk", "cache", "clear") {
+                SettingsRow(
+                    icon = Icons.Rounded.Storage,
+                    title = storageManagerTitle,
+                    trailing = { Chevron() },
+                    onClick = { showStorageManager = true },
+                )
+            }
         }
 
         SearchableSettingsGroup(search, header = stringResource(R.string.your_data), headerIcon = Icons.Rounded.Shield) {
@@ -1897,6 +2020,26 @@ fun SettingsScreen(
                     title = clearHistoryTitle,
                     subtitle = stringResource(R.string.clear_listening_history_subtitle),
                     onClick = { confirmClearHistory = true },
+                )
+            }
+            // Next to the export/import rows: the one-file backup covers the
+            // same data the export carries, and cleanup scans that library.
+            val libraryBackupTitle = stringResource(R.string.library_backup_title)
+            row(libraryBackupTitle, "backup", "restore", "export", "import") {
+                SettingsRow(
+                    icon = Icons.Rounded.CloudUpload,
+                    title = libraryBackupTitle,
+                    trailing = { Chevron() },
+                    onClick = { showLibraryBackup = true },
+                )
+            }
+            val libraryCleanupTitle = stringResource(R.string.library_cleanup_title)
+            row(libraryCleanupTitle, "cleanup", "duplicates", "metadata", "tidy") {
+                SettingsRow(
+                    icon = Icons.Rounded.CleaningServices,
+                    title = libraryCleanupTitle,
+                    trailing = { Chevron() },
+                    onClick = { showLibraryCleanup = true },
                 )
             }
         }
@@ -2169,6 +2312,25 @@ fun SettingsScreen(
                     },
                     trailing = {},
                     onClick = { showCastAppIdDialog = true },
+                )
+            }
+            val tvAmbient2Title = stringResource(R.string.ux_tv_ambient2_title)
+            row(tvAmbient2Title, "tv", "ambient", "screensaver", "clock", "lyrics") {
+                SettingsRow(
+                    icon = Icons.Rounded.Tv,
+                    title = tvAmbient2Title,
+                    subtitle = stringResource(R.string.ux_tv_ambient2_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = tvAmbient2Enabled,
+                            onCheckedChange = AppSettings::setTvAmbient2Enabled,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setTvAmbient2Enabled(!tvAmbient2Enabled) },
                 )
             }
         }
@@ -2579,6 +2741,58 @@ fun SettingsScreen(
                     Text(stringResource(R.string.cancel))
                 }
             },
+        )
+    }
+
+    // Full-screen sub-screens for the rows above, drawn over the settings
+    // list. Each screen's onBack drops its own flag; nothing here touches
+    // MainActivity navigation.
+    if (showSoundAndData) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            AudioExtrasScreen(onBack = { showSoundAndData = false })
+        }
+    }
+    if (showStorageManager) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            StorageManagerScreen(onBack = { showStorageManager = false })
+        }
+    }
+    if (showLibraryBackup) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            LibraryBackupScreen(onBack = { showLibraryBackup = false })
+        }
+    }
+    if (showLibraryCleanup) {
+        // The songs this screen can honestly scan: the local playlists. The
+        // destructive actions stay unwired — removing a duplicate or rewriting
+        // a tag belongs to the store that owns that song, not to settings.
+        val cleanupSongs = localPlaylists.flatMap { it.songs }.distinctBy { it.videoId }
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            LibraryCleanupScreen(
+                songs = cleanupSongs,
+                onSongClick = {},
+                onRemoveDuplicates = {
+                    // TODO: wire per song origin — downloads via
+                    // Downloads.delete, local playlists via a playlist
+                    // rewrite, device tracks via the media store. Deleting
+                    // from stores settings does not own would be the wrong
+                    // layer doing it.
+                },
+                onApplyFix = {
+                    // TODO: wire once a metadata-write path exists for the
+                    // song's origin. The screen only suggests; applying is
+                    // the owning store's job.
+                },
+                onBack = { showLibraryCleanup = false },
+            )
+        }
+    }
+    // Guarded on the feed being loaded: an empty shelf list would open a
+    // sheet with nothing to drag.
+    if (showSectionReorder && homeShelves.isNotEmpty()) {
+        SectionReorderSheet(
+            shelves = homeShelves,
+            onDismiss = { showSectionReorder = false },
         )
     }
 

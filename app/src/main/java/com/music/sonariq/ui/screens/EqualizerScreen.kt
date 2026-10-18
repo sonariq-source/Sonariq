@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.automirrored.rounded.ShowChart
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.rounded.Waves
@@ -75,6 +76,7 @@ import androidx.compose.ui.unit.toSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.sonariq.R
 import com.music.sonariq.data.settings.AppSettings
+import com.music.sonariq.data.settings.EqPresetLink
 import com.music.sonariq.data.settings.EqualizerMode
 import com.music.sonariq.data.settings.UserEqualizerPreset
 import com.music.sonariq.playback.AudioOutputStatus
@@ -1179,6 +1181,7 @@ private fun PresetSheet(
     onSavePreset: () -> Unit,
 ) {
     val haptics = rememberHaptics()
+    val context = LocalContext.current
     Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
         Text(
             text = stringResource(R.string.equalizer_preset),
@@ -1234,6 +1237,19 @@ private fun PresetSheet(
                                 Icons.Rounded.Check,
                                 contentDescription = stringResource(R.string.selected),
                                 tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                haptics.play(Haptic.Select)
+                                context.startActivity(EqPresetLink.shareIntent(userPreset))
+                            },
+                        ) {
+                            Icon(
+                                Icons.Rounded.Share,
+                                contentDescription = stringResource(R.string.social_eq_share),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(22.dp),
                             )
                         }

@@ -19,6 +19,7 @@ import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.SwitchAccount
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.sonariq.R
 import com.music.sonariq.data.model.Account
+import com.music.sonariq.data.scrobbling.PrivateSession
 import com.music.sonariq.data.settings.AppSettings
 import kotlin.math.roundToInt
 
@@ -63,6 +65,7 @@ fun AccountAndScrobblingScreen(
     val listenBrainzEnabled by AppSettings.listenBrainzEnabled.collectAsStateWithLifecycle()
     val listenBrainzToken by AppSettings.listenBrainzToken.collectAsStateWithLifecycle()
     val listenBrainzPrimaryArtistOnly by AppSettings.listenBrainzPrimaryArtistOnly.collectAsStateWithLifecycle()
+    val privateSessionActive by PrivateSession.active.collectAsStateWithLifecycle()
     val discordToken by AppSettings.discordToken.collectAsStateWithLifecycle()
     val discordUsername by AppSettings.discordUsername.collectAsStateWithLifecycle()
     val discordRpcEnabled by AppSettings.discordRpcEnabled.collectAsStateWithLifecycle()
@@ -349,6 +352,28 @@ fun AccountAndScrobblingScreen(
                     enabled = false,
                 )
             }
+        }
+
+        // Private session pauses all recording — scrobbling and history —
+        // while it is on. It stands apart from the service switches above
+        // because it is about listening, not about where the record goes.
+        SettingsGroup {
+            SettingsRow(
+                icon = Icons.Rounded.VisibilityOff,
+                title = stringResource(R.string.ux_private_session_title),
+                subtitle = stringResource(R.string.ux_private_session_subtitle),
+                trailing = {
+                    Switch(
+                        checked = privateSessionActive,
+                        onCheckedChange = PrivateSession::setActive,
+                        colors = SwitchDefaults.colors(
+                            checkedTrackColor = MaterialTheme.colorScheme.primary,
+                            checkedBorderColor = MaterialTheme.colorScheme.primary,
+                        ),
+                    )
+                },
+                onClick = { PrivateSession.setActive(!privateSessionActive) },
+            )
         }
 
         Spacer(Modifier.height(24.dp))

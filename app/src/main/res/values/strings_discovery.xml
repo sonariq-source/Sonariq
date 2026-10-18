@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Discovery & content features: listening insights, release radar,
+         playlist covers, monthly recap. All strings for these live here so
+         the existing strings.xml is never touched. -->
+
+    <!-- Stats 2.0 -->
+    <string name="discovery_insights_title">Listening insights</string>
+    <string name="discovery_insights_subtitle">Streaks, genres and your all-time favourites</string>
+    <string name="discovery_streak_title">Day streak</string>
+    <string name="discovery_streak_subtitle">Consecutive days with music</string>
+    <string name="discovery_streak_days">%1$d days</string>
+    <string name="discovery_streak_best">%1$d plays so far</string>
+    <string name="discovery_no_streak_yet">Play something to start a streak</string>
+    <string name="discovery_genres_title">Genre breakdown</string>
+    <string name="discovery_genres_empty">Genres appear once your top artists are tagged</string>
+    <string name="discovery_top_tracks_title">Top tracks</string>
+    <string name="discovery_top_artists_title">Top artists</string>
+    <string name="discovery_share_streak">Share streak</string>
+    <string name="discovery_share_genres">Share genres</string>
+    <string name="discovery_share_tracks">Share top tracks</string>
+    <string name="discovery_share_artists">Share top artists</string>
+    <string name="discovery_card_streak_title">MY STREAK</string>
+    <string name="discovery_card_streak_caption">DAYS IN A ROW</string>
+    <string name="discovery_card_genres_title">MY GENRES</string>
+    <string name="discovery_card_tracks_title">TOP TRACKS</string>
+    <string name="discovery_card_artists_title">TOP ARTISTS</string>
+    <string name="discovery_card_of_minutes">%1$s min</string>
+    <string name="discovery_card_footer">Counted on this device · Sonariq</string>
+
+    <!-- Release radar -->
+    <string name="discovery_radar_title">Release radar</string>
+    <string name="discovery_radar_subtitle">New music from artists you follow</string>
+    <string name="discovery_radar_following">Following</string>
+    <string name="discovery_radar_suggested">From your listening</string>
+    <string name="discovery_radar_new_releases">New releases</string>
+    <string name="discovery_radar_follow">Follow</string>
+    <string name="discovery_radar_unfollow">Following</string>
+    <string name="discovery_radar_search_hint">Search artists to follow…</string>
+    <string name="discovery_radar_no_follows">Follow artists and their latest releases will land here</string>
+    <string name="discovery_radar_loading">Checking for new releases…</string>
+    <string name="discovery_radar_nothing_new">Nothing new yet — check back soon</string>
+    <string name="discovery_radar_follow_failed">Couldn\'t update the follow — try again</string>
+
+    <!-- Playlist cover maker -->
+    <string name="discovery_cover_title">Playlist cover</string>
+    <string name="discovery_cover_subtitle">Make artwork for this playlist</string>
+    <string name="discovery_cover_heading">Title on the cover</string>
+    <string name="discovery_cover_subheading">Subtitle (optional)</string>
+    <string name="discovery_cover_palette">Colours</string>
+    <string name="discovery_cover_style">Style</string>
+    <string name="discovery_cover_style_gradient">Glow</string>
+    <string name="discovery_cover_style_waves">Waves</string>
+    <string name="discovery_cover_style_rings">Rings</string>
+    <string name="discovery_cover_save">Save cover</string>
+    <string name="discovery_cover_saved">Cover saved</string>
+    <string name="discovery_cover_save_failed">Couldn\'t save the cover — try again</string>
+    <string name="discovery_cover_remove">Remove cover</string>
+    <string name="discovery_cover_removed">Cover removed</string>
+
+    <!-- Monthly recap -->
+    <string name="discovery_recap_title">Monthly recap</string>
+    <string name="discovery_recap_subtitle">Your month in music, ready to share</string>
+    <string name="discovery_recap_share">Share recap</string>
+    <string name="discovery_recap_minutes">minutes</string>
+    <string name="discovery_recap_plays">plays</string>
+    <string name="discovery_recap_top_track">Top track</string>
+    <string name="discovery_recap_top_artist">Top artist</string>
+    <string name="discovery_recap_top_genre">Top genre</string>
+    <string name="discovery_recap_busiest_day">Biggest day</string>
+    <string name="discovery_recap_streak">Best streak</string>
+    <string name="discovery_recap_no_data">No listening recorded this month yet</string>
+    <string name="discovery_card_recap_title">MONTHLY RECAP</string>
+
+    <!-- Shared -->
+    <string name="discovery_share_image">Share image</string>
+    <string name="discovery_card_failed">Couldn\'t make the card — try again</string>
+    <string name="discovery_retry">Retry</string>
+    <string name="discovery_cover_make">Make cover</string>
+    <string name="discovery_close">Close</string>
+    <string name="discovery_back">Back</string>
+</resources>

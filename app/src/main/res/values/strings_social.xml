@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Strings for the social features: party voting, party recap, taste match,
+    and EQ preset sharing. Kept in their own file so the social feature set
+    stays reviewable in one place; nothing here is referenced by existing
+    screens.
+-->
+<resources>
+
+    <!-- Party voting -->
+    <string name="social_vote_title">Vote on what\'s next</string>
+    <string name="social_vote_subtitle">Every vote moves the track closer to playing</string>
+    <string name="social_vote_action">Vote</string>
+    <string name="social_vote_votes">%1$d votes</string>
+    <string name="social_vote_one_vote">1 vote</string>
+    <string name="social_vote_no_votes">No votes yet</string>
+    <string name="social_vote_already_next">Already up next</string>
+    <string name="social_vote_locked">Only the host can change the music in this party</string>
+    <string name="social_vote_empty">Nothing coming up — add songs to start voting</string>
+
+    <!-- Party recap -->
+    <string name="social_recap_title">Party recap</string>
+    <string name="social_recap_top_tracks">Top tracks</string>
+    <string name="social_recap_who_added">Who added what</string>
+    <string name="social_recap_plays">%1$d plays</string>
+    <string name="social_recap_one_play">1 play</string>
+    <string name="social_recap_added_by">Added by %1$s</string>
+    <string name="social_recap_queued_by">Queued %1$d by %2$s</string>
+    <string name="social_recap_members">%1$d listeners</string>
+    <string name="social_recap_one_member">1 listener</string>
+    <string name="social_recap_duration_mins">%1$d min party</string>
+    <string name="social_recap_empty">No recap yet — recaps appear after your first party together</string>
+    <string name="social_recap_unknown_adder">Picked during the party</string>
+
+    <!-- Taste match -->
+    <string name="social_taste_title">Taste match</string>
+    <string name="social_taste_score">%1$d%% match</string>
+    <string name="social_taste_based_on">Based on %1$d of their picks</string>
+    <string name="social_taste_shared">You both reach for</string>
+    <string name="social_taste_empty">Jam with friends to unlock taste match</string>
+    <string name="social_taste_not_enough">Not enough shared listening yet</string>
+
+    <!-- EQ preset sharing -->
+    <string name="social_eq_share">Share preset</string>
+    <string name="social_eq_import_title">Import EQ preset</string>
+    <string name="social_eq_import_message">%1$s wants to share this equalizer curve with you.</string>
+    <string name="social_eq_import_action">Import</string>
+    <string name="social_eq_imported">Preset imported</string>
+    <string name="social_eq_import_failed">Couldn\'t import that preset</string>
+    <string name="social_eq_cancel">Cancel</string>
+
+</resources>

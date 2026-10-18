@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sonariq Radio -->
+    <string name="radio">Radio</string>
+    <string name="start_radio">Start radio</string>
+    <string name="stop_radio">Stop radio</string>
+    <string name="radio_badge_content">Radio playing: %1$s. Tap to stop.</string>
+    <string name="radio_started">Radio: %1$s</string>
+
+    <!-- Sound &amp; data settings screen -->
+    <string name="sound_and_data">Sound &amp; data</string>
+    <string name="sound_and_data_subtitle">Output, mono, canvas visuals and data saver</string>
+
+    <!-- Per-device equalizer profiles -->
+    <string name="per_device_eq">Equalizer per device</string>
+    <string name="per_device_eq_subtitle">Remember a separate equalizer curve for each output — headphones, speaker, car — and switch automatically</string>
+    <string name="per_device_eq_current">Current output</string>
+    <string name="per_device_eq_this_phone">This phone</string>
+    <string name="per_device_eq_forget">Forget this output\u2019s equalizer</string>
+    <string name="per_device_eq_forget_all">Forget all saved equalizers</string>
+    <string name="per_device_eq_saved">Equalizer saved for %1$s</string>
+
+    <!-- Mono audio -->
+    <string name="mono_audio">Mono audio</string>
+    <string name="mono_audio_subtitle">Combine left and right into one channel, so no part of the mix is lost on a single speaker or earbud</string>
+
+    <!-- Balance -->
+    <string name="balance">Left\u2013right balance</string>
+    <string name="balance_subtitle">Shift the stereo image between the left and right channels</string>
+    <string name="balance_left">Left</string>
+    <string name="balance_center">Center</string>
+    <string name="balance_right">Right</string>
+
+    <!-- Animated canvas -->
+    <string name="canvas_backdrop">Animated canvas</string>
+    <string name="canvas_backdrop_subtitle">Looping visuals in the artwork\u2019s own colours behind the player, for tracks with no video canvas</string>
+
+    <!-- Data saver -->
+    <string name="data_saver">Data saver</string>
+    <string name="data_saver_subtitle">Cap streaming quality everywhere to use less mobile data</string>
+    <string name="data_saver_quality">Data saver quality</string>
+    <string name="wifi_only_streaming">Wi-Fi only streaming</string>
+    <string name="wifi_only_streaming_subtitle">On mobile data, play only downloaded and local music — nothing streams</string>
+    <string name="wifi_only_streaming_blocked">Not streaming on mobile data — connect to Wi-Fi or play something downloaded</string>
+</resources>

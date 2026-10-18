@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- UX feature batch: Home learning, Queue 2.0, TV ambient 2.0,
+         player gestures, Android Auto, private session. -->
+
+    <!-- 1. Home tab that learns -->
+    <string name="ux_home_learn_title">Learn home order</string>
+    <string name="ux_home_learn_subtitle">Reorder home sections from what you actually play</string>
+    <string name="ux_home_reorder_title">Reorder home sections</string>
+    <string name="ux_home_reorder_subtitle">Drag sections into your own order</string>
+    <string name="ux_home_reset_order">Reset to default order</string>
+    <string name="ux_home_drag_to_reorder">Drag to reorder</string>
+    <string name="ux_home_reorder_sheet_title">Home sections</string>
+
+    <!-- 2. Queue 2.0 -->
+    <string name="ux_queue_manage">Queues</string>
+    <string name="ux_queue_tab_up_next">Up next</string>
+    <string name="ux_queue_tab_saved">Saved</string>
+    <string name="ux_queue_tab_history">History</string>
+    <string name="ux_queue_save_current">Save current queue</string>
+    <string name="ux_queue_save_name_hint">Queue name</string>
+    <string name="ux_queue_save">Save</string>
+    <string name="ux_queue_cancel">Cancel</string>
+    <string name="ux_queue_rename">Rename</string>
+    <string name="ux_queue_delete">Delete</string>
+    <string name="ux_queue_load">Play</string>
+    <string name="ux_queue_empty_saved">No saved queues yet</string>
+    <string name="ux_queue_empty_saved_subtitle">Save the current queue to bring it back later</string>
+    <string name="ux_queue_empty_history">Nothing played yet</string>
+    <string name="ux_queue_empty_history_subtitle">Tracks you play appear here</string>
+    <string name="ux_queue_empty_up_next">Nothing up next</string>
+    <string name="ux_queue_tracks_count">%1$d tracks</string>
+    <string name="ux_queue_delete_confirm">Delete “%1$s”?</string>
+    <string name="ux_queue_loaded">Queue loaded</string>
+    <string name="ux_queue_saved">Queue saved</string>
+    <string name="ux_queue_removed">Removed from queue</string>
+
+    <!-- 3. TV ambient 2.0 -->
+    <string name="ux_tv_ambient2_title">Ambient screensaver style</string>
+    <string name="ux_tv_ambient2_subtitle">Full lyrics view with clock, progress and up next</string>
+    <string name="ux_tv_ambient2_wake_hint">Press any button to wake</string>
+    <string name="ux_tv_ambient2_up_next">Up next</string>
+
+    <!-- 4. Gestures -->
+    <string name="ux_gestures_title">Artwork gestures</string>
+    <string name="ux_gestures_subtitle">Double-tap artwork sides to seek back or forward</string>
+    <string name="ux_gestures_double_tap_hint">Double-tap left to go back 10 seconds, right to skip ahead</string>
+
+    <!-- 5. Android Auto -->
+    <string name="ux_auto_title">Android Auto browsing</string>
+    <string name="ux_auto_subtitle">Big-section browsing with quick picks and moods</string>
+
+    <!-- 6. Private session -->
+    <string name="ux_private_session_title">Private session</string>
+    <string name="ux_private_session_subtitle">Pause scrobbling and history while listening</string>
+    <string name="ux_private_session_active">Private session is on — nothing is being recorded</string>
+    <string name="ux_private_session_off">Private session is off — listening is recorded again</string>
+</resources>

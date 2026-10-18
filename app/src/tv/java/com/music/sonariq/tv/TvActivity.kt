@@ -139,7 +139,11 @@ private fun TvApp(lastInteractionMs: StateFlow<Long>) {
             )
         }
         if (showAmbient) {
-            TvAmbientOverlay(track = ambientTrack!!, controller = controller)
+            if (AppSettings.tvAmbient2Enabled.value) {
+                TvAmbient2Overlay(track = ambientTrack!!, controller = controller)
+            } else {
+                TvAmbientOverlay(track = ambientTrack!!, controller = controller)
+            }
         }
     }
 }

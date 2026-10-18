@@ -11,7 +11,8 @@ import com.music.sonariq.playback.TransitionFilterProcessor
  * Composite DSP chain executing Sonariq's custom audio processors in their canonical sequence:
  *
  * AudioBlock(Float32) -> SpatialAudioProcessor -> EqualizerProcessor
- *   -> TransitionFilterProcessor -> LoudnessProcessor -> AudioBlock(Float32)
+ *   -> MonoMixProcessor -> TransitionFilterProcessor -> LoudnessProcessor
+ *   -> AudioBlock(Float32)
  *
  * Operates purely on in-place Float32 audio blocks without intermediate fixed-point quantization,
  * preserving full dynamic range and headroom.
@@ -34,6 +35,7 @@ class DspChain(
     val equalizer: EqualizerProcessor = EqualizerProcessor(),
     val transition: TransitionFilterProcessor = TransitionFilterProcessor(),
     val loudness: LoudnessProcessor = LoudnessProcessor(),
+    val mono: MonoMixProcessor = MonoMixProcessor(),
 ) : FloatAudioProcessor {
 
     private var currentSampleRate: Int = 0
@@ -45,6 +47,7 @@ class DspChain(
         equalizer.configure(sampleRate, channelCount)
         transition.configure(sampleRate, channelCount)
         loudness.configure(sampleRate, channelCount)
+        mono.configure(sampleRate, channelCount)
     }
 
     /** A new track has begun gaplessly on this sink; see [LoudnessProcessor.onStreamBoundary]. */
@@ -77,6 +80,7 @@ class DspChain(
 
         spatial.process(block)
         equalizer.process(block)
+        mono.process(block)
         transition.process(block)
         loudness.process(block)
     }
@@ -87,6 +91,7 @@ class DspChain(
         equalizer.flush()
         transition.flush()
         loudness.flush()
+        mono.flush()
     }
 
     override fun reset() {
@@ -95,6 +100,7 @@ class DspChain(
         equalizer.reset()
         transition.reset()
         loudness.reset()
+        mono.reset()
     }
 
     companion object {

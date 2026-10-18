@@ -244,6 +244,74 @@ object AppSettings {
      */
     val offlineMode = MutableStateFlow(false)
 
+    // ── Playback & audio output ────────────────────────────────────────────
+
+    /** Keep the equaliser per output device rather than one global curve. */
+    val perDeviceEqEnabled = MutableStateFlow(true)
+
+    /** Mono downmix, for single-earbud listening. */
+    val monoAudioEnabled = MutableStateFlow(false)
+
+    /** Animated canvas-style artwork backdrop behind the player. */
+    val canvasBackdropEnabled = MutableStateFlow(true)
+
+    // ── Data & streaming ───────────────────────────────────────────────────
+
+    /** Data saver: cap streams at [dataSaverQuality] on metered connections. */
+    val dataSaverEnabled = MutableStateFlow(false)
+
+    /** Streaming ceiling applied while [dataSaverEnabled] is on. */
+    val dataSaverQuality = MutableStateFlow(AudioQuality.LOW)
+
+    /** Stream only while on Wi-Fi; refuse playback on mobile data. */
+    val wifiOnlyStreaming = MutableStateFlow(false)
+
+    // ── Automatic downloads ────────────────────────────────────────────────
+
+    /** Keep music on the device automatically, without manual downloads. */
+    val autoDownloadsEnabled = MutableStateFlow(false)
+
+    /** Include liked songs in automatic downloads. */
+    val autoDownloadLikedSongs = MutableStateFlow(true)
+
+    /** Playlist ids that automatic downloads keep on the device. */
+    val autoDownloadPlaylistIds = MutableStateFlow<Set<String>>(emptySet())
+
+    /** Automatic downloads only run on Wi-Fi. */
+    val autoDownloadWifiOnly = MutableStateFlow(true)
+
+    /** Run automatic downloads on a daily schedule instead of continuously. */
+    val scheduledDownloadsEnabled = MutableStateFlow(false)
+
+    /** Hour of day (0-23) at which scheduled downloads run. */
+    val scheduledDownloadHour = MutableStateFlow(2)
+
+    /** Minute of the hour at which scheduled downloads run. */
+    val scheduledDownloadMinute = MutableStateFlow(0)
+
+    /** Scheduled downloads only run on Wi-Fi. */
+    val scheduledDownloadWifiOnly = MutableStateFlow(true)
+
+    // ── Home & queues ──────────────────────────────────────────────────────
+
+    /** Serialised home-section order, blank means the default order. */
+    val homeSectionOrderJson = MutableStateFlow("")
+
+    /** Let the home screen learn section order from usage. */
+    val homeSectionLearningEnabled = MutableStateFlow(true)
+
+    /** Serialised saved queues, blank means none. */
+    val savedQueuesJson = MutableStateFlow("")
+
+    /** Second ambient-mode variant on the TV app. */
+    val tvAmbient2Enabled = MutableStateFlow(false)
+
+    /** Gestures on artwork (tap / double-tap / swipe shortcuts). */
+    val artworkGesturesEnabled = MutableStateFlow(true)
+
+    /** Private session: pause scrobbling and shared activity while on. */
+    val privateSessionEnabled = MutableStateFlow(false)
+
     /**
      * Concert alerts: upcoming shows by the listener's top artists (from
      * [com.music.sonariq.data.stats.ListeningStats]), shown on the Replay
@@ -1191,6 +1259,28 @@ object AppSettings {
         discordButton2Text.value = prefs.getString(KEY_DISCORD_BUTTON_2_TEXT, "").orEmpty()
         discordButton2Visible.value = prefs.getBoolean(KEY_DISCORD_BUTTON_2_VISIBLE, true)
         discordInfoDismissed.value = prefs.getBoolean(KEY_DISCORD_INFO_DISMISSED, false)
+        perDeviceEqEnabled.value = prefs.getBoolean(KEY_PER_DEVICE_EQ, true)
+        monoAudioEnabled.value = prefs.getBoolean(KEY_MONO_AUDIO, false)
+        canvasBackdropEnabled.value = prefs.getBoolean(KEY_CANVAS_BACKDROP, true)
+        dataSaverEnabled.value = prefs.getBoolean(KEY_DATA_SAVER, false)
+        dataSaverQuality.value = prefs.getString(KEY_DATA_SAVER_QUALITY, null)
+            ?.let { stored -> runCatching { AudioQuality.valueOf(stored) }.getOrDefault(AudioQuality.LOW) }
+            ?: AudioQuality.LOW
+        wifiOnlyStreaming.value = prefs.getBoolean(KEY_WIFI_ONLY_STREAMING, false)
+        autoDownloadsEnabled.value = prefs.getBoolean(KEY_AUTO_DOWNLOADS_ENABLED, false)
+        autoDownloadLikedSongs.value = prefs.getBoolean(KEY_AUTO_DOWNLOAD_LIKED_SONGS, true)
+        autoDownloadPlaylistIds.value = prefs.getStringSet(KEY_AUTO_DOWNLOAD_PLAYLIST_IDS, emptySet()).orEmpty()
+        autoDownloadWifiOnly.value = prefs.getBoolean(KEY_AUTO_DOWNLOAD_WIFI_ONLY, true)
+        scheduledDownloadsEnabled.value = prefs.getBoolean(KEY_SCHEDULED_DOWNLOADS_ENABLED, false)
+        scheduledDownloadHour.value = prefs.getInt(KEY_SCHEDULED_DOWNLOAD_HOUR, 2)
+        scheduledDownloadMinute.value = prefs.getInt(KEY_SCHEDULED_DOWNLOAD_MINUTE, 0)
+        scheduledDownloadWifiOnly.value = prefs.getBoolean(KEY_SCHEDULED_DOWNLOAD_WIFI_ONLY, true)
+        homeSectionOrderJson.value = prefs.getString(KEY_HOME_SECTION_ORDER, "").orEmpty()
+        homeSectionLearningEnabled.value = prefs.getBoolean(KEY_HOME_SECTION_LEARNING, true)
+        savedQueuesJson.value = prefs.getString(KEY_SAVED_QUEUES, "").orEmpty()
+        tvAmbient2Enabled.value = prefs.getBoolean(KEY_TV_AMBIENT_2, false)
+        artworkGesturesEnabled.value = prefs.getBoolean(KEY_ARTWORK_GESTURES, true)
+        privateSessionEnabled.value = prefs.getBoolean(KEY_PRIVATE_SESSION, false)
     }
 
     /**
@@ -1986,6 +2076,106 @@ object AppSettings {
         com.music.sonariq.download.SmartDownloads.applySchedule()
     }
 
+    fun setPerDeviceEqEnabled(value: Boolean) {
+        perDeviceEqEnabled.value = value
+        prefs.edit().putBoolean(KEY_PER_DEVICE_EQ, value).apply()
+    }
+
+    fun setMonoAudioEnabled(value: Boolean) {
+        monoAudioEnabled.value = value
+        prefs.edit().putBoolean(KEY_MONO_AUDIO, value).apply()
+    }
+
+    fun setCanvasBackdropEnabled(value: Boolean) {
+        canvasBackdropEnabled.value = value
+        prefs.edit().putBoolean(KEY_CANVAS_BACKDROP, value).apply()
+    }
+
+    fun setDataSaverEnabled(value: Boolean) {
+        dataSaverEnabled.value = value
+        prefs.edit().putBoolean(KEY_DATA_SAVER, value).apply()
+    }
+
+    fun setDataSaverQuality(value: AudioQuality) {
+        dataSaverQuality.value = value
+        prefs.edit().putString(KEY_DATA_SAVER_QUALITY, value.name).apply()
+    }
+
+    fun setWifiOnlyStreaming(value: Boolean) {
+        wifiOnlyStreaming.value = value
+        prefs.edit().putBoolean(KEY_WIFI_ONLY_STREAMING, value).apply()
+    }
+
+    fun setAutoDownloadsEnabled(value: Boolean) {
+        autoDownloadsEnabled.value = value
+        prefs.edit().putBoolean(KEY_AUTO_DOWNLOADS_ENABLED, value).apply()
+    }
+
+    fun setAutoDownloadLikedSongs(value: Boolean) {
+        autoDownloadLikedSongs.value = value
+        prefs.edit().putBoolean(KEY_AUTO_DOWNLOAD_LIKED_SONGS, value).apply()
+    }
+
+    fun setAutoDownloadPlaylistIds(value: Set<String>) {
+        autoDownloadPlaylistIds.value = value
+        prefs.edit().putStringSet(KEY_AUTO_DOWNLOAD_PLAYLIST_IDS, value).apply()
+    }
+
+    fun setAutoDownloadWifiOnly(value: Boolean) {
+        autoDownloadWifiOnly.value = value
+        prefs.edit().putBoolean(KEY_AUTO_DOWNLOAD_WIFI_ONLY, value).apply()
+    }
+
+    fun setScheduledDownloadsEnabled(value: Boolean) {
+        scheduledDownloadsEnabled.value = value
+        prefs.edit().putBoolean(KEY_SCHEDULED_DOWNLOADS_ENABLED, value).apply()
+    }
+
+    fun setScheduledDownloadHour(value: Int) {
+        scheduledDownloadHour.value = value
+        prefs.edit().putInt(KEY_SCHEDULED_DOWNLOAD_HOUR, value).apply()
+    }
+
+    fun setScheduledDownloadMinute(value: Int) {
+        scheduledDownloadMinute.value = value
+        prefs.edit().putInt(KEY_SCHEDULED_DOWNLOAD_MINUTE, value).apply()
+    }
+
+    fun setScheduledDownloadWifiOnly(value: Boolean) {
+        scheduledDownloadWifiOnly.value = value
+        prefs.edit().putBoolean(KEY_SCHEDULED_DOWNLOAD_WIFI_ONLY, value).apply()
+    }
+
+    fun setHomeSectionOrderJson(value: String) {
+        homeSectionOrderJson.value = value
+        prefs.edit().putString(KEY_HOME_SECTION_ORDER, value).apply()
+    }
+
+    fun setHomeSectionLearningEnabled(value: Boolean) {
+        homeSectionLearningEnabled.value = value
+        prefs.edit().putBoolean(KEY_HOME_SECTION_LEARNING, value).apply()
+    }
+
+    fun setSavedQueuesJson(value: String) {
+        savedQueuesJson.value = value
+        prefs.edit().putString(KEY_SAVED_QUEUES, value).apply()
+    }
+
+    fun setTvAmbient2Enabled(value: Boolean) {
+        tvAmbient2Enabled.value = value
+        prefs.edit().putBoolean(KEY_TV_AMBIENT_2, value).apply()
+    }
+
+    fun setArtworkGesturesEnabled(value: Boolean) {
+        artworkGesturesEnabled.value = value
+        prefs.edit().putBoolean(KEY_ARTWORK_GESTURES, value).apply()
+    }
+
+    fun setPrivateSessionEnabled(value: Boolean) {
+        privateSessionEnabled.value = value
+        prefs.edit().putBoolean(KEY_PRIVATE_SESSION, value).apply()
+    }
+
     fun setOfflineMode(value: Boolean) {
         offlineMode.value = value
         prefs.edit().putBoolean(KEY_OFFLINE_MODE, value).apply()
@@ -2552,6 +2742,27 @@ object AppSettings {
     private const val KEY_SMB_BASE_PATH = "smb_base_path"
     private const val KEY_SMB_USERNAME = "smb_username"
     private const val KEY_PINNED_PLAYLISTS = "pinned_playlists"
+
+    private const val KEY_PER_DEVICE_EQ = "per_device_eq"
+    private const val KEY_MONO_AUDIO = "mono_audio"
+    private const val KEY_CANVAS_BACKDROP = "canvas_backdrop"
+    private const val KEY_DATA_SAVER = "data_saver"
+    private const val KEY_DATA_SAVER_QUALITY = "data_saver_quality"
+    private const val KEY_WIFI_ONLY_STREAMING = "wifi_only_streaming"
+    private const val KEY_AUTO_DOWNLOADS_ENABLED = "auto_downloads_enabled"
+    private const val KEY_AUTO_DOWNLOAD_LIKED_SONGS = "auto_download_liked_songs"
+    private const val KEY_AUTO_DOWNLOAD_PLAYLIST_IDS = "auto_download_playlist_ids"
+    private const val KEY_AUTO_DOWNLOAD_WIFI_ONLY = "auto_download_wifi_only"
+    private const val KEY_SCHEDULED_DOWNLOADS_ENABLED = "scheduled_downloads_enabled"
+    private const val KEY_SCHEDULED_DOWNLOAD_HOUR = "scheduled_download_hour"
+    private const val KEY_SCHEDULED_DOWNLOAD_MINUTE = "scheduled_download_minute"
+    private const val KEY_SCHEDULED_DOWNLOAD_WIFI_ONLY = "scheduled_download_wifi_only"
+    private const val KEY_HOME_SECTION_ORDER = "home_section_order_json"
+    private const val KEY_HOME_SECTION_LEARNING = "home_section_learning"
+    private const val KEY_SAVED_QUEUES = "saved_queues_json"
+    private const val KEY_TV_AMBIENT_2 = "tv_ambient_2_enabled"
+    private const val KEY_ARTWORK_GESTURES = "artwork_gestures_enabled"
+    private const val KEY_PRIVATE_SESSION = "private_session_enabled"
 
     private const val KEY_LASTFM_ENABLED = "lastfm_enabled"
     private const val KEY_LASTFM_USERNAME = "lastfm_username"

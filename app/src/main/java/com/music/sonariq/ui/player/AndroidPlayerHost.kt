@@ -58,6 +58,8 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         override val animatedCanvas get() = AppSettings.animatedCanvas
         override val audioQualityCellular get() = AppSettings.audioQualityCellular
         override val audioQualityWifi get() = AppSettings.audioQualityWifi
+        override val canvasBackdropEnabled get() = AppSettings.canvasBackdropEnabled
+        override val artworkGesturesEnabled get() = AppSettings.artworkGesturesEnabled
         override val canvasOverCellular get() = AppSettings.canvasOverCellular
         override val duetKaraoke get() = AppSettings.duetKaraoke
         override val fullBleedArtwork get() = AppSettings.fullBleedArtwork

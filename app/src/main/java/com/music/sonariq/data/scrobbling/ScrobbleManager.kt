@@ -36,6 +36,8 @@ class ScrobbleManager(
         song: Song?,
         durationMs: Long? = null,
     ) {
+        // A private session records nothing: no timer, no now-playing.
+        if (PrivateSession.suspendsRecording()) return
         if (song == null) return
         songStartedAt = System.currentTimeMillis() / 1000
         songStarted = true
@@ -134,6 +136,7 @@ class ScrobbleManager(
     }
 
     private fun updateNowPlaying(song: Song) {
+        if (PrivateSession.suspendsRecording()) return
         val scrobbleArtist = song.artist.forScrobble()
         scope.launch {
             LastFM
@@ -156,6 +159,7 @@ class ScrobbleManager(
         song: Song?,
         durationMs: Long? = null,
     ) {
+        if (PrivateSession.suspendsRecording()) return
         if (song == null) return
         if (isPlaying) {
             if (!songStarted) {

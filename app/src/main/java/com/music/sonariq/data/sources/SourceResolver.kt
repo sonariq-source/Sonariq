@@ -7,6 +7,7 @@ import com.music.sonariq.data.model.Song
 import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.data.settings.AudioQuality
 import com.music.sonariq.data.settings.DownloadQuality
+import com.music.sonariq.playback.DataSaver
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
@@ -141,6 +142,18 @@ object SourceResolver {
         trackId: String,
         target: TrackMatcher.Target,
     ): SourceStream? {
+        // Wi-Fi-only data saver: on a metered connection a remote stream may
+        // not be resolved at all — see [DataSaver.streamingAllowed]. Only
+        // `sonariq://source` URIs reach this function; local files and
+        // downloads bypass the resolver entirely, so they keep playing. This
+        // throws rather than returning null so the player surfaces the
+        // data-saver message instead of "no source could serve it", which
+        // would blame the sources for a setting doing its job.
+        if (!DataSaver.streamingAllowed(AppSettings.wifiOnlyStreaming.value, AppSettings.meteredConnection.value)) {
+            // No Context in scope on this path, so the text of
+            // R.string.wifi_only_streaming_blocked is carried literally.
+            throw java.io.IOException("Not streaming on mobile data — connect to Wi-Fi or play something downloaded")
+        }
         val request = requestForNow()
         val active = SourceRegistry.activeForPlayback()
         // A pin identifies where the row originally came from; it does not

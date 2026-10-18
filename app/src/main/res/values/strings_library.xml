@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Strings for the library feature set: playlist folders, smart folders,
+    library backup/restore, auto-downloads, scheduled downloads, storage
+    manager, m3u transfer, and library cleanup. Kept in their own file so
+    the library features stay separable from the rest of the app.
+-->
+<resources>
+    <!-- Shared actions not already in strings.xml -->
+    <string name="library_action_create">Create</string>
+    <string name="library_action_add">Add</string>
+
+    <!-- Playlist folders -->
+    <string name="library_folders_title">Playlist folders</string>
+    <string name="library_folders">Folders</string>
+    <string name="library_smart_folders">Smart folders</string>
+    <string name="library_new_folder">New folder</string>
+    <string name="library_new_smart_folder">New smart folder</string>
+    <string name="library_folders_empty">Folders group your playlists without moving them. Create one to get started.</string>
+    <string name="library_folder_empty">No playlists yet</string>
+    <string name="library_folder_name">Folder name</string>
+    <string name="library_delete_folder_title">Delete “%1$s”?</string>
+    <string name="library_delete_folder_text">The folder is removed. The playlists inside it are kept.</string>
+    <string name="library_smart_folder_subtitle">%1$d rules • match %2$s</string>
+    <string name="library_smart_folder_edit_hint">Tap a smart folder with no rules to add some.</string>
+
+    <!-- Smart folder rules -->
+    <string name="library_rule_match_all">all</string>
+    <string name="library_rule_match_any">any</string>
+    <string name="library_rule_match_mode">A song joins when it matches</string>
+    <string name="library_rules">Rules</string>
+    <string name="library_no_rules">No rules yet. Add one — a smart folder with no rules stays empty.</string>
+    <string name="library_add_rule">Add rule</string>
+    <string name="library_rule_kind">Rule</string>
+    <string name="library_rule_artist">Artist contains</string>
+    <string name="library_rule_artist_hint">Artist name</string>
+    <string name="library_rule_album">Album contains</string>
+    <string name="library_rule_album_hint">Album name</string>
+    <string name="library_rule_added_days">Added in the last…</string>
+    <string name="library_rule_days_hint">Days</string>
+    <string name="library_rule_min_plays">Played at least…</string>
+    <string name="library_rule_plays_hint">Plays</string>
+    <string name="library_rule_max_plays">Played at most…</string>
+    <string name="library_rule_quiet_days">Not played in…</string>
+    <string name="library_rule_explicit">Explicit content</string>
+    <string name="library_rule_explicit_hint">Only explicit tracks</string>
+    <string name="library_rule_quality">Served quality</string>
+    <string name="library_rule_quality_hint">Quality</string>
+    <string name="library_smart_folder_editor_title">Smart folder</string>
+
+    <!-- Library backup & restore -->
+    <string name="library_backup_title">Library backup</string>
+    <string name="library_backup_intro">One file with your settings, listening history, search history, playlists, folders, and download record. Keep it somewhere safe — it is the way back after a reset or a new phone.</string>
+    <string name="library_backup_export">Back up library</string>
+    <string name="library_backup_export_subtitle">Save everything to one file you choose</string>
+    <string name="library_backup_import">Restore library</string>
+    <string name="library_backup_import_subtitle">Replace this library with a backup file</string>
+    <string name="library_backup_downloads_note">Downloaded audio files stay on your device either way — the backup carries the record of them, not the audio itself.</string>
+    <string name="library_backup_import_confirm_title">Replace your library?</string>
+    <string name="library_backup_import_confirm_text">Your playlists, folders, settings, and history will be replaced with what the backup file contains. This cannot be undone.</string>
+    <string name="library_backup_import_confirm_button">Choose backup file</string>
+    <string name="library_backup_exported">Backed up %1$d playlists.</string>
+    <string name="library_backup_imported">Restored %1$d playlists, %2$d folders, %3$d downloads on record.</string>
+    <string name="library_backup_failed">That didn’t work — please try again.</string>
+
+    <!-- Storage manager -->
+    <string name="library_storage_title">Storage</string>
+    <string name="library_storage_measuring">Measuring…</string>
+    <string name="library_storage_total">used by Sonariq on this device</string>
+    <string name="library_storage_downloads">Downloads</string>
+    <string name="library_storage_downloads_subtitle">%1$d tracks on this device</string>
+    <string name="library_storage_audio_cache">Audio cache</string>
+    <string name="library_storage_audio_cache_subtitle">Streamed audio kept for replay</string>
+    <string name="library_storage_image_cache">Image cache</string>
+    <string name="library_storage_image_cache_subtitle">Cover art kept for lists</string>
+    <string name="library_storage_artwork">Saved artwork</string>
+    <string name="library_storage_artwork_subtitle">Collection covers kept on device</string>
+    <string name="library_storage_clear">Clear cache (%1$s)</string>
+    <string name="library_storage_clear_note">Clearing removes the audio and image caches only. Downloads and saved artwork are left alone — they re-download on demand.</string>
+    <string name="library_storage_clear_title">Clear caches?</string>
+    <string name="library_storage_clear_text">The audio and image caches will be emptied. They refill as you listen and browse.</string>
+    <string name="library_storage_clear_button">Clear</string>
+    <string name="library_storage_cleared">Cleared %1$s.</string>
+
+    <!-- Library cleanup -->
+    <string name="library_cleanup_title">Library cleanup</string>
+    <string name="library_cleanup_scanning">Scanning your library…</string>
+    <string name="library_cleanup_clean">All clean</string>
+    <string name="library_cleanup_clean_subtitle">Checked %1$d tracks — no duplicates or missing tags found.</string>
+    <string name="library_cleanup_duplicates">Duplicates (%1$d)</string>
+    <string name="library_cleanup_metadata">Missing metadata (%1$d)</string>
+    <string name="library_cleanup_keep">keep</string>
+    <string name="library_cleanup_remove_others">Remove the others</string>
+    <string name="library_cleanup_gap_title">Missing %1$s: %2$s</string>
+    <string name="library_cleanup_gap_suggestion">File name suggests “%1$s”</string>
+    <string name="library_cleanup_gap_no_suggestion">No suggestion — the file name doesn’t say.</string>
+    <string name="library_cleanup_apply">Apply</string>
+
+    <!-- m3u import/export -->
+    <string name="library_m3u_title">Playlists as files</string>
+    <string name="library_m3u_export">Export a playlist</string>
+    <string name="library_m3u_playlist_subtitle">%1$d tracks</string>
+    <string name="library_m3u_no_playlists">No local playlists yet.</string>
+    <string name="library_m3u_exported">Wrote %1$d tracks from “%2$s”.</string>
+    <string name="library_m3u_failed">That didn’t work — please try again.</string>
+    <string name="library_m3u_import">Import a playlist</string>
+    <string name="library_m3u_pick_file">Choose an .m3u file</string>
+    <string name="library_m3u_pick_file_subtitle">Each line is matched against your library</string>
+    <string name="library_m3u_empty">That file has no tracks in it.</string>
+    <string name="library_m3u_imported_title">Imported playlist</string>
+    <string name="library_m3u_import_summary">%1$d matched, %2$d not found in your library.</string>
+    <string name="library_m3u_import_missing">Not found: </string>
+    <string name="library_m3u_import_add">Add %1$d matched tracks</string>
+
+    <!-- Auto-downloads -->
+    <string name="library_auto_downloads">Auto-downloads</string>
+    <string name="library_auto_downloads_subtitle">Keep liked songs and chosen playlists on this device</string>
+    <string name="library_auto_download_liked">Liked songs</string>
+    <string name="library_auto_download_liked_subtitle">Download songs as you like them</string>
+    <string name="library_auto_download_playlists">Playlists to keep downloaded</string>
+    <string name="library_auto_download_playlists_none">None chosen</string>
+    <string name="library_auto_download_wifi_only">Wi-Fi only</string>
+    <string name="library_auto_download_wifi_only_subtitle">Never use mobile data for automatic downloads</string>
+
+    <!-- Scheduled downloads -->
+    <string name="library_scheduled_downloads">Scheduled downloads</string>
+    <string name="library_scheduled_downloads_subtitle">Queue the auto-download set at a set time, e.g. overnight</string>
+    <string name="library_scheduled_downloads_note">Runs while charging on the chosen connection. It queues the same liked songs and playlists as auto-downloads above.</string>
+    <string name="library_scheduled_time">Time</string>
+    <string name="library_scheduled_time_value">%1$d:%2$s</string>
+</resources>

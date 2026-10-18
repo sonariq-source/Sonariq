@@ -4,15 +4,19 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.Lan
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.Radar
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -333,7 +337,7 @@ fun libraryLinks(signedIn: Boolean, shelfTitles: Set<String>): List<LibraryLink>
     // previous run left smart tracks on the device worth finding again.
     val showSmartDownloads = AppSettings.smartDownloadsEnabled.value ||
         com.music.sonariq.download.SmartDownloads.smartIds.value.isNotEmpty()
-    return libraryRowModels(
+    val collectionLinks = libraryRowModels(
         signedIn = signedIn,
         shelfTitles = shelfTitles,
         downloadsCount = downloadsSaved.size,
@@ -344,6 +348,57 @@ fun libraryLinks(signedIn: Boolean, shelfTitles: Set<String>): List<LibraryLink>
         spotifyConnected = spotifyConnected.isNotBlank(),
         strings = strings,
     ).map { it.toLink() }
+    // The app's own pages — listening insights, release radar, the monthly
+    // recap and playlist folders — sit after the collection rows. They are
+    // `app:` destinations dispatched in MainActivity's `onLibraryItemClick`,
+    // like the history row; every one of them opens a real page (see the
+    // screens behind INSIGHTS_BROWSE_ID and friends), so none is gated.
+    // Appended here rather than in [libraryRowModels] so that pure builder —
+    // and the tests pinning its row order — stays untouched.
+    return collectionLinks + listOf(
+        LibraryLink(
+            item = ShelfItem(
+                title = stringResource(R.string.discovery_insights_title),
+                subtitle = stringResource(R.string.discovery_insights_subtitle),
+                thumbnailUrl = null,
+                videoId = null,
+                browseId = INSIGHTS_BROWSE_ID,
+            ),
+            icon = Icons.Rounded.Insights,
+        ),
+        LibraryLink(
+            item = ShelfItem(
+                title = stringResource(R.string.discovery_radar_title),
+                subtitle = stringResource(R.string.discovery_radar_subtitle),
+                thumbnailUrl = null,
+                videoId = null,
+                browseId = RADAR_BROWSE_ID,
+            ),
+            icon = Icons.Rounded.Radar,
+        ),
+        LibraryLink(
+            item = ShelfItem(
+                title = stringResource(R.string.discovery_recap_title),
+                subtitle = stringResource(R.string.discovery_recap_subtitle),
+                thumbnailUrl = null,
+                videoId = null,
+                browseId = RECAP_BROWSE_ID,
+            ),
+            icon = Icons.Rounded.CalendarMonth,
+        ),
+        LibraryLink(
+            item = ShelfItem(
+                title = stringResource(R.string.library_folders),
+                // The folders empty-state line doubles as the descriptor; the
+                // row truncates it to one line, which still reads complete.
+                subtitle = stringResource(R.string.library_folders_empty),
+                thumbnailUrl = null,
+                videoId = null,
+                browseId = FOLDERS_BROWSE_ID,
+            ),
+            icon = Icons.Rounded.Folder,
+        ),
+    )
 }
 
 /**
@@ -396,6 +451,20 @@ const val SPOTIFY_BROWSE_ID = "app:spotify"
 
 /** The Cached songs folder's page id — one of the `local:` device folders. */
 const val CACHE_FOLDER_BROWSE_ID = "local:cache"
+
+/**
+ * The Library's own pages, dispatched in MainActivity's `onLibraryItemClick`
+ * like [HISTORY_BROWSE_ID]: listening insights, release radar, the monthly
+ * recap and playlist folders. See the rows appended in [libraryLinks].
+ */
+/** Listening insights — streaks, genres and all-time favourites. */
+const val INSIGHTS_BROWSE_ID = "app:insights"
+/** Release radar — new music from followed artists and listening. */
+const val RADAR_BROWSE_ID = "app:radar"
+/** Monthly recap — the month in music, ready to share. */
+const val RECAP_BROWSE_ID = "app:recap"
+/** Playlist folders — plain and smart folders over the playlists. */
+const val FOLDERS_BROWSE_ID = "app:folders"
 
 /**
  * The phone's way in to Replay: its row of headline cards, placeholders for

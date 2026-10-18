@@ -39,6 +39,8 @@ import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.HowToVote
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Login
 import androidx.compose.material.icons.rounded.Logout
@@ -99,6 +101,7 @@ import com.music.sonariq.data.collab.CollabPlaylistStore
 import com.music.sonariq.data.listentogether.ListenTogether
 import com.music.sonariq.data.listentogether.PartyActivity
 import com.music.sonariq.data.listentogether.PartyMember
+import com.music.sonariq.data.listentogether.PartyRecapCollector
 import com.music.sonariq.data.listentogether.PartyTrack
 import com.music.sonariq.data.listentogether.ServerConnectionState
 import com.music.sonariq.data.listentogether.ServerUrlError
@@ -188,6 +191,9 @@ fun ListenTogetherScreen(
      */
     var collabOpenId by remember { mutableStateOf<String?>(null) }
     var collabCreateOpen by remember { mutableStateOf(false) }
+    // The last party's recap, drawn over the page full-screen like the
+    // collaborative playlist detail above.
+    var recapOpen by remember { mutableStateOf(false) }
 
     // Hoisted so a sheet can be *animated* away rather than dropped out of the
     // composition, which is the only way one sheet can hand over to another:
@@ -539,6 +545,13 @@ fun ListenTogetherScreen(
             modifier = modifier,
             contentPadding = contentPadding,
         )
+        return
+    }
+
+    // A finished party's recap takes over the whole page while open — same
+    // early-return treatment as the collaborative playlist detail.
+    if (recapOpen) {
+        PartyRecapScreen(onBack = { recapOpen = false })
         return
     }
 
@@ -994,6 +1007,7 @@ private fun InAParty(
         onAddSongs = onAddSongs,
         onRemoveTrack = onRemoveTrack,
         onClearQueue = onClearQueue,
+        onOpenRecap = { recapOpen = true },
     )
 
     SettingsGroup(
@@ -1190,11 +1204,14 @@ private fun PartyQueueSection(
     onAddSongs: () -> Unit,
     onRemoveTrack: (String) -> Unit,
     onClearQueue: () -> Unit,
+    onOpenRecap: () -> Unit,
 ) {
     val queue = state.queue
     val locked = state.controlsLocked
     val isHost = state.you?.isHost == true
     var confirmClear by remember { mutableStateOf(false) }
+    var showVoting by remember { mutableStateOf(false) }
+    val latestRecap by PartyRecapCollector.latest.collectAsStateWithLifecycle()
 
     SettingsGroup(
         header = stringResource(R.string.listen_together_queue),
@@ -1211,6 +1228,21 @@ private fun PartyQueueSection(
                 icon = Icons.Rounded.Add,
                 title = stringResource(R.string.listen_together_queue_add),
                 onClick = onAddSongs,
+            )
+            RowDivider()
+            SettingsRow(
+                icon = Icons.Rounded.HowToVote,
+                title = stringResource(R.string.social_vote_title),
+                onClick = { showVoting = true },
+            )
+        }
+        // The last finished party's recap, when one has been collected.
+        if (latestRecap != null) {
+            if (!locked) RowDivider()
+            SettingsRow(
+                icon = Icons.Rounded.History,
+                title = stringResource(R.string.social_recap_title),
+                onClick = onOpenRecap,
             )
         }
         if (queue.items.isEmpty()) {
@@ -1244,6 +1276,10 @@ private fun PartyQueueSection(
                 )
             }
         }
+    }
+
+    if (showVoting) {
+        PartyVotingSheet(onDismiss = { showVoting = false })
     }
 
     if (confirmClear) {

@@ -76,6 +76,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.guava.future
 import com.music.sonariq.playback.audio.DspChain
+import com.music.sonariq.playback.audio.MonoMixProcessor
 import com.music.sonariq.playback.cast.CastController
 import com.music.sonariq.playback.cast.CastPlayback
 import com.music.sonariq.playback.cast.CastSink
@@ -125,6 +126,7 @@ import com.music.sonariq.data.model.LikeStatus
 import com.music.sonariq.data.model.Song
 import com.music.sonariq.data.scrobbling.LastFM
 import com.music.sonariq.data.scrobbling.ListenBrainzManager
+import com.music.sonariq.data.scrobbling.PrivateSession
 import com.music.sonariq.data.scrobbling.ScrobbleManager
 import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.data.settings.EqualizerMode
@@ -135,6 +137,7 @@ import com.music.sonariq.data.sources.StreamFormat
 import com.music.sonariq.data.sources.TrackMatcher
 import com.music.sonariq.playback.smart.AutomixAnalysisSource
 import com.music.sonariq.playback.smart.VersionAudioAligner
+import com.music.sonariq.playback.radio.RadioSession
 import com.music.sonariq.widget.MediaWidget
 import com.music.sonariq.widget.MediaWidgetSnapshot
 import kotlinx.coroutines.CompletableDeferred
@@ -482,6 +485,91 @@ class PlaybackService : MediaLibraryService() {
     }
     private fun snapshotHome(): com.music.sonariq.data.model.HomeFeed? = cachedHome?.second
 
+    /**
+     * The car browse tree's view of this service's already-cached library.
+     * Implements [AutoBrowseTree.AutoDataSource] with the same snapshot
+     * helpers the legacy Android Auto tree reads — nothing new is fetched
+     * for the car except playlist contents, which reuse the legacy browse
+     * call the old tree used for the same folders.
+     */
+    private val autoDataSource = object : AutoBrowseTree.AutoDataSource {
+        // Every song list is written into songCache like the legacy tree
+        // does, so the car's onGetItem and play-from-media-id paths can
+        // resolve the new tree's "auto2:track:" ids back to real songs.
+        override fun quickPicks(): List<Song> = snapshotQuickPicks().also { cacheAutoSongs(it) }
+        override fun recents(): List<Song> = snapshotRecents().also { cacheAutoSongs(it) }
+        override fun liked(): List<Song> = snapshotLiked().also { cacheAutoSongs(it) }
+        override fun downloads(): List<Song> = runBlocking {
+            Downloads.getDownloadedSongs(this@PlaybackService)
+        }.also { cacheAutoSongs(it) }
+        override fun localTracks(): List<Song> = runBlocking {
+            LocalMediaRepository.getLocalMusic(this@PlaybackService)
+        }.also { cacheAutoSongs(it) }
+
+        private fun cacheAutoSongs(songs: List<Song>) {
+            songs.forEach { songCache[it.videoId] = it }
+        }
+
+        override fun moodShelves(): List<AutoBrowseTree.MoodShelf> =
+            snapshotHome()?.shelves?.mapIndexed { index, shelf ->
+                AutoBrowseTree.MoodShelf(
+                    id = "auto2:mood:$index",
+                    title = shelf.title,
+                    artworkUrl = shelf.items.firstOrNull()?.thumbnailUrl,
+                )
+            }.orEmpty()
+
+        override fun playlists(): List<AutoBrowseTree.AutoPlaylist> =
+            snapshotPlaylistCards().map { card ->
+                AutoBrowseTree.AutoPlaylist(
+                    id = legacyPlaylistMediaId(card),
+                    title = card.title,
+                    artworkUrl = card.thumbnailUrl,
+                    trackCount = 0,
+                )
+            }
+
+        override fun moodTracks(moodId: String): List<Song> {
+            val index = moodId.removePrefix("auto2:mood:").toIntOrNull() ?: return emptyList()
+            val shelf = snapshotHome()?.shelves?.getOrNull(index) ?: return emptyList()
+            return shelf.items.mapNotNull { it.toSongOrNull() }.also { cacheAutoSongs(it) }
+        }
+
+        override fun playlistTracks(playlistId: String): List<Song> {
+            val browseId = when {
+                playlistId.startsWith("playlist:") -> "VL${playlistId.removePrefix("playlist:")}"
+                playlistId.startsWith("browse:") -> playlistId.removePrefix("browse:")
+                else -> playlistId
+            }
+            return try {
+                runBlocking {
+                    withTimeoutOrNull(2500L) {
+                        YtMusicRepository.browseSongs(browseId).getOrNull()?.songs
+                            ?: YtMusicRepository.browseSongs(browseId.removePrefix("VL")).getOrNull()?.songs
+                    }
+                } ?: emptyList()
+            } catch (_: Exception) {
+                emptyList()
+            }.also { cacheAutoSongs(it) }
+        }
+    }
+
+    /** The legacy tree's playlist media-id scheme, shared with the new tree's folders. */
+    private fun legacyPlaylistMediaId(card: ShelfItem): String {
+        val browseId = card.browseId ?: "VL${card.videoId}"
+        return if (browseId.startsWith("VL")) "playlist:${browseId.removePrefix("VL")}" else "browse:$browseId"
+    }
+
+    /** Display titles for the new car tree's top-level sections. */
+    private fun autoSectionTitle(section: AutoBrowseTree.AutoSection): String = when (section) {
+        AutoBrowseTree.AutoSection.NOW_PLAYING -> getString(R.string.now_playing)
+        AutoBrowseTree.AutoSection.MOODS -> "Moods"
+        AutoBrowseTree.AutoSection.QUICK_PICKS -> getString(R.string.auto_quick_picks)
+        AutoBrowseTree.AutoSection.RECENTS -> getString(R.string.auto_recents)
+        AutoBrowseTree.AutoSection.LIBRARY -> getString(R.string.library)
+        AutoBrowseTree.AutoSection.DOWNLOADS -> getString(R.string.downloads)
+    }
+
     private fun isFresh(at: Long, ttlMs: Long): Boolean =
         SystemClock.elapsedRealtime() - at < ttlMs
 
@@ -579,6 +667,8 @@ class PlaybackService : MediaLibraryService() {
     private val spatialAudioProcessorB = SpatialAudioProcessor()
     private val equalizerProcessorA = EqualizerProcessor()
     private val equalizerProcessorB = EqualizerProcessor()
+    private val monoMixA = MonoMixProcessor()
+    private val monoMixB = MonoMixProcessor()
     private val transitionFilterA = TransitionFilterProcessor()
     private val transitionFilterB = TransitionFilterProcessor()
 
@@ -735,6 +825,7 @@ class PlaybackService : MediaLibraryService() {
     private var favoriteActionJob: Job? = null
     private var stationActionJob: Job? = null
     private var autoplayLoadJob: Job? = null
+    private var radioTopUpJob: Job? = null
     /** Rate limit for listener-requested retries; automatic upgrades do not touch it. */
     private val manualUpgradeThrottle = ManualUpgradeThrottle(MANUAL_UPGRADE_COOLDOWN_MS)
     /** Catalogue lookup that decides which rendition of the next video to warm. */
@@ -1006,6 +1097,7 @@ class PlaybackService : MediaLibraryService() {
             autoplayLoadJob = null
             autoplaySeed = null
             loadAutoplayForCurrentTrack()
+            maybeTopUpRadio()
             loadLyricsForCurrentTrack()
             if (exoPlayer.isPlaying) startLyricsTicker()
             refreshCustomLayouts()
@@ -1633,6 +1725,7 @@ class PlaybackService : MediaLibraryService() {
             equalizerProcessorA,
             transitionFilterA,
             loudnessA,
+            monoMixA,
             ownsSession = true,
         )
         val sparePlayer = buildPlayer(
@@ -1640,6 +1733,7 @@ class PlaybackService : MediaLibraryService() {
             equalizerProcessorB,
             transitionFilterB,
             loudnessB,
+            monoMixB,
             ownsSession = false,
         )
         player = exoPlayer
@@ -2431,11 +2525,15 @@ class PlaybackService : MediaLibraryService() {
         if (enabled) {
             autoplayLoadJob?.cancel()
             autoplayLoadJob = null
+            radioTopUpJob?.cancel()
+            radioTopUpJob = null
             autoplaySeed = null
             loadAutoplayForCurrentTrack()
         } else {
             autoplayLoadJob?.cancel()
             autoplayLoadJob = null
+            radioTopUpJob?.cancel()
+            radioTopUpJob = null
             autoplaySeed = null
             dropAutoplayTracksFromQueue()
             // Switching AutoPlay off is the listener saying they don't want
@@ -2445,6 +2543,29 @@ class PlaybackService : MediaLibraryService() {
             repeatAllStashSeed = null
         }
         refreshCustomLayouts()
+    }
+
+    /**
+     * Refills a live radio station when the queue runs low, independent of
+     * the AutoPlay setting — a station that ends is not a station. Fires
+     * from [Player.Listener.onMediaItemTransition] alongside the autoplay
+     * top-up; [RadioSession.shouldTopUp] keeps the check cheap so asking on
+     * every track change costs nothing when no station is running.
+     */
+    private fun maybeTopUpRadio() {
+        val station = RadioSession.active.value ?: return
+        val exoPlayer = player ?: return
+        if (exoPlayer.repeatMode == Player.REPEAT_MODE_ALL) return
+        if (!RadioSession.shouldTopUp(exoPlayer.currentMediaItemIndex, exoPlayer.mediaItemCount)) return
+        if (radioTopUpJob?.isActive == true) return
+        radioTopUpJob = scope.launch {
+            val queueSongs = (0 until exoPlayer.mediaItemCount).map { exoPlayer.getMediaItemAt(it).toSong() }
+            val playedTail = queueSongs.take(exoPlayer.currentMediaItemIndex + 1).takeLast(5)
+            val batch = RadioSession.loadBatch(queueSongs, playedTail, applicationContext).getOrNull().orEmpty()
+            if (batch.isNotEmpty() && RadioSession.active.value === station) {
+                exoPlayer.addMediaItems(batch.map { it.toMediaItem() })
+            }
+        }
     }
 
     /**
@@ -2676,6 +2797,8 @@ class PlaybackService : MediaLibraryService() {
         // queue whose stash was refused ended up with nothing after it at all.
         autoplayLoadJob?.cancel()
         autoplayLoadJob = null
+        radioTopUpJob?.cancel()
+        radioTopUpJob = null
         autoplaySeed = null
         if (stashed.isEmpty() || !autoplayEnabled(ListenTogether.state.value)) return
         if (exoPlayer.currentMediaItem?.mediaId != seed) return
@@ -2724,9 +2847,10 @@ class PlaybackService : MediaLibraryService() {
         equalizer: EqualizerProcessor,
         filter: TransitionFilterProcessor,
         loudness: LoudnessProcessor,
+        mono: MonoMixProcessor,
         ownsSession: Boolean,
     ): ExoPlayer = ExoPlayer.Builder(this)
-        .setRenderersFactory(silenceSkippingRenderers(spatial, equalizer, filter, loudness))
+        .setRenderersFactory(silenceSkippingRenderers(spatial, equalizer, filter, loudness, mono))
         .setMediaSourceFactory(requireNotNull(mediaSourceFactory))
         .setLoadControl(farBufferingLoadControl())
         .setAudioAttributes(AUDIO_ATTRIBUTES, /* handleAudioFocus = */ ownsSession)
@@ -2904,6 +3028,7 @@ class PlaybackService : MediaLibraryService() {
         // The entry this track is read from now counts as played — the only
         // kind the Cached songs folder lists. See [AudioCache.Origin].
         mediaItem?.let { AudioCache.notePlayed(it.toSong(), it.localConfiguration?.uri) }
+        mediaItem?.toSong()?.let { QueueHistoryLog.notePlayed(it) }
         scheduleForeignCachePurge()
         mediaItem?.mediaId?.let { id ->
             resolveLocalBitrate(id, mediaItem)
@@ -5245,6 +5370,8 @@ class PlaybackService : MediaLibraryService() {
         crossfade?.onSkipRequested()
         autoplayLoadJob?.cancel()
         autoplayLoadJob = null
+        radioTopUpJob?.cancel()
+        radioTopUpJob = null
         autoplaySeed = null
         repeatAllStash = emptyList()
         repeatAllStashSeed = null
@@ -5483,7 +5610,7 @@ class PlaybackService : MediaLibraryService() {
                     // that ticks exactly while audio is coming out, which is what
                     // makes it the right place to count from.
                     player.currentMediaItem?.toSong()?.let {
-                        ListeningRecorder.onSample(it, player.duration)
+                        if (!PrivateSession.suspendsRecording()) ListeningRecorder.onSample(it, player.duration)
                     }
                     // Only two primitive preference values. Queue JSON is
                     // written from onTimelineChanged, never from this loop.
@@ -5626,6 +5753,7 @@ class PlaybackService : MediaLibraryService() {
         equalizer: EqualizerProcessor,
         transition: TransitionFilterProcessor,
         loudness: LoudnessProcessor,
+        mono: MonoMixProcessor,
     ) = object : DefaultRenderersFactory(this) {
         init {
             // Do not force PCM_FLOAT onto an OEM speaker mixer merely because
@@ -5736,7 +5864,7 @@ class PlaybackService : MediaLibraryService() {
             // them for the same reason: it belongs to the listener and
             // the whole session, while the transition filter belongs to
             // one handoff and has to have the last word on it.
-            val dspChain = DspChain(spatial, equalizer, transition, loudness)
+            val dspChain = DspChain(spatial, equalizer, transition, loudness, mono)
             return PrecisionAudioSink(
                 delegate = defaultSink,
                 dspChain = dspChain,
@@ -5760,6 +5888,7 @@ class PlaybackService : MediaLibraryService() {
     private fun applySettings(player: ExoPlayer) {
         player.skipSilenceEnabled = AppSettings.skipSilence.value
         player.applyPlaybackTuning()
+        monoMixA.enabled = monoMixB.enabled = AppSettings.monoAudioEnabled.value
         // Restore persisted shuffle and repeat states on startup. Assign both
         // values: Android can destroy and recreate the service while retaining
         // this process, so QueueShuffle's process-wide object may still hold
@@ -5836,6 +5965,7 @@ class PlaybackService : MediaLibraryService() {
             bluetoothTelemetry = btTelemetry,
             systemMixerRateHz = if (routeKind == AudioRouting.Kind.USB) 48000 else null,
         )
+        DeviceEqController.onRouteChanged(this, routeKind, AudioOutputStatus.current.value.deviceName)
 
         if (format != null) {
             resolvePreferredOutputEncoding(format)
@@ -5986,6 +6116,7 @@ class PlaybackService : MediaLibraryService() {
             equalizerProcessorA,
             transitionFilterA,
             loudnessA,
+            monoMixA,
             ownsSession = true,
         )
         val newSpare = buildPlayer(
@@ -5993,6 +6124,7 @@ class PlaybackService : MediaLibraryService() {
             equalizerProcessorB,
             transitionFilterB,
             loudnessB,
+            monoMixB,
             ownsSession = false,
         )
         player = newActive
@@ -6133,6 +6265,12 @@ class PlaybackService : MediaLibraryService() {
         }
         scope.launch {
             AppSettings.spatialAudio.collect { applySpatialAudioEnabled() }
+        }
+        scope.launch {
+            AppSettings.monoAudioEnabled.collect { enabled ->
+                monoMixA.enabled = enabled
+                monoMixB.enabled = enabled
+            }
         }
         scope.launch {
             AppSettings.loudnessNormalization.collect {
@@ -6595,7 +6733,7 @@ class PlaybackService : MediaLibraryService() {
     private fun submitListenBrainzFinished(song: Song, startMs: Long, durationMs: Long?) {
         val lbEnabled = AppSettings.scrobblingAvailable && AppSettings.listenBrainzEnabled.value
         val lbToken = AppSettings.listenBrainzToken.value
-        if (!lbEnabled || lbToken.isBlank()) return
+        if (!lbEnabled || lbToken.isBlank() || PrivateSession.suspendsRecording()) return
         val endMs = System.currentTimeMillis()
         scope.launch {
             ListenBrainzManager.submitFinished(lbToken, song, startMs, endMs, durationMs, AppSettings.listenBrainzPrimaryArtistOnly.value)
@@ -6606,7 +6744,7 @@ class PlaybackService : MediaLibraryService() {
     private fun submitListenBrainzPlayingNow(song: Song, positionMs: Long, durationMs: Long?) {
         val lbEnabled = AppSettings.scrobblingAvailable && AppSettings.listenBrainzEnabled.value
         val lbToken = AppSettings.listenBrainzToken.value
-        if (!lbEnabled || lbToken.isBlank()) return
+        if (!lbEnabled || lbToken.isBlank() || PrivateSession.suspendsRecording()) return
         scope.launch {
             ListenBrainzManager.submitPlayingNow(lbToken, song, positionMs, durationMs, AppSettings.listenBrainzPrimaryArtistOnly.value)
         }
@@ -6682,7 +6820,7 @@ class PlaybackService : MediaLibraryService() {
             val lbEnabled =
                 AppSettings.scrobblingAvailable && AppSettings.listenBrainzEnabled.value
             val lbToken = AppSettings.listenBrainzToken.value
-            if (lbEnabled && lbToken.isNotBlank()) {
+            if (lbEnabled && lbToken.isNotBlank() && !PrivateSession.suspendsRecording()) {
                 val lastStart = listenBrainzStartMs
                 val lastDuration = player?.duration?.takeIf { it > 0 }
                 CoroutineScope(Dispatchers.IO).launch {
@@ -7527,19 +7665,25 @@ class PlaybackService : MediaLibraryService() {
             params: LibraryParams?,
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> = scope.future(Dispatchers.IO) {
             val isGridFolder = parentId == MEDIA_ROOT_ID || parentId == MEDIA_PLAYLISTS_ID
-            val items: List<MediaItem> = when (parentId) {
-                MEDIA_ROOT_ID -> listOf(
-                    createFolderItem(MEDIA_QUICK_PICKS_ID, getString(R.string.auto_quick_picks), folderType = MediaMetadata.FOLDER_TYPE_PLAYLISTS),
-                    createFolderItem(MEDIA_RECENTS_ID, getString(R.string.auto_recents), folderType = MediaMetadata.FOLDER_TYPE_PLAYLISTS),
-                    createFolderItem(MEDIA_PLAYLISTS_ID, getString(R.string.playlists), folderType = MediaMetadata.FOLDER_TYPE_PLAYLISTS, isGrid = true),
-                    createFolderItem(MEDIA_LIKED_ID, getString(R.string.auto_liked), folderType = MediaMetadata.FOLDER_TYPE_PLAYLISTS),
-                    createFolderItem(MEDIA_MORE_ID, getString(R.string.more), folderType = MediaMetadata.FOLDER_TYPE_MIXED),
+            val items: List<MediaItem> = when {
+                // The new car tree: top-level sections, then everything under
+                // them, served from the same snapshots as the legacy tree. The
+                // legacy MEDIA_*_ID branches below stay for older head units
+                // and the other callbacks that reference them.
+                parentId == MEDIA_ROOT_ID -> AutoBrowseTree.topLevelItems(
+                    AutoBrowseTree.topLevelSections().associateWith(::autoSectionTitle),
                 )
-                MEDIA_MORE_ID -> listOf(
+                parentId.startsWith("auto2:") -> AutoBrowseTree.children(
+                    parentId,
+                    autoDataSource,
+                    page,
+                    pageSize,
+                )
+                parentId == MEDIA_MORE_ID -> listOf(
                     createFolderItem(MEDIA_DOWNLOADS_ID, getString(R.string.downloads), folderType = MediaMetadata.FOLDER_TYPE_MIXED),
                     createFolderItem(MEDIA_LOCAL_MUSIC_ID, getString(R.string.local_music), folderType = MediaMetadata.FOLDER_TYPE_MIXED),
                 )
-                MEDIA_RECENTS_ID -> {
+                parentId == MEDIA_RECENTS_ID -> {
                     val snapshot = snapshotRecents()
                     val songs = if (snapshot.isNotEmpty()) {
                         if (!isRecentsFresh()) {
@@ -7560,7 +7704,7 @@ class PlaybackService : MediaLibraryService() {
                         ),
                     )
                 }
-                MEDIA_QUICK_PICKS_ID -> {
+                parentId == MEDIA_QUICK_PICKS_ID -> {
                     val snapshot = snapshotQuickPicks()
                     val songs = if (snapshot.isNotEmpty()) {
                         if (!isQuickPicksFresh()) {
@@ -7586,7 +7730,7 @@ class PlaybackService : MediaLibraryService() {
                         ),
                     )
                 }
-                MEDIA_LIKED_ID -> {
+                parentId == MEDIA_LIKED_ID -> {
                     if (com.music.sonariq.data.innertube.Innertube.cookie == null) {
                         listOf(createLoginPromptItem())
                     } else {
@@ -7615,7 +7759,7 @@ class PlaybackService : MediaLibraryService() {
                         }
                     }
                 }
-                MEDIA_DOWNLOADS_ID -> {
+                parentId == MEDIA_DOWNLOADS_ID -> {
                     val downloaded = Downloads.getDownloadedSongs(this@PlaybackService)
                     downloaded.forEach { songCache[it.videoId] = it }
                     if (downloaded.isNotEmpty()) downloaded.map { it.toMediaItem() } else listOf(
@@ -7626,7 +7770,7 @@ class PlaybackService : MediaLibraryService() {
                         ),
                     )
                 }
-                MEDIA_PLAYLISTS_ID -> {
+                parentId == MEDIA_PLAYLISTS_ID -> {
                     if (com.music.sonariq.data.innertube.Innertube.cookie == null) {
                         listOf(createLoginPromptItem())
                     } else {
@@ -7650,7 +7794,7 @@ class PlaybackService : MediaLibraryService() {
                         )
                     }
                 }
-                MEDIA_LOCAL_MUSIC_ID -> {
+                parentId == MEDIA_LOCAL_MUSIC_ID -> {
                     val local = LocalMediaRepository.getLocalMusic(this@PlaybackService)
                     local.forEach { songCache[it.videoId] = it }
                     if (local.isNotEmpty()) local.map { it.toMediaItem() } else listOf(
@@ -7733,7 +7877,13 @@ class PlaybackService : MediaLibraryService() {
                 MEDIA_LOCAL_MUSIC_ID -> createFolderItem(MEDIA_LOCAL_MUSIC_ID, getString(R.string.local_music))
                 "msg:login_required" -> createLoginPromptItem()
                 else -> {
-                    if (mediaId.startsWith("msg:")) {
+                    if (mediaId.startsWith("auto2:")) {
+                        autoTreeItem(mediaId) ?: createInfoItem(
+                            "msg:unavailable|$mediaId",
+                            getString(R.string.auto_unavailable_title),
+                            getString(R.string.auto_unavailable_subtitle),
+                        )
+                    } else if (mediaId.startsWith("msg:")) {
                         createInfoItem(
                             mediaId,
                             getString(R.string.auto_unavailable_title),
@@ -7760,6 +7910,66 @@ class PlaybackService : MediaLibraryService() {
                 }
             }
             LibraryResult.ofItem(item, null)
+        }
+
+        /**
+         * Folder and track items for the new car tree's ids, backing
+         * [onGetItem] the way [AutoBrowseTree.children] backs [onGetChildren].
+         * Null when the id is unknown — the caller answers with the standard
+         * "unavailable" item instead.
+         */
+        private fun autoTreeItem(mediaId: String): MediaItem? {
+            if (mediaId.startsWith("auto2:track:")) {
+                val videoId = mediaId.removePrefix("auto2:track:")
+                val song = songCache[videoId] ?: return null
+                return with(AutoBrowseTree) { song.toAutoMediaItem() }
+            }
+            val section = AutoBrowseTree.topLevelSections().firstOrNull { it.id == mediaId }
+            if (section != null) {
+                return AutoBrowseTree.folderItem(
+                    id = section.id,
+                    title = autoSectionTitle(section),
+                    artwork = null,
+                    folderType = section.folderType,
+                    grid = section.grid,
+                )
+            }
+            val mood = autoDataSource.moodShelves().firstOrNull { it.id == mediaId }
+            if (mood != null) {
+                return AutoBrowseTree.folderItem(
+                    id = mood.id,
+                    title = mood.title,
+                    artwork = mood.artworkUrl,
+                    folderType = MediaMetadata.FOLDER_TYPE_PLAYLISTS,
+                    grid = true,
+                )
+            }
+            val playlist = autoDataSource.playlists().firstOrNull { it.id == mediaId }
+            if (playlist != null) {
+                return AutoBrowseTree.folderItem(
+                    id = playlist.id,
+                    title = playlist.title,
+                    artwork = playlist.artworkUrl,
+                    folderType = MediaMetadata.FOLDER_TYPE_PLAYLISTS,
+                    grid = true,
+                )
+            }
+            val librarySection = AutoBrowseTree.LibrarySection.entries.firstOrNull { it.id == mediaId }
+            if (librarySection != null) {
+                val (title, grid) = when (librarySection) {
+                    AutoBrowseTree.LibrarySection.PLAYLISTS -> getString(R.string.playlists) to true
+                    AutoBrowseTree.LibrarySection.LIKED -> getString(R.string.auto_liked) to false
+                    AutoBrowseTree.LibrarySection.LOCAL_MUSIC -> getString(R.string.local_music) to false
+                }
+                return AutoBrowseTree.folderItem(
+                    id = librarySection.id,
+                    title = title,
+                    artwork = null,
+                    folderType = MediaMetadata.FOLDER_TYPE_PLAYLISTS,
+                    grid = grid,
+                )
+            }
+            return null
         }
 
         override fun onPlaybackResumption(
@@ -7974,6 +8184,10 @@ class PlaybackService : MediaLibraryService() {
                         val local = LocalMediaRepository.getLocalMusic(this@PlaybackService)
                         local.forEach { songCache[it.videoId] = it }
                         resolved.addAll(local.map { it.toMediaItem() })
+                    }
+                    id.startsWith("auto2:track:") -> {
+                        val videoId = id.removePrefix("auto2:track:")
+                        songCache[videoId]?.let { resolved.add(it.toMediaItem()) }
                     }
                     songCache.containsKey(id) -> {
                         resolved.add(songCache[id]!!.toMediaItem())
