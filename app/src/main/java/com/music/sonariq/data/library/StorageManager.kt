@@ -38,10 +38,11 @@ object StorageManager {
         val audioCacheBytes: Long,
         val imageCacheBytes: Long,
         val artworkBytes: Long,
+    ) {
         /** audio + image cache: everything [clearCaches] removes. */
-        val clearableBytes: Long get() = audioCacheBytes + imageCacheBytes,
-        val totalBytes: Long get() = downloadsBytes + audioCacheBytes + imageCacheBytes + artworkBytes,
-    )
+        val clearableBytes: Long get() = audioCacheBytes + imageCacheBytes
+        val totalBytes: Long get() = downloadsBytes + audioCacheBytes + imageCacheBytes + artworkBytes
+    }
 
     /** What [clearCaches] removed, in bytes, for the confirmation line. */
     data class Cleared(val audioCacheBytes: Long, val imageCacheBytes: Long) {

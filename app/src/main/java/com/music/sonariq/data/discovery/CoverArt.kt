@@ -31,7 +31,7 @@ data class CoverPalette(
     val start: Int,
     val end: Int,
     val ink: Int = 0xFFFFFFFF.toInt(),
-    val inkDim: Int = 0xB3FFFFFF,
+    val inkDim: Int = 0xB3FFFFFF.toInt(),
 )
 
 /**

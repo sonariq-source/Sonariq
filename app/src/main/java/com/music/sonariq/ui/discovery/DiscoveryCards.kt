@@ -340,7 +340,7 @@ private val InkFaint = Color(0xFF8A7F9E)
 @Composable
 private fun CardFrame(
     accent: List<Color>,
-    content: @Composable () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     Box(Modifier.fillMaxSize().background(PlumBase)) {
         Box(
@@ -379,7 +379,7 @@ private fun CardEyebrow(text: String) {
 }
 
 @Composable
-private fun CardFooter(text: String) {
+private fun ColumnScope.CardFooter(text: String) {
     Spacer(Modifier.weight(1f))
     Text(
         text = text,
@@ -391,7 +391,7 @@ private fun CardFooter(text: String) {
 }
 
 @Composable
-private fun EmptyCardBody(title: String) {
+private fun ColumnScope.EmptyCardBody(title: String) {
     Spacer(Modifier.weight(1f))
     Text(
         text = title,

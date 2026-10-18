@@ -28,7 +28,6 @@ import com.music.sonariq.data.lyrics.LyricsSource
 import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.data.stats.SmartPlaylists
 import com.music.sonariq.data.stats.ListeningStats
-import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.ui.home.HomeSectionRanking
 import com.music.sonariq.ui.home.HomeSectionOrderStore
 import com.music.sonariq.data.innertube.Innertube

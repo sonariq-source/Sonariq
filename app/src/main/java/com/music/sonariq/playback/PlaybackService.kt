@@ -5888,7 +5888,8 @@ class PlaybackService : MediaLibraryService() {
     private fun applySettings(player: ExoPlayer) {
         player.skipSilenceEnabled = AppSettings.skipSilence.value
         player.applyPlaybackTuning()
-        monoMixA.enabled = monoMixB.enabled = AppSettings.monoAudioEnabled.value
+        monoMixA.enabled = AppSettings.monoAudioEnabled.value
+        monoMixB.enabled = AppSettings.monoAudioEnabled.value
         // Restore persisted shuffle and repeat states on startup. Assign both
         // values: Android can destroy and recreate the service while retaining
         // this process, so QueueShuffle's process-wide object may still hold

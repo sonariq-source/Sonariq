@@ -50,6 +50,10 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.music.sonariq.R
 import com.music.sonariq.data.YtMusicRepository
+import com.music.sonariq.data.discovery.FollowedArtist
+import com.music.sonariq.data.discovery.FollowedArtists
+import com.music.sonariq.data.discovery.RadarArtistRelease
+import com.music.sonariq.data.discovery.ReleaseRadar
 import com.music.sonariq.data.model.BrowseItem
 import com.music.sonariq.data.model.BrowseType
 import com.music.sonariq.data.model.HomeShelf
