@@ -357,6 +357,31 @@ object ListeningStats {
     }
 
     /**
+     * The artists the user has actually been listening to lately, most
+     * first. Scores each artist by total plays, doubled for plays in the
+     * last 30 days, so the home shelves rank by current taste rather than
+     * lifetime totals.
+     */
+    fun recentTopArtistNames(limit: Int = 10): List<String> {
+        val now = System.currentTimeMillis()
+        val thirtyDaysMs = 30L * 24 * 60 * 60 * 1000
+        val tracks = synchronized(lock) { open?.tracks?.values?.toList() }.orEmpty()
+        return tracks
+            .filter { it.artist.isNotBlank() }
+            .groupBy { it.artist }
+            .mapValues { (_, stats) ->
+                stats.sumOf { s ->
+                    val recent = s.plays > 0 && now - s.last < thirtyDaysMs
+                    s.plays * if (recent) 2 else 1
+                }
+            }
+            .entries
+            .sortedByDescending { it.value }
+            .take(limit)
+            .map { it.key }
+    }
+
+    /**
      * The lifetime milestones, merged off disk.
      *
      * Always all-time: a milestone is a lifetime achievement, and the period
@@ -779,23 +804,6 @@ object ListeningStats {
          * last 30 days, so the home shelves rank by current taste rather than
          * lifetime totals.
          */
-        fun recentTopArtistNames(limit: Int = 10): List<String> {
-            val now = System.currentTimeMillis()
-            val thirtyDaysMs = 30L * 24 * 60 * 60 * 1000
-            return tracks.values
-                .filter { it.artist.isNotBlank() }
-                .groupBy { it.artist }
-                .mapValues { (_, stats) ->
-                    stats.sumOf { s ->
-                        val recent = s.plays > 0 && now - s.last < thirtyDaysMs
-                        s.plays * if (recent) 2 else 1
-                    }
-                }
-                .entries
-                .sortedByDescending { it.value }
-                .take(limit)
-                .map { it.key }
-        }
     }
 
     /**
