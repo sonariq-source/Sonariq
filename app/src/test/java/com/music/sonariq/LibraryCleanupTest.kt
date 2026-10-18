@@ -110,7 +110,7 @@ class LibraryCleanupTest {
     @Test
     fun `a file name without artist-title shape suggests the title only`() {
         val gaps = LibraryCleanup.findMetadataGaps(
-            listOf(song("a", title = "", localPath = "/music/track01.mp3")),
+            listOf(song("a", title = "", artist = "", localPath = "/music/track01.mp3")),
         )
         val titleGap = gaps.first { it.field == "title" }
         assertEquals("track01", titleGap.suggestion)
