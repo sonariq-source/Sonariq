@@ -197,7 +197,7 @@ private const val GLOW_ALPHA = 0.62f
 private val LyricLime = Color(0xFFFFB020)
 
 /**
- * Tints for split vocal parts, from the Prism palette — coral for the
+ * The two voices of duet karaoke mode, from the Prism palette — coral for the
  * lead half, orchid for the harmony half. Same hexes as the app's theme and
  * the TV ambient glow; mirrored here because sharedUi cannot see them.
  */
@@ -2437,6 +2437,11 @@ internal fun LyricsPanel(
                 .padding(top = 4.dp, start = PLAYER_GUTTER, end = PLAYER_GUTTER),
         )
     }
+
+    // The live karaoke score, top-start over the lines — the search pill owns
+    // the top end. Drawn only while the scorer has a score, which is exactly
+    // when scoring is enabled and a song with lyrics is playing. Hidden while
+    // picking, like the search: the pick bar owns the chrome then.
 }
 
 /**
