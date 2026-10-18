@@ -43,6 +43,9 @@
 - **Mood & time-of-day** — a home section with time-aware stations.
 - **Phone-to-TV handoff** — fling playback from the phone app to Sonariq TV via a Listen Together party.
 - **Shared party queues** — party members add/remove songs in Listen Together.
+- **Party voting** — members vote on what plays next; the queue follows the votes.
+- **Party recap** — after the party: top tracks and who added what.
+- **Taste match** — a compatibility score with friends from real listening overlap.
 - **Collaborative playlists** — build playlists together through a Listen Together party.
 - **Friend activity feed** — see what friends are playing, from the party server.
 - **Concert alerts** — upcoming shows by your top artists via Ticketmaster.
@@ -53,6 +56,20 @@
 - **Offline downloads** — save tracks with embedded metadata.
 - **Local music library** integration.
 - **Background playback** via a proper foreground media session.
+- **Sonariq Radio** — endless station from any song, artist or playlist; the queue refills itself so the music never stops.
+- **Playlist folders** — organise playlists into folders, with smart rules that auto-fill (e.g. "5-star rock added this month").
+- **Queue 2.0** — save multiple named queues, browse queue history, swipe to reorder.
+- **Gestures** — swipe the artwork for next/previous, double-tap the sides to seek ±10s.
+- **New-release radar** — a feed of fresh drops from artists you follow.
+- **Playlist cover maker** — generate custom canvas-rendered artwork for your playlists.
+- **Monthly recap** — a shareable story of your month in music.
+- **Auto-downloads** — liked songs and chosen playlists download themselves; schedule overnight downloads.
+- **Storage manager** — real disk numbers for downloads, cache and artwork, with one-tap cache clear.
+- **Import/export playlists** — m3u files in and out.
+- **Library cleanup** — duplicate finder plus automatic metadata fixing for missing tags.
+- **Backup & restore** — one file saves your library, playlists, settings and history.
+- **Private session** — pause scrobbling and history when you don't want it counted.
+- **Data saver** — streaming quality cap plus WiFi-only mode.
 
 ### 🎤 Karaoke lyrics
 - **Word-synced lyrics** — true word timings from KuGou KRC and YouTube timed text, with clean karaoke-style highlighting.
@@ -109,9 +126,13 @@
 ### 🎛️ Sound & stats
 - **DJ mix mode** — tempo- and energy-aware crossfade transitions.
 - **7-band EQ** with user presets and tone trims.
+- **Per-device EQ profiles** — your EQ follows the output: one setting for earbuds, another for the speaker.
+- **Mono audio mix** — downmix to mono for single-ear listening.
+- **EQ preset sharing** — send your sound to friends as a Sonariq link.
 - **Playback speed control** (0.5×–2.0×) and **skip silence**.
 - **Sleep timer** — fixed presets or "stop after this track", with gradual fade-out over the last 60 seconds.
 - **Weekly Replay** — your listening stats, milestones and smart playlists.
+- **Stats 2.0** — listening streaks, genre breakdown, top tracks and artists, all shareable as cards.
 - **Stats for nerds** — codec, bit depth, sample rate on the now-playing screen.
 
 ### 🔗 Connectivity
@@ -130,7 +151,7 @@
 
 *A separate app for the big screen — same music engine, 10-foot UI.*
 
-Sonariq TV (`com.sonariq.tv`) plays music **on the TV itself** with a remote-friendly interface: big search, D-pad navigation, and full-screen karaoke lyrics that follow the song. New in this update: **Listen Together on TV** (host and join parties from the couch) and **ambient mode** (artwork + drifting visuals when idle).
+Sonariq TV (`com.sonariq.tv`) plays music **on the TV itself** with a remote-friendly interface: big search, D-pad navigation, and full-screen karaoke lyrics that follow the song. **Listen Together on TV** (host and join parties from the couch) and **ambient mode 2.0** — a fullscreen now-playing screensaver with live lyrics when idle.
 
 > [!NOTE]
 > Sonariq TV ships on the same [Releases](https://github.com/sonariq-source/Sonariq/releases) page as the phone app — one release carries both APKs, and each app's in-app updater automatically picks the right one.
