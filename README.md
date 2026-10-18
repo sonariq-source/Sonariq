@@ -9,7 +9,7 @@
 
 ### Your music, in prism.
 
-*The music player that feels alive — liquid glass, karaoke lyrics, and sound that moves with you.*
+*The music player that feels alive — liquid glass, synced lyrics, and sound that moves with you.*
 
 <br/>
 
@@ -71,19 +71,14 @@
 - **Private session** — pause scrobbling and history when you don't want it counted.
 - **Data saver** — streaming quality cap plus WiFi-only mode.
 
-### 🎤 Karaoke lyrics
-- **Word-synced lyrics** — true word timings from KuGou KRC and YouTube timed text, with clean karaoke-style highlighting.
+### 🎵 Synced lyrics
+- **Word-synced lyrics** — true word timings with clean highlighting.
 - **Fully automatic** — every provider is raced in parallel; the best sync wins with zero setup.
 - **Smart timing** — cross-checks providers so the first line never jumps the gun on instrumental intros.
-- **Karaoke pause-hold** — each word lands discretely and holds through the silence, just like the pros.
 - **Clean UI** — no provider badges, no sync estimates. Just the words.
 - **Translations & romanisation**, per-track offset, in-lyrics search and copy.
 - **Lyrics translation overlay** — automatic translated subtitle lines in Now Playing (an explicit romanise tap wins over the overlay).
-- **Duet karaoke** — split-screen lead/harmony lyrics mode.
-- **Karaoke party mode** — turn-based multiplayer scoring.
-- **Karaoke scoring** — sing along with the mic; pitch detection scores your performance 0–100.
-- **Karaoke key changer** — shift any song −6…+6 semitones in Settings to match your voice.
-- **Lock-screen lyrics** — the current line shows right on your lock screen as you sing.
+- **Lock-screen lyrics** — the current line shows right on your lock screen.
 
 ### 🤖 Smart autoplay & AI radio
 - **Vibe autoplay engine** — detects the vibe of what you're playing (Last.fm listener tags + on-device tempo/key/energy analysis + your listening behaviour) and keeps the music flowing in that mood forever; the queue refills when 3 songs remain, skips teach it your taste, and a vibe badge on Now Playing shows what it's feeling.
@@ -120,7 +115,7 @@
 - **Smart Downloads 2.0** — time/daypart pattern prediction learns when you listen.
 - **True offline mode** — a single Settings toggle for downloads-only playback.
 - **Automatic daily downloads** of your favourites — Wi-Fi and charging aware.
-- **Offline lyrics prefetch** so karaoke works without a connection.
+- **Offline lyrics prefetch** so lyrics work without a connection.
 - Storage estimates and 25/50/100 track limits.
 
 ### 🎛️ Sound & stats
@@ -140,7 +135,7 @@
 - **Streaming integration** — link your streaming account to play your playlists and Liked Songs.
 - **Discord Rich Presence** — live track/artist/album and progress.
 - **Scrobbling** to Last.fm and ListenBrainz.
-- **Cast to TV** — audio casting plus synced karaoke lyrics on a custom receiver.
+- **Cast to TV** — audio casting plus synced lyrics on a custom receiver.
 - **Pluggable sources** — add, edit, test and health-check module sources.
 
 ---
@@ -151,7 +146,7 @@
 
 *A separate app for the big screen — same music engine, 10-foot UI.*
 
-Sonariq TV (`com.sonariq.tv`) plays music **on the TV itself** with a remote-friendly interface: big search, D-pad navigation, and full-screen karaoke lyrics that follow the song. **Listen Together on TV** (host and join parties from the couch) and **ambient mode 2.0** — a fullscreen now-playing screensaver with live lyrics when idle.
+Sonariq TV (`com.sonariq.tv`) plays music **on the TV itself** with a remote-friendly interface: big search, D-pad navigation, and full-screen lyrics that follow the song. **Listen Together on TV** (host and join parties from the couch) and **ambient mode 2.0** — a fullscreen now-playing screensaver with live lyrics when idle.
 
 > [!NOTE]
 > Sonariq TV ships on the same [Releases](https://github.com/sonariq-source/Sonariq/releases) page as the phone app — one release carries both APKs, and each app's in-app updater automatically picks the right one.
