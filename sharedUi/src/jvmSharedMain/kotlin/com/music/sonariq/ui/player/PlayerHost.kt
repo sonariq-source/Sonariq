@@ -123,8 +123,6 @@ interface PlayerHost {
      */
     @Composable
     fun LyricsShareSheet(hazeState: HazeState, request: LyricsShareRequest, onDismiss: () -> Unit) = Unit
-
-    /**
 }
 
 private val NoCast = MutableStateFlow(CastUi())
