@@ -638,6 +638,7 @@ fun ListenTogetherScreen(
                 onAddSongs = { sheet = PartySheet.AddSongs },
                 onRemoveTrack = ListenTogether::queueRemove,
                 onClearQueue = ListenTogether::queueClear,
+                onOpenRecap = { recapOpen = true },
             )
             // Inside the party branch on purpose. A log of who skipped what is
             // a thing to look back over while a party is running; on the page
@@ -968,6 +969,7 @@ private fun InAParty(
     onAddSongs: () -> Unit,
     onRemoveTrack: (String) -> Unit,
     onClearQueue: () -> Unit,
+    onOpenRecap: () -> Unit,
 ) {
     SettingsGroup(
         header = stringResource(R.string.listen_together_code),
@@ -1007,7 +1009,7 @@ private fun InAParty(
         onAddSongs = onAddSongs,
         onRemoveTrack = onRemoveTrack,
         onClearQueue = onClearQueue,
-        onOpenRecap = { recapOpen = true },
+        onOpenRecap = onOpenRecap,
     )
 
     SettingsGroup(
