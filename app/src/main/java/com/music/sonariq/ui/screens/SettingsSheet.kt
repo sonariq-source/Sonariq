@@ -231,7 +231,6 @@ fun SettingsScreen(
     onTranslationLanguage: () -> Unit,
     onSources: () -> Unit,
     onListenTogether: () -> Unit,
-    onOpenKaraokeParty: () -> Unit,
     onSpotifyCanvasAuth: () -> Unit,
     onAppLanguage: () -> Unit,
     contentPadding: PaddingValues,
@@ -266,7 +265,6 @@ fun SettingsScreen(
     val lyricsFontSizeSp by AppSettings.lyricsFontSizeSp.collectAsStateWithLifecycle()
     val lyricsAutoScroll by AppSettings.lyricsAutoScroll.collectAsStateWithLifecycle()
     val lyricsKaraokeEffects by AppSettings.lyricsKaraokeEffects.collectAsStateWithLifecycle()
-    val duetKaraoke by AppSettings.duetKaraoke.collectAsStateWithLifecycle()
     val visualizerStyle by AppSettings.visualizerStyle.collectAsStateWithLifecycle()
     val visualizerIntensity by AppSettings.visualizerIntensity.collectAsStateWithLifecycle()
     val visualizerBatterySaver by AppSettings.visualizerBatterySaver.collectAsStateWithLifecycle()
@@ -1151,109 +1149,6 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.karaoke), headerIcon = Icons.Rounded.Mic) {
-            val pitch by AppSettings.karaokePitch.collectAsStateWithLifecycle()
-            row("key changer", "pitch", "semitone", "karaoke") {
-                SettingsRow(
-                    icon = Icons.Rounded.Mic,
-                    title = stringResource(R.string.karaoke_key_changer),
-                    subtitle = if (pitch == 0f) {
-                        stringResource(R.string.karaoke_key_original)
-                    } else {
-                        stringResource(
-                            R.string.karaoke_key_shifted,
-                            if (pitch > 0) "+" else "",
-                            pitch.toInt(),
-                        )
-                    },
-                    trailing = {
-                        // Inline stepper: - / value / +
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(
-                                onClick = { AppSettings.setKaraokePitch(pitch - 1f) },
-                                enabled = pitch > -6f,
-                            ) {
-                                Icon(Icons.Rounded.Remove, contentDescription = "Lower key")
-                            }
-                            Text(
-                                text = if (pitch == 0f) "0" else "${if (pitch > 0) "+" else ""}${pitch.toInt()}",
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.width(40.dp),
-                                textAlign = TextAlign.Center,
-                            )
-                            IconButton(
-                                onClick = { AppSettings.setKaraokePitch(pitch + 1f) },
-                                enabled = pitch < 6f,
-                            ) {
-                                Icon(Icons.Rounded.Add, contentDescription = "Raise key")
-                            }
-                        }
-                    },
-                    onClick = { /* stepper handles it */ },
-                )
-            }
-            row("reset key", "karaoke") {
-                SettingsRow(
-                    icon = Icons.Rounded.Refresh,
-                    title = stringResource(R.string.karaoke_reset_key),
-                    subtitle = stringResource(R.string.karaoke_reset_key_subtitle),
-                    onClick = { AppSettings.setKaraokePitch(0f) },
-                )
-            }
-            // Mic-based singing score. The permission is asked for here, the
-            // moment scoring is turned on — never before. Denied, scoring
-            // stays off and the toggle with it: nothing nags.
-            val micPermissionLauncher = rememberLauncherForActivityResult(
-                ActivityResultContracts.RequestPermission(),
-            ) { granted ->
-                if (granted) AppSettings.setKaraokeScoring(true)
-            }
-            row("karaoke scoring", "mic", "sing", "score", "voice") {
-                val scoring by AppSettings.karaokeScoring.collectAsStateWithLifecycle()
-                val enableScoring = {
-                    if (ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.RECORD_AUDIO,
-                        ) == PackageManager.PERMISSION_GRANTED
-                    ) {
-                        AppSettings.setKaraokeScoring(true)
-                    } else {
-                        micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
-                }
-                SettingsRow(
-                    icon = Icons.Rounded.Star,
-                    title = stringResource(R.string.karaoke_scoring),
-                    subtitle = stringResource(R.string.karaoke_scoring_subtitle),
-                    trailing = {
-                        Switch(
-                            checked = scoring,
-                            onCheckedChange = { wanted ->
-                                if (wanted) enableScoring() else AppSettings.setKaraokeScoring(false)
-                            },
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
-                        )
-                    },
-                    onClick = {
-                        if (scoring) AppSettings.setKaraokeScoring(false) else enableScoring()
-                    },
-                )
-            }
-            // Turn-based multiplayer scoring: the room takes turns singing,
-            // one song each, scored live by the mic. Opens the party screen.
-            row("karaoke party", "party", "multiplayer", "versus", "score") {
-                SettingsRow(
-                    icon = Icons.Rounded.Groups,
-                    title = stringResource(R.string.karaoke_party),
-                    subtitle = stringResource(R.string.karaoke_party_subtitle),
-                    trailing = { Chevron() },
-                    onClick = onOpenKaraokeParty,
-                )
-            }
-        }
 
         SearchableSettingsGroup(search, header = stringResource(R.string.appearance), headerIcon = Icons.Rounded.Palette) {
             val themeTitle = stringResource(R.string.theme)
@@ -1662,28 +1557,6 @@ fun SettingsScreen(
                             )
                         },
                         onClick = { AppSettings.setLyricsKaraokeEffects(!lyricsKaraokeEffects) },
-                    )
-                }
-                // Word timings split down the middle: the first half reads as
-                // the lead in coral, the second as the harmony in orchid. Only
-                // word-synced lines split — line-synced ones render normally.
-                val duetKaraokeTitle = stringResource(R.string.duet_karaoke)
-                row(duetKaraokeTitle, "lyrics", "karaoke", "duet", "harmony", "lead", "split") {
-                    SettingsRow(
-                        icon = Icons.Rounded.Groups,
-                        title = duetKaraokeTitle,
-                        subtitle = stringResource(R.string.duet_karaoke_subtitle),
-                        trailing = {
-                            Switch(
-                                checked = duetKaraoke,
-                                onCheckedChange = AppSettings::setDuetKaraoke,
-                                colors = SwitchDefaults.colors(
-                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
-                                ),
-                            )
-                        },
-                        onClick = { AppSettings.setDuetKaraoke(!duetKaraoke) },
                     )
                 }
                 val lockscreenLyricsTitle = stringResource(R.string.lockscreen_lyrics)

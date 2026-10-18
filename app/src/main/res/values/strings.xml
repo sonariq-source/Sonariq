@@ -178,38 +178,6 @@
     <string name="moment_subtitle_personal">Built from your listening</string>
     <string name="moment_subtitle_fresh">Fresh picks for this time of day</string>
     <string name="moment_play_station">Play station</string>
-    <string name="karaoke">Karaoke</string>
-    <string name="karaoke_scoring">Karaoke scoring</string>
-    <string name="karaoke_scoring_subtitle">Score your singing with the microphone</string>
-    <string name="karaoke_party">Karaoke party</string>
-    <string name="karaoke_party_subtitle">Take turns singing \u2014 live mic scores, leaderboard at the end</string>
-    <string name="karaoke_party_player_name">Player name</string>
-    <string name="karaoke_party_add_player">Add player</string>
-    <string name="karaoke_party_start_party">Start party</string>
-    <string name="karaoke_party_need_players">Add at least one player to start the party</string>
-    <string name="karaoke_party_scoring_ready">Mic scoring is on \u2014 scores are real, sung into the mic</string>
-    <string name="karaoke_party_scoring_off">Mic scoring is off \u2014 turn it on for real scores</string>
-    <string name="karaoke_party_enable_scoring">Enable mic scoring</string>
-    <string name="karaoke_party_no_mic">No microphone found \u2014 turns will be unscored</string>
-    <string name="karaoke_party_up_next">Up next</string>
-    <string name="karaoke_party_now_singing">Now singing</string>
-    <string name="karaoke_party_play_song_first">Play any song, then start the turn</string>
-    <string name="karaoke_party_start_turn">Start turn</string>
-    <string name="karaoke_party_end_turn">End turn</string>
-    <string name="karaoke_party_live_score">Live score</string>
-    <string name="karaoke_party_leaderboard">Leaderboard</string>
-    <string name="karaoke_party_no_score">No score</string>
-    <string name="karaoke_party_why_scoring_off">Mic scoring was off</string>
-    <string name="karaoke_party_why_no_mic">Microphone unavailable</string>
-    <string name="karaoke_party_why_no_score">Nothing scored \u2014 sing into the mic while lyrics play</string>
-    <string name="karaoke_party_again">Party again</string>
-    <string name="karaoke_party_new_party">New party</string>
-    <string name="karaoke_party_turn_progress">Singer %1$d of %2$d</string>
-    <string name="karaoke_key_changer">Key changer</string>
-    <string name="karaoke_key_original">Original key</string>
-    <string name="karaoke_key_shifted">%1$s%2$d semitones</string>
-    <string name="karaoke_reset_key">Reset key</string>
-    <string name="karaoke_reset_key_subtitle">Back to the original key</string>
     <string name="automatic_update_check">Check for updates automatically</string>
     <string name="automatic_update_check_subtitle">Look for a new version every time the app opens</string>
     <string name="check_for_updates">Check for updates</string>
@@ -1182,12 +1150,10 @@
 
     <string name="lyrics_auto_scroll_subtitle">Follow the song on your own; turn off to stay put</string>
 
-    <string name="lyrics_karaoke_effects">Karaoke effects</string>
+    <string name="lyrics_karaoke_effects">Word highlighting</string>
 
     <string name="lyrics_karaoke_effects_subtitle">Light words one by one as they’re sung</string>
-    <string name="duet_karaoke">Duet karaoke</string>
 
-    <string name="duet_karaoke_subtitle">Split each line into a lead and a harmony part</string>
 
     <string name="lockscreen_lyrics">Lock screen lyrics</string>
 

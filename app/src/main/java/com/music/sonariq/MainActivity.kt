@@ -184,7 +184,6 @@ import com.music.sonariq.ui.screens.LIBRARY_SHELF_ROW_PREFIX
 import com.music.sonariq.ui.screens.libraryLinks
 import com.music.sonariq.ui.screens.CACHE_FOLDER_BROWSE_ID
 import com.music.sonariq.ui.screens.ListenTogetherScreen
-import com.music.sonariq.ui.screens.KaraokePartyScreen
 import com.music.sonariq.ui.screens.OfflineLibraryScreen
 import com.music.sonariq.ui.screens.PartyServerEditor
 import com.music.sonariq.ui.screens.SettingsScreen
@@ -640,7 +639,6 @@ private fun SonariqApp(
     var showAccountScrobbling by rememberSaveable { mutableStateOf(false) }
     var showSources by rememberSaveable { mutableStateOf(false) }
     var showListenTogether by rememberSaveable { mutableStateOf(false) }
-    var showKaraokeParty by rememberSaveable { mutableStateOf(false) }
     var showEqualizer by rememberSaveable { mutableStateOf(false) }
     // Discovery pages: listening insights, the new-release radar and the
     // monthly recap. Opened from Library/Home rows via these flags.
@@ -2724,7 +2722,7 @@ private fun SonariqApp(
             }
         }
         BackHandler(
-            enabled = detail != null && !showSettings && !showAccountScrobbling && !showSources && !showListenTogether && !showKaraokeParty &&
+            enabled = detail != null && !showSettings && !showAccountScrobbling && !showSources && !showListenTogether &&
                 !showEqualizer && !showReplay && !showInsights && !showRadar && !showMonthlyRecap && coverMakerArgs == null,
         ) { viewModel.closeDetail() }
         BackHandler(enabled = selectedMoodGenre != null && detail == null && !showSettings && !showReplay) {
@@ -2748,9 +2746,6 @@ private fun SonariqApp(
             showListenTogether = false
             if (settingsSubScreen == "listen_together") settingsSubScreen = null
         }
-        BackHandler(enabled = showKaraokeParty) {
-            showKaraokeParty = false
-        }
         BackHandler(enabled = showEqualizer) {
             showEqualizer = false
             if (settingsSubScreen == "equalizer") settingsSubScreen = null
@@ -2763,7 +2758,7 @@ private fun SonariqApp(
         // One back step out of Settings, or out of any tab but Home, lands on
         // Home rather than exiting — only Home itself hands back to the system,
         // which is what actually closes/minimizes the app.
-        BackHandler(enabled = showSettings && !showSpotify && !showAccountScrobbling && !showSources && !showListenTogether && !showKaraokeParty && !showEqualizer && !showReplay && !showInsights && !showRadar && !showMonthlyRecap && coverMakerArgs == null) {
+        BackHandler(enabled = showSettings && !showSpotify && !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer && !showReplay && !showInsights && !showRadar && !showMonthlyRecap && coverMakerArgs == null) {
             showSettings = false
             // Only when Settings was the whole of what was on screen. Opened
             // over Replay or over a release page, closing it reveals that again
@@ -2772,7 +2767,7 @@ private fun SonariqApp(
         }
         BackHandler(
             enabled = detail == null && !showSettings && !showAccountScrobbling && !showSpotify &&
-                !showSources && !showListenTogether && !showKaraokeParty && !showEqualizer && !showReplay && !showInsights &&
+                !showSources && !showListenTogether && !showEqualizer && !showReplay && !showInsights &&
                 !showRadar && !showMonthlyRecap && coverMakerArgs == null && selectedMoodGenre == null &&
                 selectedTab != TAB_HOME,
         ) {
@@ -2817,7 +2812,6 @@ private fun SonariqApp(
                         showAccountScrobbling -> "account_scrobbling"
                         showSources -> "sources"
                         showListenTogether -> "listen_together"
-                        showKaraokeParty -> "karaoke_party"
                         showEqualizer -> "equalizer"
                         // Discovery pages sit above the detail stack they can
                         // be opened over, like Replay does.
@@ -3152,11 +3146,6 @@ private fun SonariqApp(
                             contentPadding = listPadding,
                             onEditServer = { editingPartyServer = true },
                         )
-                    } else if (key == "karaoke_party") {
-                        KaraokePartyScreen(
-                            song = player.song,
-                            contentPadding = listPadding,
-                        )
                     } else if (key == "equalizer") {
                         EqualizerScreen(contentPadding = listPadding)
                     } else if (key == "settings") {
@@ -3191,7 +3180,6 @@ private fun SonariqApp(
                                 settingsSubScreen = "listen_together"
                                 showListenTogether = true
                             },
-                            onOpenKaraokeParty = { showKaraokeParty = true },
                             onSpotifyCanvasAuth = { showSpotifyCanvasAuth = true },
                             onAppLanguage = { showAppLanguage = true },
                             contentPadding = listPadding,
@@ -3900,7 +3888,7 @@ private fun SonariqApp(
                         detail.type == BrowseType.PLAYLIST ||
                         detail.type == BrowseType.ARTIST) &&
                     !isLocalDetail && !showDiscord && !showHistory && !showSettings &&
-                    !showAccountScrobbling && !showSources && !showListenTogether && !showKaraokeParty && !showEqualizer && !showReplay
+                    !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer && !showReplay
                 val chromePageColor = if (isDetailVisible) {
                     detailPalette.background
                 } else {
@@ -3945,7 +3933,6 @@ private fun SonariqApp(
                         showAccountScrobbling -> stringResource(R.string.account_scrobbling)
                         showSources -> stringResource(R.string.sources)
                         showListenTogether -> stringResource(R.string.listen_together)
-                        showKaraokeParty -> stringResource(R.string.karaoke_party)
                         showEqualizer -> stringResource(R.string.equalizer)
                         showSettings -> stringResource(R.string.settings)
                         showReplay -> stringResource(R.string.replay)
@@ -3965,7 +3952,7 @@ private fun SonariqApp(
                     // Search has no large in-list header to hand the title back to —
                     // the field takes that space — so its bar title is always up.
                     scrolled = when {
-                        showSettings || showAccountScrobbling || showSources || showListenTogether || showKaraokeParty ||
+                        showSettings || showAccountScrobbling || showSources || showListenTogether ||
                             showEqualizer ||
                             showDiscord || showHistory ||
                             (libraryShowAll != null && detail == null) ||
@@ -3987,7 +3974,6 @@ private fun SonariqApp(
                         showAccountScrobbling -> ({ showAccountScrobbling = false })
                         showSources -> ({ showSources = false })
                         showListenTogether -> ({ showListenTogether = false })
-                        showKaraokeParty -> ({ showKaraokeParty = false })
                         showEqualizer -> ({ showEqualizer = false })
                         showInsights -> ({ showInsights = false })
                         showRadar -> ({ showRadar = false })
@@ -4007,7 +3993,7 @@ private fun SonariqApp(
                     accessory = if (
                         selectedTab == TAB_SEARCH && detail == null && selectedMoodGenre == null &&
                         libraryShowAll == null && !showSettings && !showAccountScrobbling &&
-                        !showSources && !showListenTogether && !showKaraokeParty && !showEqualizer && !showDiscord &&
+                        !showSources && !showListenTogether && !showEqualizer && !showDiscord &&
                         !showHistory && !showReplay
                     ) {
                         {
@@ -4099,7 +4085,7 @@ private fun SonariqApp(
                         }
                         // Only worth surfacing where there's room for it and it won't
                         // be mistaken for a per-page action — Home, at rest.
-                        if (!showSettings && !showAccountScrobbling && !showSources && !showListenTogether && !showKaraokeParty && !showEqualizer &&
+                        if (!showSettings && !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer &&
                             detail == null && selectedTab == TAB_HOME
                         ) {
                             updateNotice?.let { update ->
