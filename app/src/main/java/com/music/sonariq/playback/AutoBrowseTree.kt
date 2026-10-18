@@ -172,8 +172,10 @@ object AutoBrowseTree {
                 val mood = source.moodShelves().firstOrNull { it.id == parentId }
                 if (mood != null) {
                     source.moodTracks(mood.id).map { it.toAutoMediaItem() }
-                } else {
+                } else if (source.playlists().any { it.id == parentId }) {
                     source.playlistTracks(parentId).map { it.toAutoMediaItem() }
+                } else {
+                    emptyList()
                 }
             }
         }

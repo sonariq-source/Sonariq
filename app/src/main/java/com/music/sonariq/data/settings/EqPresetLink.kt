@@ -107,12 +107,15 @@ object EqPresetLink {
         val uri = runCatching { URI(value?.trim() ?: return null) }.getOrNull() ?: return null
         val scheme = uri.scheme?.lowercase() ?: return null
         val host = uri.host?.lowercase() ?: return null
-        val payload = uri.path.orEmpty().trim('/').takeIf { it.isNotBlank() } ?: return null
-        return when {
-            scheme == "https" && host == SonariqLinks.WEB_HOST -> decode(payload)
-            scheme == SonariqLinks.SCHEME && host == PATH -> decode(payload)
+        val path = uri.path.orEmpty().trim('/')
+        val payload = when {
+            scheme == "https" && host == SonariqLinks.WEB_HOST && path.startsWith("$PATH/") ->
+                path.removePrefix("$PATH/").takeIf { it.isNotBlank() }
+            scheme == SonariqLinks.SCHEME && host == PATH ->
+                path.takeIf { it.isNotBlank() }
             else -> null
-        }
+        } ?: return null
+        return decode(payload)
     }
 
     /**
