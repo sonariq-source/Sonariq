@@ -69,8 +69,8 @@ class SavedQueuesTest {
     @Test
     fun `queues survive an encode decode round trip`() {
         val queues = listOf(
-            SavedQueues.create("Road trip", listOf(song("a"), song("b"))),
-            SavedQueues.create("Gym", listOf(song("c"))),
+            SavedQueues.create("Road trip", listOf(song("a"), song("b")))!!,
+            SavedQueues.create("Gym", listOf(song("c")))!!,
         )
         val decoded = SavedQueues.decode(SavedQueues.encode(queues))
         assertEquals(queues.map { it.name }, decoded.map { it.name })
