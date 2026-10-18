@@ -2438,10 +2438,7 @@ internal fun LyricsPanel(
         )
     }
 
-    // The live karaoke score, top-start over the lines — the search pill owns
-    // the top end. Drawn only while the scorer has a score, which is exactly
-    // when scoring is enabled and a song with lyrics is playing. Hidden while
-    // picking, like the search: the pick bar owns the chrome then.
+    }
 }
 
 /**
