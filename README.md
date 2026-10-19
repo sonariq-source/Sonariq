@@ -17,6 +17,7 @@
 [![License](https://img.shields.io/github/license/sonariq-source/Sonariq?style=for-the-badge&labelColor=1a0b1e&color=c084fc)](https://github.com/sonariq-source/Sonariq/blob/sonariq/LICENSE)
 [![Build](https://img.shields.io/github/actions/workflow/status/sonariq-source/Sonariq/build.yml?branch=sonariq&style=for-the-badge&labelColor=1a0b1e&color=22d3ee&label=build)](https://github.com/sonariq-source/Sonariq/actions)
 [![Downloads](https://img.shields.io/github/downloads/sonariq-source/Sonariq/total?style=for-the-badge&labelColor=1a0b1e&color=a3e635)](https://github.com/sonariq-source/Sonariq/releases)
+[![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&labelColor=1a0b1e&logo=ko-fi&logoColor=white)](https://ko-fi.com/sonariqstudio)
 
 <br/>
 
@@ -171,6 +172,18 @@ For the Windows and Linux desktop app, see [DESKTOP.md](DESKTOP.md).
 ### 🍏 iOS (Beta)
 
 Sonariq for iPhone is in beta — a native Swift/SwiftUI app with a Liquid Glass interface, true word-by-word synced lyrics, a real 7-band equalizer, and Live Activity. Grab the beta IPA and install guide at [Sonariq-iOS](https://github.com/sonariq-source/Sonariq-iOS).
+
+</div>
+
+---
+
+<div align="center">
+
+## ☕ Support Sonariq
+
+Sonariq is free and made by an independent developer. If it soundtracks your days, consider [buying a coffee](https://ko-fi.com/sonariqstudio) — every bit goes back into new features, design polish, and keeping the servers running.
+
+<a href="https://ko-fi.com/sonariqstudio" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Support Sonariq on Ko-fi" /></a>
 
 </div>
 
