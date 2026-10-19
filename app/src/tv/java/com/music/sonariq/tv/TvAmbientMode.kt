@@ -1,11 +1,5 @@
 package com.music.sonariq.tv
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -38,7 +31,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.session.MediaController
-import coil3.compose.AsyncImage
 import com.music.sonariq.R
 import com.music.sonariq.data.lyrics.LyricLine
 import com.music.sonariq.data.lyrics.LyricsRepository
@@ -83,23 +75,14 @@ internal fun TvAmbientOverlay(
             .fillMaxSize()
             .background(AmbientMidnight),
     ) {
-        // Big dimmed artwork backdrop.
-        if (!track.artworkUrl.isNullOrBlank()) {
-            AsyncImage(
-                model = track.artworkUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.66f)),
-        )
+        // No full-screen artwork: a full-res decode every track is the
+        // heaviest thing this screen did on weak TV hardware. The static
+        // glow below carries the visual instead.
 
-        // Slow drifting Prism glow — the only motion on screen.
-        AmbientGlowField()
+        // A calm static glow behind the dim — no animation. The old version ran
+        // three infinite transitions here; on a weak TV GPU that is constant
+        // redraw for a screen that sits idle for hours.
+        AmbientGlowStatic()
 
         Column(
             modifier = Modifier
@@ -148,67 +131,30 @@ internal fun TvAmbientOverlay(
 }
 
 /**
- * Three soft Prism orbs drifting slowly behind the artwork dim — a calm,
- * never-repeating glow. Radial gradients only, no blur (minSdk 26).
+ * Three soft Prism orbs, frozen in place — a calm static glow. Radial
+ * gradients only, no blur, no animation: this screen sits idle for hours
+ * on weak TV hardware, so nothing here may redraw on its own.
  */
 @Composable
-private fun AmbientGlowField() {
-    val transition = rememberInfiniteTransition(label = "ambient-glow")
-    val driftX by transition.animateFloat(
-        initialValue = -140f,
-        targetValue = 140f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 26000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "driftX",
-    )
-    val driftY by transition.animateFloat(
-        initialValue = -90f,
-        targetValue = 90f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 31000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "driftY",
-    )
-    val pulse by transition.animateFloat(
-        initialValue = 0.72f,
-        targetValue = 1.14f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 6000),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "pulse",
-    )
-
+private fun AmbientGlowStatic() {
     Box(modifier = Modifier.fillMaxSize()) {
         AmbientOrb(
             color = AmbientCoral,
             diameter = 460.dp,
             alignment = Alignment.TopStart,
-            offsetX = driftX,
-            offsetY = driftY,
-            scale = pulse,
-            alpha = 0.30f,
+            alpha = 0.22f,
         )
         AmbientOrb(
             color = AmbientOrchid,
             diameter = 560.dp,
             alignment = Alignment.BottomEnd,
-            offsetX = -driftX,
-            offsetY = -driftY,
-            scale = 1.86f - pulse,
-            alpha = 0.26f,
+            alpha = 0.18f,
         )
         AmbientOrb(
             color = AmbientCyan,
             diameter = 320.dp,
             alignment = Alignment.Center,
-            offsetX = driftY,
-            offsetY = driftX,
-            scale = pulse,
-            alpha = 0.22f,
+            alpha = 0.16f,
         )
     }
 }
@@ -218,9 +164,6 @@ private fun AmbientOrb(
     color: Color,
     diameter: Dp,
     alignment: Alignment,
-    offsetX: Float,
-    offsetY: Float,
-    scale: Float,
     alpha: Float,
 ) {
     Box(
@@ -229,8 +172,7 @@ private fun AmbientOrb(
     ) {
         Box(
             modifier = Modifier
-                .offset(x = offsetX.dp, y = offsetY.dp)
-                .size(diameter * scale)
+                .size(diameter)
                 .background(
                     brush = Brush.radialGradient(
                         0f to color.copy(alpha = alpha),

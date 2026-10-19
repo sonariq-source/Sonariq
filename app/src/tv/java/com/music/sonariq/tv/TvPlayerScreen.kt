@@ -1,11 +1,11 @@
 package com.music.sonariq.tv
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Pause
@@ -23,10 +24,12 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -38,24 +41,33 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import coil3.compose.AsyncImage
 import com.music.sonariq.data.lyrics.LyricLine
 import com.music.sonariq.data.lyrics.LyricsRepository
 import com.music.sonariq.data.lyrics.LyricsSource
 import com.music.sonariq.data.model.Song
+import com.music.sonariq.data.model.artworkAt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
 /**
- * Sonariq TV player: big karaoke lyrics that follow the music, with
+ * Sonariq TV player: now-playing on the left, synced lyrics on the right.
  * D-pad transport controls. Lyrics load automatically from every provider.
+ *
+ * Built for weak TV hardware: the position ticker runs once a second (lyric
+ * lines change far slower than that), the list jumps to the current line
+ * instead of animating there, and only the current line recomputes its
+ * word-reveal — past and future lines are static text.
  */
 @Composable
 fun TvPlayerScreen(
@@ -66,8 +78,10 @@ fun TvPlayerScreen(
     var lyrics by remember(song.videoId) { mutableStateOf<List<LyricLine>?>(null) }
     var loadingLyrics by remember(song.videoId) { mutableStateOf(true) }
     var positionMs by remember { mutableLongStateOf(0L) }
+    var durationMs by remember { mutableLongStateOf(0L) }
     var isPlaying by remember { mutableStateOf(false) }
     val backFocus = remember { FocusRequester() }
+    val playFocus = remember { FocusRequester() }
 
     // Load lyrics automatically — every provider, best sync wins.
     LaunchedEffect(song.videoId) {
@@ -86,37 +100,44 @@ fun TvPlayerScreen(
         loadingLyrics = false
     }
 
-    // Follow playback position.
+    // Follow playback position, once a second — lyric lines move slower.
     LaunchedEffect(controller) {
         while (isActive) {
             positionMs = controller?.currentPosition ?: 0L
+            durationMs = controller?.duration?.takeIf { it > 0 } ?: 0L
             isPlaying = controller?.isPlaying == true
-            delay(200)
+            delay(1000)
         }
     }
 
     LaunchedEffect(Unit) {
-        backFocus.requestFocus()
+        playFocus.requestFocus()
     }
 
     val listState = rememberLazyListState()
     val lines = lyrics ?: emptyList()
-    val currentIndex = lines.indexOfLast { it.timeMs <= positionMs }.coerceAtLeast(0)
+    val currentIndex by remember(lines, positionMs) {
+        derivedStateOf { lines.indexOfLast { it.timeMs <= positionMs }.coerceAtLeast(0) }
+    }
 
+    // Jump straight to the current line — no scroll animation frames.
     LaunchedEffect(currentIndex) {
         if (lines.isNotEmpty()) {
-            listState.animateScrollToItem((currentIndex - 2).coerceAtLeast(0))
+            listState.scrollToItem((currentIndex - 2).coerceAtLeast(0))
         }
     }
 
-    Column(
+    Row(
         Modifier
             .fillMaxSize()
             .padding(48.dp),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth(),
+        // Left: artwork, identity, transport.
+        Column(
+            modifier = Modifier
+                .weight(0.85f)
+                .fillMaxHeight(),
+            horizontalAlignment = Alignment.Start,
         ) {
             IconButton(
                 onClick = onBack,
@@ -131,65 +152,117 @@ fun TvPlayerScreen(
                     modifier = Modifier.size(36.dp),
                 )
             }
-            Spacer(Modifier.width(24.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = song.title,
-                    style = MaterialTheme.typography.headlineMedium.copy(fontSize = 32.sp),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text = song.artist,
-                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 24.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Spacer(Modifier.height(24.dp))
+            AsyncImage(
+                model = song.artworkAt(512),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(280.dp)
+                    .clip(RoundedCornerShape(20.dp)),
+            )
+            Spacer(Modifier.height(24.dp))
+            Text(
+                text = song.title,
+                style = MaterialTheme.typography.headlineMedium.copy(fontSize = 32.sp),
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = song.artist,
+                style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(24.dp))
             IconButton(
                 onClick = {
                     if (isPlaying) controller?.pause() else controller?.play()
                 },
                 modifier = Modifier
-                    .size(72.dp)
-                    .clip(CircleShape),
+                    .size(80.dp)
+                    .clip(CircleShape)
+                    .focusRequester(playFocus),
             ) {
                 Icon(
                     if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                     contentDescription = if (isPlaying) "Pause" else "Play",
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(52.dp),
+                    tint = MaterialTheme.colorScheme.primary,
                 )
             }
+            Spacer(Modifier.height(16.dp))
+            val progress = if (durationMs > 0) {
+                (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
+            } else 0f
+            LinearProgressIndicator(
+                progress = progress,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "${formatMs(positionMs)} / ${formatMs(durationMs)}",
+                fontSize = 18.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.width(64.dp))
 
-        when {
-            loadingLyrics -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(Modifier.size(64.dp))
+        // Right: lyrics.
+        Column(
+            modifier = Modifier
+                .weight(1.15f)
+                .fillMaxHeight(),
+        ) {
+            Text(
+                text = "Lyrics",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
+            when {
+                loadingLyrics -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(Modifier.size(56.dp))
+                    }
                 }
-            }
-            lines.isEmpty() -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "Lyrics not available",
-                        fontSize = 28.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            else -> {
-                LazyColumn(
-                    state = listState,
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    itemsIndexed(lines, key = { i, line -> "$i-${line.timeMs}" }) { index, line ->
-                        TvLyricLine(
-                            line = line,
-                            positionMs = positionMs,
-                            isCurrent = index == currentIndex,
+                lines.isEmpty() -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "Lyrics not available",
+                            fontSize = 26.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                }
+                else -> {
+                    LazyColumn(
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        itemsIndexed(lines, key = { i, line -> "$i-${line.timeMs}" }) { index, line ->
+                            TvLyricLine(
+                                line = line,
+                                // Only the current line animates its reveal;
+                                // everything else is static text.
+                                revealedChars = when {
+                                    index < currentIndex -> line.text.length
+                                    index == currentIndex -> revealCount(line, positionMs)
+                                    else -> 0
+                                },
+                                isCurrent = index == currentIndex,
+                                isPast = index < currentIndex,
+                            )
+                        }
                     }
                 }
             }
@@ -197,34 +270,43 @@ fun TvPlayerScreen(
     }
 }
 
-/**
- * One lyric line at TV scale. The current line glows with the karaoke
- * word-sweep; sung lines are bright, upcoming lines are dimmed.
- */
-@Composable
-private fun TvLyricLine(
-    line: LyricLine,
-    positionMs: Long,
-    isCurrent: Boolean,
-) {
-    if (line.text.isBlank()) {
-        Spacer(Modifier.height(12.dp))
-        return
-    }
+private fun revealCount(line: LyricLine, positionMs: Long): Int {
+    if (line.text.isBlank()) return 0
     val revealed = if (line.words.isEmpty()) {
         if (positionMs >= line.timeMs) line.text.length.toFloat() else 0f
     } else {
         line.revealedChars(positionMs)
     }
+    return revealed.toInt().coerceIn(0, line.text.length)
+}
+
+/**
+ * One lyric line at TV scale. Past lines are bright and static, the current
+ * line sweeps its words, upcoming lines are dimmed.
+ */
+@Composable
+private fun TvLyricLine(
+    line: LyricLine,
+    revealedChars: Int,
+    isCurrent: Boolean,
+    isPast: Boolean,
+) {
+    if (line.text.isBlank()) {
+        Spacer(Modifier.height(10.dp))
+        return
+    }
     val annotated = buildAnnotatedString {
-        val cut = revealed.toInt().coerceIn(0, line.text.length)
+        val cut = revealedChars.coerceIn(0, line.text.length)
         withStyle(SpanStyle(color = Color.White, fontWeight = FontWeight.Bold)) {
             append(line.text.take(cut))
         }
         withStyle(
             SpanStyle(
-                color = if (isCurrent) Color.White.copy(alpha = 0.45f)
-                else Color.White.copy(alpha = 0.28f),
+                color = when {
+                    isCurrent -> Color.White.copy(alpha = 0.45f)
+                    isPast -> Color.White.copy(alpha = 0.75f)
+                    else -> Color.White.copy(alpha = 0.28f)
+                },
             ),
         ) {
             append(line.text.drop(cut))
@@ -232,11 +314,14 @@ private fun TvLyricLine(
     }
     Text(
         text = annotated,
-        fontSize = if (isCurrent) 38.sp else 30.sp,
-        lineHeight = 48.sp,
-        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = isCurrent) { },
+        fontSize = if (isCurrent) 36.sp else 28.sp,
+        lineHeight = 44.sp,
+        fontWeight = if (isCurrent || isPast) FontWeight.SemiBold else FontWeight.Normal,
+        modifier = Modifier.fillMaxWidth(),
     )
+}
+
+private fun formatMs(ms: Long): String {
+    val totalSeconds = (ms / 1000).coerceAtLeast(0)
+    return "%d:%02d".format(totalSeconds / 60, totalSeconds % 60)
 }

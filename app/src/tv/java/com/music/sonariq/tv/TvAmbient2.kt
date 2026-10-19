@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
@@ -93,18 +94,18 @@ internal fun TvAmbient2Overlay(
             .fillMaxSize()
             .background(Color(0xFF080910)),
     ) {
-        if (!track.artworkUrl.isNullOrBlank()) {
-            AsyncImage(
-                model = track.artworkUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
+        // No full-screen artwork here: decoding a full-res cover every track
+        // is the heaviest thing this screen did on weak TV hardware. The
+        // 120dp thumbnail below carries the identity instead.
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.78f)),
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color(0xFF0B0E18),
+                        1f to Color(0xFF080910),
+                    )
+                ),
         )
 
         Column(

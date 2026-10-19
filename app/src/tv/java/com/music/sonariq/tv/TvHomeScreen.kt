@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -39,15 +41,19 @@ import com.music.sonariq.data.listentogether.ListenTogether
 import com.music.sonariq.data.model.SearchFilter
 import com.music.sonariq.data.model.SearchResult
 import com.music.sonariq.data.model.Song
+import com.music.sonariq.data.model.artworkAt
 import com.music.sonariq.playback.playSongs
+import com.music.sonariq.util.DeviceInfo
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.music.sonariq.util.DeviceInfo
 
 /**
- * Sonariq TV home: search for music and play it. D-pad navigable —
- * the search field takes focus first, results below it.
+ * Sonariq TV home: search for music and play it. D-pad navigable.
+ *
+ * Two-pane layout: search and the on-screen keyboard on the left, results
+ * on the right. Thumbnails load at 128px — a 64dp row needs no more, and on
+ * a low-end TV the smaller decode keeps scrolling smooth.
  */
 @Composable
 fun TvHomeScreen(
@@ -100,6 +106,7 @@ fun TvHomeScreen(
             .fillMaxSize()
             .padding(48.dp),
     ) {
+        // Header: brand left, party right.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth(),
@@ -108,6 +115,7 @@ fun TvHomeScreen(
                 text = "Sonariq TV",
                 style = MaterialTheme.typography.headlineLarge.copy(fontSize = 40.sp),
                 color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f),
             )
             val partyState by ListenTogether.state.collectAsStateWithLifecycle()
@@ -117,64 +125,95 @@ fun TvHomeScreen(
             )
         }
         Spacer(Modifier.height(24.dp))
-        // The current query, as typed on the on-screen keyboard below.
-        Text(
-            text = query.ifEmpty { "Type to search…" },
-            fontSize = 28.sp,
-            color = if (query.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant
-            else MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.fillMaxWidth(0.6f),
-        )
-        Spacer(Modifier.height(16.dp))
-        TvKeyboard(
-            onKey = ::type,
-            onBackspace = {
-                if (query.isNotEmpty()) {
-                    query = query.dropLast(1)
-                    runSearch(query)
-                }
-            },
-            onClear = {
-                query = ""
-                runSearch("")
-            },
-            onDone = { runSearch(query) },
-            firstKeyFocus = keyboardFocus,
-        )
-        Spacer(Modifier.height(24.dp))
-        if (searching) {
-            CircularProgressIndicator()
-        } else if (results.isEmpty() && query.isNotBlank()) {
-            Text(
-                text = "No results",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 20.sp,
-            )
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize(),
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+        ) {
+            // Left pane: query + keyboard.
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
             ) {
-                items(results, key = { it.videoId }) { song ->
-                    TvSongRow(
-                        song = song,
-                        onClick = {
-                            scope.launch {
-                                controller?.playSongs(listOf(song), 0)
-                                onPlaySong(song)
-                            }
-                        },
+                Text(
+                    text = query.ifEmpty { "Type to search…" },
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (query.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(16.dp))
+                TvKeyboard(
+                    onKey = ::type,
+                    onBackspace = {
+                        if (query.isNotEmpty()) {
+                            query = query.dropLast(1)
+                            runSearch(query)
+                        }
+                    },
+                    onClear = {
+                        query = ""
+                        runSearch("")
+                    },
+                    onDone = { runSearch(query) },
+                    firstKeyFocus = keyboardFocus,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = DeviceInfo.displayName,
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                )
+            }
+
+            Spacer(Modifier.width(48.dp))
+
+            // Right pane: results.
+            Column(
+                modifier = Modifier
+                    .weight(1.2f)
+                    .fillMaxHeight(),
+            ) {
+                Text(
+                    text = if (searching) "Searching…"
+                    else if (results.isNotEmpty()) "${results.size} results"
+                    else "Results",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+                if (searching && results.isEmpty()) {
+                    CircularProgressIndicator()
+                } else if (results.isEmpty() && query.isNotBlank()) {
+                    Text(
+                        text = "No results",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 20.sp,
                     )
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        items(results, key = { it.videoId }) { song ->
+                            TvSongRow(
+                                song = song,
+                                onClick = {
+                                    scope.launch {
+                                        controller?.playSongs(listOf(song), 0)
+                                        onPlaySong(song)
+                                    }
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
-        Spacer(Modifier.height(16.dp))
-        // This TV's own identity — the model Sonariq is running on.
-        Text(
-            text = DeviceInfo.displayName,
-            fontSize = 18.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-        )
     }
 }
 
@@ -189,26 +228,27 @@ private fun TvSongRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .padding(12.dp),
+            .padding(10.dp),
     ) {
         AsyncImage(
-            model = song.thumbnailUrl,
+            model = song.artworkAt(128),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .size(64.dp)
+                .size(56.dp)
                 .clip(RoundedCornerShape(8.dp)),
         )
         Spacer(Modifier.width(16.dp))
         Column {
             Text(
                 text = song.title,
-                style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp),
+                style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp),
                 color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Medium,
             )
             Text(
                 text = song.artist,
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp),
+                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
