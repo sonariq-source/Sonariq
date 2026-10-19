@@ -21,6 +21,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -178,21 +180,51 @@ fun TvPlayerScreen(
                 overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.height(24.dp))
-            IconButton(
-                onClick = {
-                    if (isPlaying) controller?.pause() else controller?.play()
-                },
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(CircleShape)
-                    .focusRequester(playFocus),
+            // Transport: previous, play/pause, next — all D-pad reachable.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Icon(
-                    if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                    contentDescription = if (isPlaying) "Pause" else "Play",
-                    modifier = Modifier.size(52.dp),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
+                IconButton(
+                    onClick = { controller?.seekToPrevious() },
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape),
+                ) {
+                    Icon(
+                        Icons.Rounded.SkipPrevious,
+                        contentDescription = "Previous",
+                        modifier = Modifier.size(40.dp),
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        if (isPlaying) controller?.pause() else controller?.play()
+                    },
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .focusRequester(playFocus),
+                ) {
+                    Icon(
+                        if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        modifier = Modifier.size(52.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                IconButton(
+                    onClick = { controller?.seekToNext() },
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape),
+                ) {
+                    Icon(
+                        Icons.Rounded.SkipNext,
+                        contentDescription = "Next",
+                        modifier = Modifier.size(40.dp),
+                    )
+                }
             }
             Spacer(Modifier.height(16.dp))
             val progress = if (durationMs > 0) {
