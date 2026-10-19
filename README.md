@@ -168,6 +168,10 @@ Prefer the cutting edge? Every push builds debug APKs automatically — find the
 
 For the Windows and Linux desktop app, see [DESKTOP.md](DESKTOP.md).
 
+### 🍏 iOS (Beta)
+
+Sonariq for iPhone is in beta — a native Swift/SwiftUI app with a Liquid Glass interface, true word-by-word synced lyrics, a real 7-band equalizer, and Live Activity. Grab the beta IPA and install guide at [Sonariq-iOS](https://github.com/sonariq-source/Sonariq-iOS).
+
 </div>
 
 ---
