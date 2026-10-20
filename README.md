@@ -34,13 +34,13 @@
 
 <img src="Banner.png" alt="Sonariq banner" width="100%" />
 
-## ✨ Features
+## Features
 
 *Everything a music lover needs — wrapped in liquid glass.*
 
 </div>
 
-### 🎵 Playback
+### Playback
 - **Mood & time-of-day** — a home section with time-aware stations.
 - **Phone-to-TV handoff** — fling playback from the phone app to Sonariq TV via a Listen Together party.
 - **Shared party queues** — party members add/remove songs in Listen Together.
@@ -72,7 +72,7 @@
 - **Private session** — pause scrobbling and history when you don't want it counted.
 - **Data saver** — streaming quality cap plus WiFi-only mode.
 
-### 🎵 Synced lyrics
+### Synced lyrics
 - **Word-synced lyrics** — true word timings with clean highlighting.
 - **Fully automatic** — every provider is raced in parallel; the best sync wins with zero setup.
 - **Smart timing** — cross-checks providers so the first line never jumps the gun on instrumental intros.
@@ -81,7 +81,7 @@
 - **Lyrics translation overlay** — automatic translated subtitle lines in Now Playing (an explicit romanise tap wins over the overlay).
 - **Lock-screen lyrics** — the current line shows right on your lock screen.
 
-### 🤖 Smart autoplay & AI radio
+### Smart autoplay & AI radio
 - **Vibe autoplay engine** — detects the vibe of what you're playing (Last.fm listener tags + on-device tempo/key/energy analysis + your listening behaviour) and keeps the music flowing in that mood forever; the queue refills when 3 songs remain, skips teach it your taste, and a vibe badge on Now Playing shows what it's feeling.
 - **Smart Autoplay** — learns your song-to-song transitions and predicts what plays next.
 - **AI mood stations** — pick Chill, Party, Focus or Workout; Sonariq builds a ~25-track station from your taste.
@@ -97,19 +97,19 @@
 - **Workout session** — shapes the session around your workout: warm-up, climb, plateau, cool-down.
 - **Energy curve** — Steady, Build, Peak & Coast or Wind Down presets for the session's energy arc.
 
-### 🎨 Personalisation
+### Personalisation
 - **Dynamic themes** — the UI accent follows your album artwork's colours (toggle in Settings).
 - **Liquid glass, buttery edition** — faster, smoother glass nav with a proper on/off toggle; animations stay on either way.
 - **Your logo everywhere** — the white Sonariq waveform mark replaces every leftover placeholder.
 
-### 📱 Widgets & sharing
+### Widgets & sharing
 - **Share songs** — story cards, text share and Sonariq links. Tap "Share with lyrics" to pick your favourite lines (up to 5) and share the 1080×1920 lyrics card — the same theme as the lyrics screen, everywhere. Copy link gives a Sonariq link that opens the song straight in the app.
 - **Sonariq links** — every song and party invite gets its own Sonariq link. With the app installed it opens straight into the song or party; without it, a page offers the download.
 - **Now-playing + lyrics widget** — artwork, controls and a live lyric-line peek on your home screen.
 - **Shareable Replay cards** — beautiful 1080×1350 stats cards rendered from your real listening, ready to share.
 - **Annual Wrapped** — year-in-review story with shareable cards.
 
-### 💎 Design
+### Design
 - **New green-gradient waveform logo** — on the launcher, in-app and in notifications.
 - **Custom theme colour picker** — hue/saturation/hex picker for the app accent.
 - **Prism design system** — matte midnight/plum surfaces, coral primary, orchid secondary, cyan highlights.
@@ -118,19 +118,19 @@
 - **Redesigned Now Playing** — glowing scrubber, luminous transport controls, live audio visualiser, and a gently drifting animated backdrop. The caption under the player shows your phone's real model, and the lyrics screen has a one-tap share button for story cards.
 - **Animated album canvas** — motion artwork on the now-playing screen.
 
-### 🔄 In-app updates
+### In-app updates
 - **Automatic update checks** every time the app opens — toggleable in Settings.
 - **Manual check** and current-version display.
 - **Update card** with version and changelog — download and install without leaving the app.
 
-### 📶 Smart downloads
+### Smart downloads
 - **Smart Downloads 2.0** — time/daypart pattern prediction learns when you listen.
 - **True offline mode** — a single Settings toggle for downloads-only playback.
 - **Automatic daily downloads** of your favourites — Wi-Fi and charging aware.
 - **Offline lyrics prefetch** so lyrics work without a connection.
 - Storage estimates and 25/50/100 track limits.
 
-### 🎛️ Sound & stats
+### Sound & stats
 - **DJ mix mode** — tempo- and energy-aware crossfade transitions.
 - **7-band EQ** with user presets and tone trims.
 - **Per-device EQ profiles** — your EQ follows the output: one setting for earbuds, another for the speaker.
@@ -142,7 +142,7 @@
 - **Stats 2.0** — listening streaks, genre breakdown, top tracks and artists, all shareable as cards.
 - **Stats for nerds** — codec, bit depth, sample rate on the now-playing screen.
 
-### 🔗 Connectivity
+### Connectivity
 - **Sign in with your Google account** for personalized content.
 - **Streaming integration** — link your streaming account to play your playlists and Liked Songs.
 - **Discord Rich Presence** — live track/artist/album and progress.
@@ -154,7 +154,7 @@
 
 <div align="center">
 
-## 📺 Sonariq TV
+## Sonariq TV
 
 *A separate app for the big screen — same music engine, 10-foot UI.*
 
@@ -169,7 +169,7 @@ Sonariq TV (`com.sonariq.tv`) plays music **on the TV itself** with a remote-fri
 
 <div align="center">
 
-## ⬇️ Download
+## Download
 
 <a href="https://github.com/sonariq-source/Sonariq/releases" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/android/cozy.svg" alt="Download for Android" height="55"/></a>
 <a href="https://github.com/sonariq-source/Sonariq/releases" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/windows/cozy.svg" alt="Download for Windows" height="55"/></a>
@@ -180,7 +180,7 @@ Prefer the cutting edge? Every push builds debug APKs automatically — find the
 
 For the Windows and Linux desktop app, see [DESKTOP.md](DESKTOP.md).
 
-### 🍏 iOS (Beta)
+### iOS (Beta)
 
 Sonariq for iPhone is in beta — a native Swift/SwiftUI app with a Liquid Glass interface, true word-by-word synced lyrics, a real 7-band equalizer, and Live Activity. Grab the beta IPA and install guide at [Sonariq-iOS](https://github.com/sonariq-source/Sonariq-iOS).
 
@@ -190,7 +190,7 @@ Sonariq for iPhone is in beta — a native Swift/SwiftUI app with a Liquid Glass
 
 <div align="center">
 
-## ☕ Support Sonariq
+## Support Sonariq
 
 Sonariq is free and made by an independent developer. If it soundtracks your days, consider [buying a coffee](https://ko-fi.com/sonariqstudio) — every bit goes back into new features, design polish, and keeping the servers running.
 
@@ -202,7 +202,7 @@ Sonariq is free and made by an independent developer. If it soundtracks your day
 
 <div align="center">
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions to Sonariq! Please review our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before submitting a Pull Request.
 
@@ -214,7 +214,7 @@ We welcome contributions to Sonariq! Please review our [Contributing Guide](CONT
 
 <div align="center">
 
-## ⚖️ Disclaimer & Legal Notice
+## Disclaimer & Legal Notice
 
 Sonariq is an independent, community-driven third-party audio player and client — a work of [BitChord](https://github.com/kushagrasinghx/BitChord). It is **not** associated with Google LLC, YouTube Music, Deezer, Telegram, or any of their parent companies.
 
@@ -223,7 +223,7 @@ Sonariq is an independent, community-driven third-party audio player and client 
 * **No Ad-Blocking Guarantee:** While Sonariq focuses on providing a clean listening environment, it does not guarantee permanent bypasses or modifications to commercial third-party platform conditions.
 * **Copyleft:** Sonariq is free software under the GPLv3, forked from BitChord under the same license. The license does not let anyone forbid others from selling or redistributing copies, but any distribution must come with the Corresponding Source under the same license.
 
-## 📄 License
+## License
 
 This project is licensed under the **GNU General Public License v3.0 (GPLv3)**. See the [LICENSE](LICENSE) file for details.
 
