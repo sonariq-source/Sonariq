@@ -22,6 +22,7 @@ class FullCoverNowPlayingTest {
 
     private val store = mutableMapOf<String, Any?>()
     private var originalPrefs: SharedPreferences? = null
+    private var originalAuthStore: Any? = null
 
     private fun fakeEditor(): SharedPreferences.Editor =
         Proxy.newProxyInstance(
@@ -64,19 +65,47 @@ class FullCoverNowPlayingTest {
 
     @Before
     fun injectFakePrefs() {
-        val field = AppSettings::class.java.getDeclaredField("prefs")
-        field.isAccessible = true
-        originalPrefs = runCatching { field.get(AppSettings) as SharedPreferences? }.getOrNull()
-        field.set(AppSettings, fakePrefs())
+        val prefsField = AppSettings::class.java.getDeclaredField("prefs")
+        prefsField.isAccessible = true
+        originalPrefs = runCatching { prefsField.get(AppSettings) as SharedPreferences? }.getOrNull()
+        prefsField.set(AppSettings, fakePrefs())
+        // reload() also reads the encrypted auth store (webdav/smb/discord secrets),
+        // which is a separate lateinit var — give it an empty instance so the
+        // round-trip under test does not touch the real one.
+        val authStoreField = AppSettings::class.java.getDeclaredField("authStore")
+        authStoreField.isAccessible = true
+        originalAuthStore = runCatching { authStoreField.get(AppSettings) }.getOrNull()
+        authStoreField.set(AppSettings, fakeAuthStore())
     }
 
     @After
     fun restorePrefs() {
-        val field = AppSettings::class.java.getDeclaredField("prefs")
-        field.isAccessible = true
+        val prefsField = AppSettings::class.java.getDeclaredField("prefs")
+        prefsField.isAccessible = true
         val original = originalPrefs
-        if (original != null) field.set(AppSettings, original)
+        if (original != null) prefsField.set(AppSettings, original)
+        val authStoreField = AppSettings::class.java.getDeclaredField("authStore")
+        authStoreField.isAccessible = true
+        val originalStore = originalAuthStore
+        if (originalStore != null) authStoreField.set(AppSettings, originalStore)
         AppSettings.fullBleedArtwork.value = true
+    }
+
+    /**
+     * An AuthStore with empty secrets, allocated without running its
+     * Context-requiring constructor — only the three secret getters that
+     * readAll() touches are needed, and they read from an empty prefs.
+     */
+    private fun fakeAuthStore(): Any {
+        val unsafeField = sun.misc.Unsafe::class.java.getDeclaredField("theUnsafe")
+        unsafeField.isAccessible = true
+        val unsafe = unsafeField.get(null) as sun.misc.Unsafe
+        val authStoreClass = Class.forName("com.music.sonariq.auth.AuthStore")
+        val instance = unsafe.allocateInstance(authStoreClass)
+        val prefsField = authStoreClass.getDeclaredField("prefs")
+        prefsField.isAccessible = true
+        prefsField.set(instance, fakePrefs())
+        return instance
     }
 
     @Test
