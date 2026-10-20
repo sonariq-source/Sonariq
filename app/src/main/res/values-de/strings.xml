@@ -1660,4 +1660,12 @@
 <string name="autoplay_energy_peak_coast">Peak &amp; Coast</string>
 <string name="autoplay_energy_wind_down">Wind Down</string>
 <string name="autoplay_remove_ban">Remove</string>
+<plurals name="autoplay_banned_artists_count">
+        <item quantity="one">%1$d artist</item>
+        <item quantity="other">%1$d artists</item>
+    </plurals>
+<plurals name="autoplay_banned_songs_count">
+        <item quantity="one">%1$d song</item>
+        <item quantity="other">%1$d songs</item>
+    </plurals>
 </resources>
