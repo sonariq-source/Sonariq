@@ -16,7 +16,9 @@ import android.os.Handler
 import android.os.SystemClock
 import com.music.sonariq.data.TelemetryProvenance
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import com.music.sonariq.playback.audio.usb.UsbDirectManager
 import com.music.sonariq.playback.audio.usb.DirectUsbProbeResult
 import android.util.Log
@@ -100,6 +102,8 @@ import com.music.sonariq.data.YtMusicRepository
 import com.music.sonariq.data.lyrics.EmbeddedLyrics
 import com.music.sonariq.data.lyrics.LyricLine
 import com.music.sonariq.data.lyrics.LyricsRepository
+import com.music.sonariq.data.lyrics.PrefetchCandidate
+import com.music.sonariq.data.lyrics.planPrefetch
 import com.music.sonariq.data.model.NOTIFICATION_ART_PX
 import com.music.sonariq.data.model.SearchFilter
 import com.music.sonariq.data.model.SearchResult
@@ -124,6 +128,7 @@ import com.music.sonariq.data.innertube.PlayerClient
 import com.music.sonariq.data.innertube.StreamResolver
 import com.music.sonariq.data.model.LikeStatus
 import com.music.sonariq.data.model.Song
+import com.music.sonariq.data.model.durationMillis
 import com.music.sonariq.data.scrobbling.LastFM
 import com.music.sonariq.data.scrobbling.ListenBrainzManager
 import com.music.sonariq.data.scrobbling.PrivateSession
@@ -881,6 +886,13 @@ class PlaybackService : MediaLibraryService() {
     private val sessionSongHistory = mutableListOf<Song>()
 
     private var serviceLyricsJob: Job? = null
+
+    /** The queue-lookahead lyrics warmup — see [prefetchUpcomingLyrics]. */
+    private var lyricsPrefetchJob: Job? = null
+
+    /** Video ids a lookahead fetch is already out for, so a queue edit never doubles one up. */
+    private val lyricsPrefetchInFlight = CopyOnWriteArraySet<String>()
+
     private var serviceLyrics: List<LyricLine>? = null
     private var lastPublishedSubtitle: String? = null
     /**
@@ -1093,6 +1105,7 @@ class PlaybackService : MediaLibraryService() {
             loadAutoplayForCurrentTrack()
             maybeTopUpRadio()
             loadLyricsForCurrentTrack()
+            prefetchUpcomingLyrics()
             if (exoPlayer.isPlaying) startLyricsTicker()
             refreshCustomLayouts()
         }
@@ -1191,6 +1204,9 @@ class PlaybackService : MediaLibraryService() {
                 castPlayback.onLocalQueueChanged()
                 saveQueueSnapshot(exoPlayer)
                 refreshCustomLayouts()
+                // A queue edit changes what "up next" is, so the lyrics
+                // lookahead is replanned against the new order.
+                prefetchUpcomingLyrics()
                 // Queue edits can remove AutoPlay's whole tail while leaving
                 // its old seed memoized. Detect that state at its source and
                 // make the current track eligible for a fresh load.
@@ -7157,6 +7173,115 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
+    /**
+     * Warms the lyrics disk cache for the tracks coming up in the queue, so
+     * the panel opens instantly when each one starts.
+     *
+     * The upcoming window is walked off the timeline in real play order —
+     * [Timeline.getNextWindowIndex] with the player's own shuffle state —
+     * so a shuffled queue warms what will actually play, not what sits next
+     * in the list. The fetches go through [LyricsRepository.lyrics] like
+     * playback's own lookup, so a warm track is answered from the disk cache
+     * and no service is contacted twice for it. Local files are skipped:
+     * their lyrics are read from the file's own tags, never a service.
+     *
+     * Best effort and silent: two lookups at a time, each bounded, and any
+     * failure simply leaves that track to fetch at play time as before.
+     * Cancelled and replanned whenever the queue or the track changes.
+     */
+    private fun prefetchUpcomingLyrics() {
+        lyricsPrefetchJob?.cancel()
+        lyricsPrefetchJob = null
+        if (!AppSettings.lyricsPrefetch.value || !AppSettings.syncedLyrics.value) return
+        val exoPlayer = player ?: return
+        lyricsPrefetchJob = scope.launch(Dispatchers.IO) {
+            try {
+                val sources = AppSettings.lyricsSources.value
+                if (sources.isEmpty()) return@launch
+                val order = AppSettings.lyricsSourceOrder.value
+                val prioritize = AppSettings.prioritizeSyllableSync.value
+                val timeline = exoPlayer.currentTimeline
+                if (timeline.isEmpty) return@launch
+                val currentIndex = exoPlayer.currentMediaItemIndex
+                if (currentIndex == C.INDEX_UNSET) return@launch
+                val upcoming = ArrayList<PrefetchCandidate>()
+                var index = timeline.getNextWindowIndex(
+                    currentIndex,
+                    Player.REPEAT_MODE_OFF,
+                    exoPlayer.shuffleModeEnabled,
+                )
+                while (index != C.INDEX_UNSET && upcoming.size < LYRICS_PREFETCH_LOOKAHEAD) {
+                    val song = runCatching { exoPlayer.getMediaItemAt(index).toSong() }.getOrNull()
+                    if (song != null && song.localUri == null && song.videoId.isNotBlank()) {
+                        upcoming += PrefetchCandidate(
+                            videoId = song.videoId,
+                            title = song.title,
+                            artist = song.artist,
+                            durationMs = song.durationMillis(),
+                            album = song.albumName,
+                        )
+                    }
+                    index = timeline.getNextWindowIndex(
+                        index,
+                        Player.REPEAT_MODE_OFF,
+                        exoPlayer.shuffleModeEnabled,
+                    )
+                }
+                if (upcoming.isEmpty()) return@launch
+                // [LyricsRepository.readCache] is suspend and the planner's
+                // isCached probe is not, so the cache check happens here, up
+                // front, and the planner sees only what still needs looking
+                // up. In-flight ids go the same way — a replanned pass never
+                // starts a second fetch for a track already being fetched.
+                val uncached = upcoming.filter { candidate ->
+                    candidate.videoId !in lyricsPrefetchInFlight &&
+                        LyricsRepository.readCache(candidate.videoId, null) == null
+                }
+                val plan = planPrefetch(uncached, currentIndex = -1, cap = LYRICS_PREFETCH_LOOKAHEAD) { false }
+                if (plan.isEmpty()) return@launch
+                val semaphore = Semaphore(2)
+                plan.forEachIndexed { planIndex, candidate ->
+                    if (planIndex > 0) delay(LYRICS_PREFETCH_SPACING_MS)
+                    launch {
+                        lyricsPrefetchInFlight += candidate.videoId
+                        try {
+                            semaphore.withPermit {
+                                try {
+                                    withTimeoutOrNull(LYRICS_PREFETCH_ITEM_MS) {
+                                        LyricsRepository.lyrics(
+                                            videoId = candidate.videoId,
+                                            title = candidate.title,
+                                            artist = candidate.artist,
+                                            durationMs = candidate.durationMs,
+                                            album = candidate.album,
+                                            sources = sources,
+                                            order = order,
+                                            prioritizeSyllableSync = prioritize,
+                                        )
+                                    }
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    TrackLog.d(
+                                        "Sonariq",
+                                        "lyrics lookahead skipped for ${candidate.videoId}: ${e.message}",
+                                        about = candidate.videoId,
+                                    )
+                                }
+                            }
+                        } finally {
+                            lyricsPrefetchInFlight -= candidate.videoId
+                        }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                TrackLog.d("Sonariq", "lyrics lookahead skipped: ${e.message}", about = null)
+            }
+        }
+    }
+
     private fun startLyricsTicker() {
         if (lyricsTickerJob?.isActive == true) return
         lyricsTickerJob = scope.launch(Dispatchers.Main) {
@@ -8655,6 +8780,12 @@ class PlaybackService : MediaLibraryService() {
         const val FOREIGN_CACHE_PURGE_DELAY_MS = 30_000L
         /** How many upcoming tracks [scheduleForeignCachePurge] leaves alone for read-ahead and Automix. */
         const val FOREIGN_CACHE_KEEP_AHEAD = 3
+        /** How many tracks past the playing one [prefetchUpcomingLyrics] looks ahead. */
+        const val LYRICS_PREFETCH_LOOKAHEAD = 8
+        /** Bound on one lookahead lyrics lookup, so a slow service never stalls the rest. */
+        const val LYRICS_PREFETCH_ITEM_MS = 60_000L
+        /** Stagger between lookahead launches, so a queue change never stampedes the network. */
+        const val LYRICS_PREFETCH_SPACING_MS = 300L
         const val MEDIA_DOWNLOADS_ID = "downloads"
         const val MEDIA_LOCAL_MUSIC_ID = "local_music"
         const val MAX_AUTO_PAGE_SIZE = 50

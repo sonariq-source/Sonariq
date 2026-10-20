@@ -1149,6 +1149,8 @@
     <string name="lyrics_auto_scroll">Auto-scroll lyrics</string>
 
     <string name="lyrics_auto_scroll_subtitle">Follow the song on your own; turn off to stay put</string>
+    <string name="prefetch_lyrics">Prefetch lyrics</string>
+    <string name="prefetch_lyrics_subtitle">Keep lyrics ready ahead of playback and for your favourites</string>
 
     <string name="lyrics_karaoke_effects">Word highlighting</string>
 

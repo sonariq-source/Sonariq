@@ -333,8 +333,8 @@ private val GAP_ROW_SPACING = 16.dp
  * only past that does the panel let go. The last entry stands for everything
  * further out, which is most of the list.
  */
-private val LINE_FALLOFF_ALPHA = floatArrayOf(1f, 0.8f, 0.7f, 0.58f, 0.46f)
-private val LINE_FALLOFF_BLUR = arrayOf(0.dp, 1.dp, 1.dp, 1.7.dp, 2.4.dp)
+private val LINE_FALLOFF_ALPHA = floatArrayOf(1f, 0.8f, 0.7f, 0.58f, 0.46f, 0.40f, 0.37f)
+private val LINE_FALLOFF_BLUR = arrayOf(0.dp, 1.dp, 1.dp, 1.7.dp, 2.4.dp, 3.0.dp, 3.6.dp)
 
 /**
  * The shape of the page the lyrics are going to fill.

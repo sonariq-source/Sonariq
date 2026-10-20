@@ -752,6 +752,8 @@
     <string name="lyrics_auto_scroll">Tự động cuộn lời bài hát</string>
 
     <string name="lyrics_auto_scroll_subtitle">Tự theo dõi bài hát; tắt để giữ nguyên vị trí</string>
+    <string name="prefetch_lyrics">Prefetch lyrics</string>
+    <string name="prefetch_lyrics_subtitle">Keep lyrics ready ahead of playback and for your favourites</string>
 
     <string name="lyrics_karaoke_effects">Hiệu ứng karaoke</string>
 

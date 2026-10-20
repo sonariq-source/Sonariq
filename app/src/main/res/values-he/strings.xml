@@ -881,6 +881,8 @@
     <string name="lyrics_auto_scroll">גלילה אוטומטית של המילים</string>
 
     <string name="lyrics_auto_scroll_subtitle">עוקב אחר השיר בעצמו; כבה כדי להישאר במקום</string>
+    <string name="prefetch_lyrics">Prefetch lyrics</string>
+    <string name="prefetch_lyrics_subtitle">Keep lyrics ready ahead of playback and for your favourites</string>
 
     <string name="lyrics_karaoke_effects">אפקטי קריוקי</string>
 

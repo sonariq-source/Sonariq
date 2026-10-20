@@ -894,6 +894,8 @@
     <string name="lyrics_auto_scroll">Sözleri otomatik kaydır</string>
 
     <string name="lyrics_auto_scroll_subtitle">Şarkıyı kendi kendine takip eder; olduğun yerde kalmak için kapat</string>
+    <string name="prefetch_lyrics">Prefetch lyrics</string>
+    <string name="prefetch_lyrics_subtitle">Keep lyrics ready ahead of playback and for your favourites</string>
 
     <string name="lyrics_karaoke_effects">Karaoke efektleri</string>
 

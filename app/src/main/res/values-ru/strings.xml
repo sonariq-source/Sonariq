@@ -905,6 +905,8 @@
     <string name="lyrics_auto_scroll">Автопрокрутка текста</string>
 
     <string name="lyrics_auto_scroll_subtitle">Следует за песней самостоятельно; выключите, чтобы оставаться на месте</string>
+    <string name="prefetch_lyrics">Prefetch lyrics</string>
+    <string name="prefetch_lyrics_subtitle">Keep lyrics ready ahead of playback and for your favourites</string>
 
     <string name="lyrics_karaoke_effects">Эффекты караоке</string>
 

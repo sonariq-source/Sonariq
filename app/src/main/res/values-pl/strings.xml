@@ -914,6 +914,8 @@
     <string name="lyrics_auto_scroll">Automatyczne przewijanie tekstu</string>
 
     <string name="lyrics_auto_scroll_subtitle">Podąża za utworem samodzielnie; wyłącz, aby zostać w miejscu</string>
+    <string name="prefetch_lyrics">Prefetch lyrics</string>
+    <string name="prefetch_lyrics_subtitle">Keep lyrics ready ahead of playback and for your favourites</string>
 
     <string name="lyrics_karaoke_effects">Efekty karaoke</string>
 

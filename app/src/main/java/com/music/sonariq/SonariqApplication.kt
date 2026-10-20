@@ -110,6 +110,9 @@ class SonariqApplication : Application(), SingletonImageLoader.Factory {
         // Smart Downloads' persisted ids, and the daily job if the switch is on.
         com.music.sonariq.download.SmartDownloads.init(this)
         com.music.sonariq.download.SmartDownloads.applySchedule()
+        // The daily lyrics warmup, armed only while the prefetch switch is on.
+        com.music.sonariq.download.LyricsWarmup.init(this)
+        com.music.sonariq.download.LyricsWarmup.applySchedule()
         // Massive update integrations: persisted state each subsystem owns,
         // read once before anything else needs it; the download schedulers
         // only arm when their switch is on.

@@ -335,7 +335,7 @@ object LyricsRepository {
     /** Bump this and every file on disk quietly stops matching. */
     private const val CACHE_VERSION = 1
     private const val CACHE_DIRECTORY = "lyrics_v1"
-    private const val MAX_CACHE_FILES = 200
+    private const val MAX_CACHE_FILES = 2000
 
     @Serializable
     private data class CachedLyrics(

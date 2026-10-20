@@ -1161,6 +1161,8 @@
     <string name="lyrics_auto_scroll">เลื่อนเนื้อเพลงอัตโนมัติ</string>
 
     <string name="lyrics_auto_scroll_subtitle">ติดตามเพลงให้โดยอัตโนมัติ ปิดเพื่ออยู่กับที่</string>
+    <string name="prefetch_lyrics">Prefetch lyrics</string>
+    <string name="prefetch_lyrics_subtitle">Keep lyrics ready ahead of playback and for your favourites</string>
 
     <string name="lyrics_karaoke_effects">เอฟเฟกต์คาราโอเกะ</string>
 

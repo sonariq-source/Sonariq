@@ -882,6 +882,8 @@
     <string name="lyrics_auto_scroll">Desplazamiento automático de letras</string>
 
     <string name="lyrics_auto_scroll_subtitle">Sigue la canción por ti; desactívalo para quedarte quieto</string>
+    <string name="prefetch_lyrics">Prefetch lyrics</string>
+    <string name="prefetch_lyrics_subtitle">Keep lyrics ready ahead of playback and for your favourites</string>
 
     <string name="lyrics_karaoke_effects">Efectos de karaoke</string>
 

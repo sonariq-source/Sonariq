@@ -1,7 +1,7 @@
 package com.music.sonariq.data.lyrics
 
 /** Shorter instrumental breaks aren't worth interrupting the line for. */
-internal const val MIN_GAP_MS = 4_000L
+internal const val MIN_GAP_MS = 5_000L
 
 /**
  * Marks the instrumental stretches with blank lines, the way an LRC file
