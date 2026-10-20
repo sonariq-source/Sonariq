@@ -85,6 +85,17 @@
 - **Vibe autoplay engine** — detects the vibe of what you're playing (Last.fm listener tags + on-device tempo/key/energy analysis + your listening behaviour) and keeps the music flowing in that mood forever; the queue refills when 3 songs remain, skips teach it your taste, and a vibe badge on Now Playing shows what it's feeling.
 - **Smart Autoplay** — learns your song-to-song transitions and predicts what plays next.
 - **AI mood stations** — pick Chill, Party, Focus or Workout; Sonariq builds a ~25-track station from your taste.
+- **Autoplay mix control** — sliders for where autoplay pulls from: your library, downloads and new discoveries.
+- **Safe vs Adventurous** — choose how far autoplay may stray from what you know.
+- **Seed anything** — start autoplay from an artist, genre, mood or era, not just the current song.
+- **Autoplay preview** — see upcoming autoplay picks in the queue; remove or reorder them before they play.
+- **Never autoplay this** — ban a song or an artist from autoplay, managed from Settings.
+- **Discovery mode** — lean autoplay into songs you have never played.
+- **Downloads-only autoplay** — pick only from music on this device; kicks in automatically when offline.
+- **Activity autoplay** — uses motion and step sensors to shape the session while driving, walking or running.
+- **Wind down** — calms the music as bedtime approaches, then hands off to the sleep timer.
+- **Workout session** — shapes the session around your workout: warm-up, climb, plateau, cool-down.
+- **Energy curve** — Steady, Build, Peak & Coast or Wind Down presets for the session's energy arc.
 
 ### 🎨 Personalisation
 - **Dynamic themes** — the UI accent follows your album artwork's colours (toggle in Settings).
