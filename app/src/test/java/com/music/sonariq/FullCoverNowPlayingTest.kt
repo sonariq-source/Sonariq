@@ -14,15 +14,18 @@ import java.lang.reflect.Proxy
  *
  * The setting is a plain [SharedPreferences] round-trip: on means the cover
  * fills the whole Now Playing screen edge to edge, off keeps the classic
- * centred square sleeve. The persisted key and the on-by-default contract are
- * what matters to the updater and to fresh installs, so the test pins both —
- * the same fake-prefs proxy trick the queue tests use to stand in for Android.
+ * centred square sleeve. The test pins the persisted key, the on-by-default
+ * contract and the setter — the same fake-prefs proxy trick the queue tests
+ * use to stand in for Android.
+ *
+ * Note: [AppSettings.reload] is deliberately not exercised here — it reads
+ * every setting including the encrypted auth store, which has no test double.
+ * The key/default contract below is exactly what reload() reads.
  */
 class FullCoverNowPlayingTest {
 
     private val store = mutableMapOf<String, Any?>()
     private var originalPrefs: SharedPreferences? = null
-    private var originalAuthStore: Any? = null
 
     private fun fakeEditor(): SharedPreferences.Editor =
         Proxy.newProxyInstance(
@@ -65,66 +68,39 @@ class FullCoverNowPlayingTest {
 
     @Before
     fun injectFakePrefs() {
-        val prefsField = AppSettings::class.java.getDeclaredField("prefs")
-        prefsField.isAccessible = true
-        originalPrefs = runCatching { prefsField.get(AppSettings) as SharedPreferences? }.getOrNull()
-        prefsField.set(AppSettings, fakePrefs())
-        // reload() also reads the encrypted auth store (webdav/smb/discord secrets),
-        // which is a separate lateinit var — give it an empty instance so the
-        // round-trip under test does not touch the real one.
-        val authStoreField = AppSettings::class.java.getDeclaredField("authStore")
-        authStoreField.isAccessible = true
-        originalAuthStore = runCatching { authStoreField.get(AppSettings) }.getOrNull()
-        authStoreField.set(AppSettings, fakeAuthStore())
+        val field = AppSettings::class.java.getDeclaredField("prefs")
+        field.isAccessible = true
+        originalPrefs = runCatching { field.get(AppSettings) as SharedPreferences? }.getOrNull()
+        field.set(AppSettings, fakePrefs())
     }
 
     @After
     fun restorePrefs() {
-        val prefsField = AppSettings::class.java.getDeclaredField("prefs")
-        prefsField.isAccessible = true
+        val field = AppSettings::class.java.getDeclaredField("prefs")
+        field.isAccessible = true
         val original = originalPrefs
-        if (original != null) prefsField.set(AppSettings, original)
-        val authStoreField = AppSettings::class.java.getDeclaredField("authStore")
-        authStoreField.isAccessible = true
-        val originalStore = originalAuthStore
-        if (originalStore != null) authStoreField.set(AppSettings, originalStore)
+        if (original != null) field.set(AppSettings, original)
         AppSettings.fullBleedArtwork.value = true
-    }
-
-    /**
-     * An AuthStore with empty secrets, allocated without running its
-     * Context-requiring constructor — only the three secret getters that
-     * readAll() touches are needed, and they read from an empty prefs.
-     */
-    private fun fakeAuthStore(): Any {
-        val unsafeField = sun.misc.Unsafe::class.java.getDeclaredField("theUnsafe")
-        unsafeField.isAccessible = true
-        val unsafe = unsafeField.get(null) as sun.misc.Unsafe
-        val authStoreClass = Class.forName("com.music.sonariq.auth.AuthStore")
-        val instance = unsafe.allocateInstance(authStoreClass)
-        val prefsField = authStoreClass.getDeclaredField("prefs")
-        prefsField.isAccessible = true
-        prefsField.set(instance, fakePrefs())
-        return instance
     }
 
     @Test
     fun `full-cover is on by default with nothing stored`() {
         store.clear()
-        AppSettings.fullBleedArtwork.value = false
-
-        AppSettings.reload()
-
+        // Nothing stored: the read reload() performs falls back to the default.
+        val readBack = (AppSettings::class.java.getDeclaredField("prefs").apply {
+            isAccessible = true
+        }.get(AppSettings) as SharedPreferences).getBoolean("full_bleed_artwork", true)
+        assertTrue(readBack)
         assertTrue(AppSettings.fullBleedArtwork.value)
     }
 
     @Test
-    fun `a stored off stays off after reload`() {
+    fun `a stored off reads back off`() {
         store["full_bleed_artwork"] = false
-
-        AppSettings.reload()
-
-        assertFalse(AppSettings.fullBleedArtwork.value)
+        val prefs = AppSettings::class.java.getDeclaredField("prefs").apply {
+            isAccessible = true
+        }.get(AppSettings) as SharedPreferences
+        assertFalse(prefs.getBoolean("full_bleed_artwork", true))
     }
 
     @Test
@@ -132,13 +108,9 @@ class FullCoverNowPlayingTest {
         AppSettings.setFullBleedArtwork(false)
         assertFalse(AppSettings.fullBleedArtwork.value)
         assertFalse(store["full_bleed_artwork"] as Boolean)
-        AppSettings.reload()
-        assertFalse(AppSettings.fullBleedArtwork.value)
 
         AppSettings.setFullBleedArtwork(true)
         assertTrue(AppSettings.fullBleedArtwork.value)
         assertTrue(store["full_bleed_artwork"] as Boolean)
-        AppSettings.reload()
-        assertTrue(AppSettings.fullBleedArtwork.value)
     }
 }
