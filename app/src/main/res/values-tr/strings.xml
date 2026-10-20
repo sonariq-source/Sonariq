@@ -256,7 +256,7 @@
     <string name="liquid_glass">Liquid Glass</string>
     <string name="liquid_glass_subtitle">Yüzen gezinme çubuğunda gerçek kırılan cam. Yalnızca Android 12+; daha fazla GPU kullanır.</string>
     <string name="liquid_glass_unavailable">Android 12 veya daha yenisini gerektirir</string>
-    <string name="full_screen_cover_art">Tam ekran kapak resmi</string>
+    <string name="full_screen_cover_art">Full-cover Now Playing</string>
     <string name="animated_cover_art">Hareketli kapak resmi</string>
     <string name="synced_lyrics">Senkronize sözler</string>
     <string name="synced_lyrics_subtitle">Söylenirken oynatıcıdaki kelimeleri aydınlatır</string>
@@ -283,7 +283,7 @@
     <string name="system">Sistem</string>
     <string name="light">Açık</string>
     <string name="dark">Koyu</string>
-    <string name="full_screen_cover_art_subtitle">Kapağı kare bir kılıf yerine oynatıcının kenarlarına kadar uzatır</string>
+    <string name="full_screen_cover_art_subtitle">Fills the whole player with the cover art instead of a square sleeve</string>
     <string name="animated_cover_art_subtitle">Bazı sürümlerin geldiği döngülü videoyu sabit bir kılıf yerine oynatır</string>
     <string name="dont_repeat_songs_subtitle">AutoPlay bu oturumda zaten çalınmış veya önerilmiş bir şarkıyı önermez</string>
     <string name="download_quality_subtitle">Bağlantı ne olursa olsun parça başına %1$s</string>

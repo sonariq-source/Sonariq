@@ -300,10 +300,9 @@ internal val PLAYER_GUTTER = 30.dp
  */
 internal val PLAYER_MAX_WIDTH = 560.dp
 /**
- * The width from which the player counts as tablet-sized: its backdrop is
- * the full-cover blur in every state rather than the phone's seam-aware
- * mesh, and Settings keeps the full-bleed artwork switch listed — see
- * [fullBleedArtworkAvailable].
+ * The width from which the player counts as tablet-sized: its blur backdrop
+ * is the full-cover blur in every state rather than the phone's seam-aware
+ * mesh.
  *
  * 700dp is the figure the docked-player layout used to call "tablet sized"
  * (a 360dp page beside a 340dp pane). That layout is gone; the number stays,
@@ -464,16 +463,15 @@ private fun WhileShown(shown: () -> Boolean, content: @Composable () -> Unit) {
 }
 
 /**
- * Whether the full-bleed artwork switch is worth listing in Settings for a
- * window this wide. Public so the settings sheet can leave the switch out
- * entirely where it would do nothing.
+ * Whether a window this wide is one the player fills outright or a
+ * tablet-sized one — the two shapes in which edge-to-edge artwork reads as
+ * the screen itself rather than as a picture hung on it.
  *
- * A window narrow enough that the player fills it is where the setting
- * acts: edge to edge there means the artwork *is* the screen. The tablet
- * half is left from the docked player, whose phone-width pane ran the
- * artwork edge to edge too; with the pane gone the portrait player no
- * longer goes full bleed at these widths, but the switch is still listed
- * there, unchanged, until that is decided on its own.
+ * The full-cover switch in Settings is listed at every size now — the
+ * landscape player and the backdrops honour it wherever the player runs —
+ * so this stays as the width question other callers ask, not as the
+ * switch's gate. The tablet half is left from the docked player, whose
+ * phone-width pane ran the artwork edge to edge too.
  */
 fun fullBleedArtworkAvailable(windowWidth: Dp): Boolean =
     playerFillsWindow(windowWidth) || tabletSizedPlayer(windowWidth)
@@ -1177,10 +1175,10 @@ fun NowPlayingScreen(
         }
     }
     val fullBleedArt by PlayerSettings.fullBleedArtwork.collectAsStateWithLifecycle()
-    // Full-bleed is a phone idiom. What the width has to rule out is a player
-    // running a foot wider than the column of controls under it — edge to edge
-    // meaning "a picture, and separately some controls" rather than "the
-    // artwork *is* the player".
+    // Full-cover applies at every window width now: the cover is not a banner
+    // across the top of the player but the player's whole background, portrait
+    // and landscape alike, so there is no width at which edge to edge stops
+    // meaning "the artwork *is* the player".
     //
     // One question for the still cover and the clip both, rather than two that
     // could disagree — and they did, twice over. Dissolving a TextureView's
@@ -1193,10 +1191,9 @@ fun NowPlayingScreen(
     val spotifyCanvasOnPhone = canvas?.source == CanvasSource.SPOTIFY &&
         playerFillsWindow(windowWidth)
     // Spotify Canvas is the player background on a phone, independent of the
-    // still-art full-bleed preference. Other providers and static artwork keep
+    // still-art full-cover preference. Other providers and static artwork keep
     // answering to that preference exactly as before.
-    val heroMode = spotifyCanvasOnPhone ||
-        (fullBleedArt && playerFillsWindow(windowWidth))
+    val heroMode = spotifyCanvasOnPhone || fullBleedArt
 
     // Whether there's a still image to blow out — a placeholder tile is a card
     // or it is nothing, and going full-bleed with one would just tint the top
@@ -1584,16 +1581,25 @@ fun NowPlayingScreen(
     // does the Apple-style phone player: the main player's old seam-aware,
     // reflected mesh is gone, so the blur is the background everywhere.
     val tabletArtworkBackdrop = tabletSizedPlayer(windowWidth)
+    // Full-cover: the setting is on and there is a cover to fill the player
+    // with. While this holds, the sharp cover itself is the backdrop — the
+    // sleeve blown out to a full-screen poster in portrait, the backdrop
+    // layer in landscape and behind the panels — and the blur below is
+    // neither drawn nor worth preparing. A track with no cover leaves this
+    // false, and every backdrop falls back to exactly what it was.
+    val fullCoverShowing = fullBleedArt && art.loaded
     // Owned by the song-level player composition, not by any one screen state.
     // Opening lyrics/queue, and rotating into or out of landscape, therefore
     // reuse the same tiny pre-blurred bitmap instead of running a screen-sized
     // effect. Prepared immediately: the blur is the portrait player's
     // background from its first frame, and it takes the mesh decode's old
-    // slot on the song-change path rather than adding to it.
+    // slot on the song-change path rather than adding to it. Skipped while
+    // the full-cover backdrop is up: the bitmap would sit under an opaque
+    // cover, and the cache keeps it warm for the moment the setting turns.
     val fullArtworkBlurImage = rememberFullArtworkBlurImage(
         imageUrl = remoteArt,
         artPx = ART_PX,
-        prepare = true,
+        prepare = !fullCoverShowing,
     )
     // One movable Image node, not two backdrop call sites. Compose carries it
     // between the portrait and landscape players; only the cached bitmap
@@ -1775,9 +1781,21 @@ fun NowPlayingScreen(
                     else -> PlayerPane.Main
                 },
                 background = { backgroundModifier ->
-                    // The whole screen is the sheets' frost source: there is
-                    // no full-bleed banner here to be it instead.
-                    fullArtworkBlurContent(backgroundModifier.hazeSource(playerHaze))
+                    if (fullCoverShowing) {
+                        // Full-cover in landscape: the sharp cover fills the
+                        // screen behind the columns, with its scrims always on
+                        // — the sleeve stays a card in its own column.
+                        FullCoverArtworkBackdrop(
+                            request = art.request,
+                            visible = true,
+                            scrimAlpha = { 1f },
+                            modifier = backgroundModifier.hazeSource(playerHaze),
+                        )
+                    } else {
+                        // The whole screen is the sheets' frost source: there is
+                        // no full-bleed banner here to be it instead.
+                        fullArtworkBlurContent(backgroundModifier.hazeSource(playerHaze))
+                    }
                 },
                 artwork = { artworkModifier ->
                     LandscapeArtwork(
@@ -2062,12 +2080,15 @@ fun NowPlayingScreen(
         // The animated canvas takes the still backdrop's slot for tracks with
         // no provider clip playing — see [CanvasBackdrop]. It rides the same
         // crossfade the legacy mesh uses, so the blurred artwork yields to it
-        // exactly as it yields to the mesh.
-        val canvasBackdropOn = canvasBackdropEnabled && heroClip == null
+        // exactly as it yields to the mesh. While the full-cover backdrop is
+        // up the mesh stands down entirely: it would be animating under an
+        // opaque cover nobody can see. A track with no cover hands the slot
+        // straight back to it, so the canvas remains the no-artwork fallback.
+        val canvasBackdropOn = canvasBackdropEnabled && heroClip == null && !fullCoverShowing
         val stillBackdropOn = canvasBackdropOn || legacyMeshBackdrop
         val fullArtworkBackdropAlpha by animateFloatAsState(
             targetValue = if (
-                !stillBackdropOn &&
+                !stillBackdropOn && !fullCoverShowing &&
                 (tabletArtworkBackdrop || fullArtworkBlurImage != null)
             ) 1f else 0f,
             animationSpec = tween(durationMillis = 360, easing = FastOutSlowInEasing),
@@ -2094,6 +2115,24 @@ fun NowPlayingScreen(
         }
         fullArtworkBlurContent(
             Modifier.graphicsLayer { alpha = fullArtworkBackdropAlpha },
+        )
+
+        // The full-cover backdrop: the sharp cover across the whole player,
+        // behind everything else in this box. On the main player it sits
+        // exactly under the sleeve blown out into the same full-screen
+        // poster — the same request, the same crop, the same rect — so the
+        // two read as one picture; as the sleeve collapses into the header
+        // this is what stays behind the lyrics and the queue. Its scrims
+        // follow the collapse (see [FullCoverArtworkBackdrop]): none while
+        // the poster is up, full once a panel owns the screen. A provider
+        // clip in the banner asks for half of them on its own: the sleeve's
+        // gradient hands its opacity to the clip as the clip takes over, and
+        // the credits sit just below the clip over this layer's bare cover.
+        FullCoverArtworkBackdrop(
+            request = art.request,
+            visible = fullCoverShowing,
+            scrimAlpha = { p().coerceAtLeast(if (heroClip != null) 0.5f else 0f) },
+            modifier = Modifier.matchParentSize(),
         )
 
         // Mount once, behind the controls. A known portrait aspect changes the
@@ -2725,7 +2764,23 @@ fun NowPlayingScreen(
                     val banner = with(density) {
                         Rect(
                             offset = Offset(-(playerBounds.width - boxWidthPx) / 2f, bannerTopPx.toFloat()),
-                            size = Size(playerBounds.width.toFloat(), heroHeight.roundToPx().toFloat()),
+                            // Full-cover: the banner does not stop where the
+                            // credits begin — it runs the player's whole
+                            // height, top edge to bottom edge, and the
+                            // controls sit on top of it. The rect starts at
+                            // [bannerTopPx], which is exactly the player's
+                            // top in this box's coordinates, so a height of
+                            // the player's own height lands its bottom edge
+                            // on the player's bottom edge. Off, the banner
+                            // keeps its old stop at [heroHeight].
+                            size = Size(
+                                playerBounds.width.toFloat(),
+                                if (fullBleedArt) {
+                                    playerBounds.height.toFloat()
+                                } else {
+                                    heroHeight.roundToPx().toFloat()
+                                },
+                            ),
                         )
                     }
                     val thumbSide = with(density) { THUMB_SIZE.roundToPx().toFloat() }
@@ -2896,10 +2951,19 @@ fun NowPlayingScreen(
                         // The banner dissolves into the backdrop where the
                         // card's bottom edge would have been, and firms back
                         // up into that edge as it collapses.
+                        //
+                        // Full-cover has nothing to dissolve into — the
+                        // poster *is* the backdrop — so instead it takes the
+                        // legibility gradient: clear over the cover's own
+                        // ground, darkening down the screen so the credits,
+                        // the lyric strip and the transport stay readable on
+                        // any cover. It fades with the collapse, handing over
+                        // to the backdrop layer's own scrims (which follow
+                        // [p] the other way), so the two never stack.
                         .drawWithContent {
                             drawContent()
                             val shown = sleeveShown()
-                            if (shown > 0f) {
+                            if (shown > 0f && !fullBleedArt) {
                                 drawRect(
                                     brush = Brush.verticalGradient(
                                         colors = listOf(Color.Black, Color.Black.copy(alpha = 1f - shown)),
@@ -2908,6 +2972,22 @@ fun NowPlayingScreen(
                                     ),
                                     blendMode = BlendMode.DstIn,
                                 )
+                            }
+                            if (fullBleedArt) {
+                                // [sleeveShown] already carries the collapse
+                                // and the dock, so at rest this is the whole
+                                // gradient and on a panel it is none of it.
+                                val posterShown = shown
+                                if (posterShown > 0f) {
+                                    drawRect(
+                                        brush = Brush.verticalGradient(
+                                            0f to Color.Transparent,
+                                            0.42f to Color.Transparent,
+                                            0.72f to Color.Black.copy(alpha = 0.38f * posterShown),
+                                            1f to Color.Black.copy(alpha = 0.64f * posterShown),
+                                        ),
+                                    )
+                                }
                             }
                         },
                 ) {

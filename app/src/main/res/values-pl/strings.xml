@@ -228,7 +228,7 @@
     <string name="reduce_animation_subtitle">Zatrzymuje gradient głównego odtwarzacza zamiast dryfowania</string>
     <string name="reduce_dynamic_blur">Zmniejsz rozmycie dynamiczne</string>
     <string name="reduce_dynamic_blur_subtitle">Zastępuje matowe szkło jednolitymi wypełnieniami w całej aplikacji</string>
-    <string name="full_screen_cover_art">Pełnoekranowa okładka</string>
+    <string name="full_screen_cover_art">Full-cover Now Playing</string>
     <string name="animated_cover_art">Animowana okładka</string>
     <string name="synced_lyrics">Zsynchronizowany tekst</string>
     <string name="synced_lyrics_subtitle">Podświetla słowa na odtwarzaczu w miarę ich śpiewania</string>
@@ -255,7 +255,7 @@
     <string name="system">System</string>
     <string name="light">Jasny</string>
     <string name="dark">Ciemny</string>
-    <string name="full_screen_cover_art_subtitle">Wyświetla okładkę na całym ekranie odtwarzacza zamiast kwadratowej okładki</string>
+    <string name="full_screen_cover_art_subtitle">Fills the whole player with the cover art instead of a square sleeve</string>
     <string name="animated_cover_art_subtitle">Odtwarza animowaną okładkę dostępną w niektórych wydaniach zamiast statycznej</string>
     <string name="dont_repeat_songs_subtitle">AutoPlay nie zaproponuje utworu, który został już odtworzony lub zaproponowany w tej sesji</string>
     <string name="download_quality_subtitle">%1$s na utwór, niezależnie od połączenia</string>

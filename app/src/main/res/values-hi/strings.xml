@@ -231,7 +231,7 @@
     <string name="reduce_animation_subtitle">मुख्य प्लेयर के ग्रेडिएंट को बहने के बजाय स्थिर रखता है</string>
     <string name="reduce_dynamic_blur">डायनामिक ब्लर कम करें</string>
     <string name="reduce_dynamic_blur_subtitle">पूरे ऐप में फ्रॉस्टेड ग्लास की जगह ठोस रंग लगाता है</string>
-    <string name="full_screen_cover_art">फ़ुल-स्क्रीन कवर आर्ट</string>
+    <string name="full_screen_cover_art">Full-cover Now Playing</string>
     <string name="animated_cover_art">एनिमेटेड कवर आर्ट</string>
     <string name="synced_lyrics">सिंक किए गए लिरिक्स</string>
     <string name="synced_lyrics_subtitle">गाए जाने के साथ प्लेयर पर शब्दों को हाइलाइट करता है</string>
@@ -258,7 +258,7 @@
     <string name="system">सिस्टम</string>
     <string name="light">लाइट</string>
     <string name="dark">डार्क</string>
-    <string name="full_screen_cover_art_subtitle">चौकोर स्लीव के बजाय कवर को प्लेयर के किनारों तक ले जाता है</string>
+    <string name="full_screen_cover_art_subtitle">Fills the whole player with the cover art instead of a square sleeve</string>
     <string name="animated_cover_art_subtitle">स्थिर स्लीव के बजाय कुछ रिलीज़ में मौजूद लूपिंग वीडियो चलाता है</string>
     <string name="dont_repeat_songs_subtitle">ऑटोप्ले इस सेशन में पहले से चलाया या सुझाया गया गाना दोबारा सुझाव नहीं देगा</string>
     <string name="download_quality_subtitle">%1$s प्रति ट्रैक, कनेक्शन चाहे जो भी हो</string>

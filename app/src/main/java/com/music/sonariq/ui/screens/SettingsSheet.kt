@@ -207,7 +207,6 @@ import com.music.sonariq.data.stats.Backup
 import com.music.sonariq.data.stats.ListeningStats
 import com.music.sonariq.playback.AudioCache
 import com.music.sonariq.ui.player.VisualizerStyle
-import com.music.sonariq.ui.player.fullBleedArtworkAvailable
 import com.music.sonariq.ui.theme.AccentColor
 import com.music.sonariq.ui.theme.AccentRed
 import com.music.sonariq.ui.theme.localizedLabel
@@ -1667,30 +1666,26 @@ fun SettingsScreen(
                     onClick = { AppSettings.setLiquidGlass(!liquidGlass) },
                 )
             }
-            // Left out where the player won't honour it: a window too wide for
-            // the player to fill and too narrow to stand a page beside it keeps
-            // the sleeve either way. A docked pane is a phone's width, so it does
-            // honour it — see [fullBleedArtworkAvailable].
-            if (fullBleedArtworkAvailable(windowWidth)) {
-                val fullScreenCoverArtTitle = stringResource(R.string.full_screen_cover_art)
-                row(fullScreenCoverArtTitle, "artwork", "player") {
-                    SettingsRow(
-                        icon = Icons.Rounded.Fullscreen,
-                        title = fullScreenCoverArtTitle,
-                        subtitle = stringResource(R.string.full_screen_cover_art_subtitle),
-                        trailing = {
-                            Switch(
-                                checked = fullBleedArtwork,
-                                onCheckedChange = AppSettings::setFullBleedArtwork,
-                                colors = SwitchDefaults.colors(
-                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
-                                ),
-                            )
-                        },
-                        onClick = { AppSettings.setFullBleedArtwork(!fullBleedArtwork) },
-                    )
-                }
+            // Shown at every window size: the full-cover look applies wherever
+            // the player runs, in portrait and landscape alike.
+            val fullScreenCoverArtTitle = stringResource(R.string.full_screen_cover_art)
+            row(fullScreenCoverArtTitle, "artwork", "player") {
+                SettingsRow(
+                    icon = Icons.Rounded.Fullscreen,
+                    title = fullScreenCoverArtTitle,
+                    subtitle = stringResource(R.string.full_screen_cover_art_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = fullBleedArtwork,
+                            onCheckedChange = AppSettings::setFullBleedArtwork,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setFullBleedArtwork(!fullBleedArtwork) },
+                )
             }
             val legacyMeshGradientTitle = stringResource(R.string.legacy_mesh_gradient)
             row(legacyMeshGradientTitle, "background", "player") {

@@ -241,7 +241,7 @@
     <string name="reduce_animation_subtitle">Останавливает градиент главного плеера вместо плавного движения</string>
     <string name="reduce_dynamic_blur">Уменьшить динамическое размытие</string>
     <string name="reduce_dynamic_blur_subtitle">Заменяет матовое стекло сплошной заливкой во всём приложении</string>
-    <string name="full_screen_cover_art">Обложка на весь экран</string>
+    <string name="full_screen_cover_art">Full-cover Now Playing</string>
     <string name="animated_cover_art">Анимированная обложка</string>
     <string name="synced_lyrics">Синхронизированный текст</string>
     <string name="synced_lyrics_subtitle">Подсвечивает слова в плеере по мере исполнения</string>
@@ -268,7 +268,7 @@
     <string name="system">Системная</string>
     <string name="light">Светлая</string>
     <string name="dark">Тёмная</string>
-    <string name="full_screen_cover_art_subtitle">Растягивает обложку до краёв плеера вместо квадратного варианта</string>
+    <string name="full_screen_cover_art_subtitle">Fills the whole player with the cover art instead of a square sleeve</string>
     <string name="animated_cover_art_subtitle">Воспроизводит зацикленное видео, которое есть у некоторых релизов вместо неподвижной обложки</string>
     <string name="dont_repeat_songs_subtitle">Автовоспроизведение не будет предлагать уже сыгранную или предложенную в этой сессии песню</string>
     <string name="download_quality_subtitle">%1$s за трек, независимо от соединения</string>

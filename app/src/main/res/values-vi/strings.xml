@@ -259,7 +259,7 @@
     <string name="liquid_glass">Kính lỏng (Liquid Glass)</string>
     <string name="liquid_glass_subtitle">Hiệu ứng kính khúc xạ trên thanh điều hướng nổi. Chỉ dành cho Android 12+; sử dụng nhiều GPU hơn.</string>
     <string name="liquid_glass_unavailable">Yêu cầu Android 12 trở lên</string>
-    <string name="full_screen_cover_art">Ảnh bìa toàn màn hình</string>
+    <string name="full_screen_cover_art">Full-cover Now Playing</string>
     <string name="legacy_mesh_gradient">Dải màu lưới kiểu cũ</string>
     <string name="legacy_mesh_gradient_subtitle">Mang lại các đốm màu chuyển động phía sau trình phát từ phiên bản 1.5</string>
     <string name="animated_cover_art">Ảnh bìa động</string>
@@ -288,7 +288,7 @@
     <string name="system">Hệ thống</string>
     <string name="light">Sáng</string>
     <string name="dark">Tối</string>
-    <string name="full_screen_cover_art_subtitle">Mở rộng ảnh bìa ra các cạnh của trình phát thay vì khung vuông</string>
+    <string name="full_screen_cover_art_subtitle">Fills the whole player with the cover art instead of a square sleeve</string>
     <string name="animated_cover_art_subtitle">Phát video vòng lặp mà một số bản phát hành cung cấp thay vì ảnh tĩnh</string>
     <string name="miscellaneous_footer">Khi bật, việc đóng ứng dụng khỏi màn hình ứng dụng gần đây cũng sẽ dừng phát nhạc.</string>
     <string name="dont_repeat_songs_subtitle">Tự động phát sẽ không gợi ý bài hát đã phát hoặc đã được gợi ý trong phiên này</string>

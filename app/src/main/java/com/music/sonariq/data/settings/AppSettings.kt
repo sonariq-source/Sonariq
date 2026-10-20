@@ -770,14 +770,11 @@ object AppSettings {
     val prioritizeSpotifyCanvas = MutableStateFlow(false)
 
     /**
-     * Blows the player's cover art out to a full-bleed banner running off the
-     * top of the screen, rather than sitting it in a square card.
+     * Fills the whole Now Playing screen edge to edge with the cover art,
+     * sitting the controls on top of it.
      *
-     * The treatment motion artwork has always had, applied to still sleeves too.
-     * Off restores the card: the sleeve keeps its corners, its shadow and its
-     * shrink-while-paused, and only a clip goes full-bleed. Phones only either
-     * way — see the hero notes in
-     * [NowPlayingScreen][com.music.sonariq.ui.player.NowPlayingScreen].
+     * On means full-cover in portrait and landscape, on phone and tablet alike.
+     * Off keeps the classic centred square sleeve over the artwork backdrop.
      */
     val fullBleedArtwork = MutableStateFlow(true)
 

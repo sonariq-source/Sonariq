@@ -274,7 +274,7 @@
     <string name="liquid_glass">Liquid Glass</string>
     <string name="liquid_glass_subtitle">Vetro rifrangente reale sulla barra di navigazione flottante. Solo Android 12+; usa più GPU.</string>
     <string name="liquid_glass_unavailable">Richiede Android 12 o versioni successive</string>
-    <string name="full_screen_cover_art">Copertina a tutto schermo</string>
+    <string name="full_screen_cover_art">Full-cover Now Playing</string>
     <string name="animated_cover_art">Copertina animata</string>
     <string name="synced_lyrics">Testi sincronizzati</string>
     <string name="synced_lyrics_subtitle">Evidenzia le parole sul player mentre vengono cantate</string>
@@ -301,7 +301,7 @@
     <string name="system">Sistema</string>
     <string name="light">Chiaro</string>
     <string name="dark">Scuro</string>
-    <string name="full_screen_cover_art_subtitle">Estende la copertina fino ai bordi del player invece di un quadrato</string>
+    <string name="full_screen_cover_art_subtitle">Fills the whole player with the cover art instead of a square sleeve</string>
     <string name="animated_cover_art_subtitle">Riproduce il video in loop fornito da alcune release invece di una copertina statica</string>
     <string name="dont_repeat_songs_subtitle">AutoPlay non suggerirà un brano già riprodotto o suggerito in questa sessione</string>
     <string name="download_quality_subtitle">%1$s per brano, indipendentemente dalla connessione</string>

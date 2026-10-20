@@ -1,5 +1,6 @@
 package com.music.sonariq.tv
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.SpanStyle
@@ -51,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import coil3.compose.AsyncImage
@@ -59,6 +62,7 @@ import com.music.sonariq.data.lyrics.LyricsRepository
 import com.music.sonariq.data.lyrics.LyricsSource
 import com.music.sonariq.data.model.Song
 import com.music.sonariq.data.model.artworkAt
+import com.music.sonariq.data.settings.AppSettings
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
@@ -82,6 +86,7 @@ fun TvPlayerScreen(
     var positionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
     var isPlaying by remember { mutableStateOf(false) }
+    val fullBleedArtwork by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
     val backFocus = remember { FocusRequester() }
     val playFocus = remember { FocusRequester() }
 
@@ -129,171 +134,198 @@ fun TvPlayerScreen(
         }
     }
 
-    Row(
-        Modifier
-            .fillMaxSize()
-            .padding(48.dp),
-    ) {
-        // Left: artwork, identity, transport.
-        Column(
-            modifier = Modifier
-                .weight(0.85f)
-                .fillMaxHeight(),
-            horizontalAlignment = Alignment.Start,
-        ) {
-            IconButton(
-                onClick = onBack,
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .focusRequester(backFocus),
-            ) {
-                Icon(
-                    Icons.Rounded.ArrowBack,
-                    contentDescription = "Back",
-                    modifier = Modifier.size(36.dp),
+    Box(Modifier.fillMaxSize()) {
+        // Static full-cover artwork backdrop: one image, one scrim,
+        // nothing animated — cheap enough for weak TV hardware.
+        if (fullBleedArtwork) {
+            song.artworkAt(1024)?.let { backdropArtwork ->
+                AsyncImage(
+                    model = backdropArtwork,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = 0.55f),
+                                    Color.Black.copy(alpha = 0.78f),
+                                ),
+                            ),
+                        ),
                 )
             }
-            Spacer(Modifier.height(24.dp))
-            AsyncImage(
-                model = song.artworkAt(512),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(280.dp)
-                    .clip(RoundedCornerShape(20.dp)),
-            )
-            Spacer(Modifier.height(24.dp))
-            Text(
-                text = song.title,
-                style = MaterialTheme.typography.headlineMedium.copy(fontSize = 32.sp),
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = song.artist,
-                style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(24.dp))
-            // Transport: previous, play/pause, next — all D-pad reachable.
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                IconButton(
-                    onClick = { controller?.seekToPrevious() },
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape),
-                ) {
-                    Icon(
-                        Icons.Rounded.SkipPrevious,
-                        contentDescription = "Previous",
-                        modifier = Modifier.size(40.dp),
-                    )
-                }
-                IconButton(
-                    onClick = {
-                        if (isPlaying) controller?.pause() else controller?.play()
-                    },
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                        .focusRequester(playFocus),
-                ) {
-                    Icon(
-                        if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
-                        modifier = Modifier.size(52.dp),
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                }
-                IconButton(
-                    onClick = { controller?.seekToNext() },
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape),
-                ) {
-                    Icon(
-                        Icons.Rounded.SkipNext,
-                        contentDescription = "Next",
-                        modifier = Modifier.size(40.dp),
-                    )
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-            val progress = if (durationMs > 0) {
-                (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
-            } else 0f
-            LinearProgressIndicator(
-                progress = progress,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp)),
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "${formatMs(positionMs)} / ${formatMs(durationMs)}",
-                fontSize = 18.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
 
-        Spacer(Modifier.width(64.dp))
-
-        // Right: lyrics.
-        Column(
-            modifier = Modifier
-                .weight(1.15f)
-                .fillMaxHeight(),
+        Row(
+            Modifier
+                .fillMaxSize()
+                .padding(48.dp),
         ) {
-            Text(
-                text = "Lyrics",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(12.dp))
-            when {
-                loadingLyrics -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(Modifier.size(56.dp))
-                    }
+            // Left: artwork, identity, transport.
+            Column(
+                modifier = Modifier
+                    .weight(0.85f)
+                    .fillMaxHeight(),
+                horizontalAlignment = Alignment.Start,
+            ) {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .focusRequester(backFocus),
+                ) {
+                    Icon(
+                        Icons.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                        modifier = Modifier.size(36.dp),
+                    )
                 }
-                lines.isEmpty() -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "Lyrics not available",
-                            fontSize = 26.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Spacer(Modifier.height(24.dp))
+                AsyncImage(
+                    model = song.artworkAt(512),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(280.dp)
+                        .clip(RoundedCornerShape(20.dp)),
+                )
+                Spacer(Modifier.height(24.dp))
+                Text(
+                    text = song.title,
+                    style = MaterialTheme.typography.headlineMedium.copy(fontSize = 32.sp),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = song.artist,
+                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(24.dp))
+                // Transport: previous, play/pause, next — all D-pad reachable.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    IconButton(
+                        onClick = { controller?.seekToPrevious() },
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape),
+                    ) {
+                        Icon(
+                            Icons.Rounded.SkipPrevious,
+                            contentDescription = "Previous",
+                            modifier = Modifier.size(40.dp),
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            if (isPlaying) controller?.pause() else controller?.play()
+                        },
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(CircleShape)
+                            .focusRequester(playFocus),
+                    ) {
+                        Icon(
+                            if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            contentDescription = if (isPlaying) "Pause" else "Play",
+                            modifier = Modifier.size(52.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    IconButton(
+                        onClick = { controller?.seekToNext() },
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape),
+                    ) {
+                        Icon(
+                            Icons.Rounded.SkipNext,
+                            contentDescription = "Next",
+                            modifier = Modifier.size(40.dp),
                         )
                     }
                 }
-                else -> {
-                    LazyColumn(
-                        state = listState,
-                        verticalArrangement = Arrangement.spacedBy(18.dp),
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        itemsIndexed(lines, key = { i, line -> "$i-${line.timeMs}" }) { index, line ->
-                            TvLyricLine(
-                                line = line,
-                                // Only the current line animates its reveal;
-                                // everything else is static text.
-                                revealedChars = when {
-                                    index < currentIndex -> line.text.length
-                                    index == currentIndex -> revealCount(line, positionMs)
-                                    else -> 0
-                                },
-                                isCurrent = index == currentIndex,
-                                isPast = index < currentIndex,
+                Spacer(Modifier.height(16.dp))
+                val progress = if (durationMs > 0) {
+                    (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
+                } else 0f
+                LinearProgressIndicator(
+                    progress = progress,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "${formatMs(positionMs)} / ${formatMs(durationMs)}",
+                    fontSize = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            Spacer(Modifier.width(64.dp))
+
+            // Right: lyrics.
+            Column(
+                modifier = Modifier
+                    .weight(1.15f)
+                    .fillMaxHeight(),
+            ) {
+                Text(
+                    text = "Lyrics",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+                when {
+                    loadingLyrics -> {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(Modifier.size(56.dp))
+                        }
+                    }
+                    lines.isEmpty() -> {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "Lyrics not available",
+                                fontSize = 26.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                        }
+                    }
+                    else -> {
+                        LazyColumn(
+                            state = listState,
+                            verticalArrangement = Arrangement.spacedBy(18.dp),
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            itemsIndexed(lines, key = { i, line -> "$i-${line.timeMs}" }) { index, line ->
+                                TvLyricLine(
+                                    line = line,
+                                    // Only the current line animates its reveal;
+                                    // everything else is static text.
+                                    revealedChars = when {
+                                        index < currentIndex -> line.text.length
+                                        index == currentIndex -> revealCount(line, positionMs)
+                                        else -> 0
+                                    },
+                                    isCurrent = index == currentIndex,
+                                    isPast = index < currentIndex,
+                                )
+                            }
                         }
                     }
                 }

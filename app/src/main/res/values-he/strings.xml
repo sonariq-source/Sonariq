@@ -231,7 +231,7 @@
     <string name="reduce_animation_subtitle">מקפיא את הגרדיאנט של הנגן הראשי במקום לתת לו לנוע</string>
     <string name="reduce_dynamic_blur">הפחתת טשטוש דינמי</string>
     <string name="reduce_dynamic_blur_subtitle">מחליף אפקט זכוכית מטושטשת במילוי אחיד בכל האפליקציה</string>
-    <string name="full_screen_cover_art">עטיפת אלבום במסך מלא</string>
+    <string name="full_screen_cover_art">Full-cover Now Playing</string>
     <string name="animated_cover_art">עטיפת אלבום מונפשת</string>
     <string name="synced_lyrics">מילות שיר מסונכרנות</string>
     <string name="synced_lyrics_subtitle">מדגיש את המילים בנגן בזמן שהן מושרות</string>
@@ -258,7 +258,7 @@
     <string name="system">מערכת</string>
     <string name="light">בהיר</string>
     <string name="dark">כהה</string>
-    <string name="full_screen_cover_art_subtitle">מותח את העטיפה עד לקצוות הנגן במקום עטיפה מרובעת</string>
+    <string name="full_screen_cover_art_subtitle">Fills the whole player with the cover art instead of a square sleeve</string>
     <string name="animated_cover_art_subtitle">מנגן את סרטון הלופ שמגיע עם חלק מההוצאות במקום עטיפה סטטית</string>
     <string name="dont_repeat_songs_subtitle">ההשמעה האוטומטית לא תציע שיר שכבר הושמע או הוצע בהפעלה הנוכחית</string>
     <string name="download_quality_subtitle">%1$s לרצועה, ללא קשר לחיבור</string>

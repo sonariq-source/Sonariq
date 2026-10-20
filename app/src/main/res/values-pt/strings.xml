@@ -232,7 +232,7 @@
     <string name="reduce_animation_subtitle">Congela o gradiente do player principal em vez de mover</string>
     <string name="reduce_dynamic_blur">Reduzir desfoque dinâmico</string>
     <string name="reduce_dynamic_blur_subtitle">Troca o vidro fosco por preenchimentos sólidos em todo o app</string>
-    <string name="full_screen_cover_art">Capa em tela cheia</string>
+    <string name="full_screen_cover_art">Full-cover Now Playing</string>
     <string name="animated_cover_art">Capa animada</string>
     <string name="synced_lyrics">Letras sincronizadas</string>
     <string name="synced_lyrics_subtitle">Destaca as palavras no player conforme são cantadas</string>
@@ -259,7 +259,7 @@
     <string name="system">Sistema</string>
     <string name="light">Claro</string>
     <string name="dark">Escuro</string>
-    <string name="full_screen_cover_art_subtitle">Estende a capa até as bordas do player em vez de um quadrado</string>
+    <string name="full_screen_cover_art_subtitle">Fills the whole player with the cover art instead of a square sleeve</string>
     <string name="animated_cover_art_subtitle">Reproduz o vídeo em loop que alguns lançamentos trazem em vez de uma capa estática</string>
     <string name="dont_repeat_songs_subtitle">A reprodução automática não sugerirá uma música já tocada ou sugerida nesta sessão</string>
     <string name="download_quality_subtitle">%1$s por faixa, independentemente da conexão</string>
