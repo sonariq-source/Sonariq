@@ -696,7 +696,7 @@
         <item quantity="other">%1$d meses de escuta</item>
     </plurals>
 
-    <!-- Listen together -->
+    
     <string name="listen_together">Ouvir junto</string>
     <string name="listen_together_subtitle">Compartilhe um código e ouçam a mesma música, em sincronia</string>
     <string name="listen_together_in_party">Em uma festa · %1$s</string>
@@ -1590,7 +1590,7 @@
     <string name="collab_delete_message">Delete %1$s? Songs already in the party queue stay there.</string>
     <string name="collab_remove">Remove</string>
 
-    <!-- Vibe autoplay -->
+    
     <string name="autoplay">Autoplay</string>
     <string name="autoplay_subtitle">Keep playing similar music when the queue ends</string>
     <string name="vibe_adventurous">Adventurous</string>
@@ -1629,4 +1629,39 @@
     <string name="card_style_wide">Wide</string>
     <string name="card_style_minimal">Minimal</string>
     <string name="share_card">Share</string>
+<string name="autoplay_section">Autoplay</string>
+<string name="autoplay_mix_library">Library</string>
+<string name="autoplay_mix_downloads">Downloads</string>
+<string name="autoplay_mix_discovery">New discoveries</string>
+<string name="autoplay_mix_caption">Relative weights \u2014 they do not need to add up to 100.</string>
+<string name="autoplay_exploration">Exploration</string>
+<string name="autoplay_exploration_subtitle">How far autoplay may stray from what you know</string>
+<string name="autoplay_exploration_safe">Safe</string>
+<string name="autoplay_exploration_balanced">Balanced</string>
+<string name="autoplay_exploration_adventurous">Adventurous</string>
+<string name="autoplay_discovery_mode">Discovery mode</string>
+<string name="autoplay_discovery_mode_subtitle">Lean autoplay into songs you have never played</string>
+<string name="autoplay_downloads_only">Downloads-only autoplay</string>
+<string name="autoplay_downloads_only_subtitle">Pick only from music on this device</string>
+<string name="activity_autoplay">Activity autoplay</string>
+<string name="activity_autoplay_subtitle">Uses motion and step sensors to shape the session, and turns itself off if they are unavailable</string>
+<string name="autoplay_never_title">Never autoplay</string>
+<string name="autoplay_never_empty">Nothing is banned yet. Ban a song or an artist from its menu and it will show up here.</string>
+<string name="autoplay_never_artists">Artists</string>
+<string name="autoplay_never_songs">Songs</string>
+<string name="autoplay_wind_down">Wind down</string>
+<string name="autoplay_wind_down_subtitle">Calm the music as bedtime approaches</string>
+<string name="autoplay_wind_down_bedtime">Bedtime</string>
+<string name="autoplay_wind_down_lead">Start winding down</string>
+<string name="autoplay_lead_minutes">%1$d min before</string>
+<string name="autoplay_workout">Workout session</string>
+<string name="autoplay_workout_subtitle">Shape the session around your workout</string>
+<string name="autoplay_workout_length">Session length</string>
+<string name="autoplay_minutes">%1$d min</string>
+<string name="autoplay_energy_curve">Energy curve</string>
+<string name="autoplay_energy_steady">Steady</string>
+<string name="autoplay_energy_build">Build</string>
+<string name="autoplay_energy_peak_coast">Peak &amp; Coast</string>
+<string name="autoplay_energy_wind_down">Wind Down</string>
+<string name="autoplay_remove_ban">Remove</string>
 </resources>
