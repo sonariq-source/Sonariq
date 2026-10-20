@@ -60,6 +60,7 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.music.sonariq.R
+import com.music.sonariq.data.model.QueueTier
 import com.music.sonariq.data.model.Song
 import com.music.sonariq.playback.QueueHistoryLog
 import com.music.sonariq.playback.SavedQueueStore
@@ -308,6 +309,19 @@ private fun UpNextTab(
                                     overflow = TextOverflow.Ellipsis,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                                if (song.queueTier == QueueTier.AUTOPLAY) {
+                                    // Autoplay picks live in the same list as
+                                    // everything else here; without the mark
+                                    // there is no telling which rows autoplay
+                                    // chose.
+                                    Text(
+                                        text = stringResource(R.string.autoplay),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
                             if (reorderable) {
                                 Icon(
@@ -361,6 +375,11 @@ private fun UpNextTab(
                                                     dragged = null
                                                     onDragActiveChange(false)
                                                     val finalSlot = liveOrder.indexOfFirst { it.key == row.key }
+                                                    // Net move committed once on drop: the row the
+                                                    // drag started on, from its original queue slot
+                                                    // to where it landed. (startSlot is where it
+                                                    // started, finalSlot where it ended — not the
+                                                    // other way round.)
                                                     if (finalSlot in liveOrder.indices && finalSlot != startSlot) {
                                                         onMoveInQueue(row.queueIndex, row.queueIndex + (finalSlot - startSlot))
                                                     }

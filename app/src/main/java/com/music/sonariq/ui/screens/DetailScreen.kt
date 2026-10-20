@@ -47,6 +47,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.ui.graphics.luminance
 import com.music.sonariq.data.model.LibraryState
@@ -57,6 +58,8 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -67,10 +70,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.draw.clip
@@ -108,6 +113,7 @@ import coil3.compose.AsyncImagePainter
 import coil3.request.ImageRequest
 import androidx.compose.runtime.mutableIntStateOf
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
 import com.music.sonariq.data.canvas.AppleArtistArt
@@ -132,6 +138,9 @@ import com.music.sonariq.data.model.artworkAt
 import com.music.sonariq.data.model.durationMillis
 import com.music.sonariq.data.model.isSameTrackAs
 import com.music.sonariq.data.settings.AppSettings
+import com.music.sonariq.playback.AutoplaySeeds
+import com.music.sonariq.playback.launchSeededAutoplay
+import com.music.sonariq.playback.rememberMediaController
 import com.music.sonariq.ui.components.DownloadedBadge
 import com.music.sonariq.ui.components.ExplicitSongTitle
 import com.music.sonariq.ui.components.LIBRARY_GRID_SPACING
@@ -348,6 +357,13 @@ fun DetailScreen(
         rawSongs.withIndex().associate { (i, s) -> s.videoId to i + 1 }
     }
     val isArtist = page.type == BrowseType.ARTIST
+    // The artist page's own "Start Autoplay": the page is where the artist's
+    // tracks already live, so the menu is built here rather than routed
+    // through the caller's callbacks — the same way the page owns its own
+    // play and shuffle actions.
+    val playbackContext = LocalContext.current
+    val playbackScope = rememberCoroutineScope()
+    val playbackController = rememberMediaController()
     // Whether the top release card's album is already saved isn't on the shelf
     // item; it is read off the album once, as soon as the card is known.
     val topReleaseId = if (isArtist) page.sections.topRelease()?.browseId else null
@@ -564,6 +580,17 @@ fun DetailScreen(
                         onToggleSubscription = onToggleSubscription,
                         bottomSpace = 22.dp,
                         playColor = appleArt?.keyColor?.let { Color(it) },
+                        // The artist's own tracks are the seed: already in
+                        // hand on the page, fetched only if they aren't.
+                        onStartAutoplay = {
+                            playbackScope.launch {
+                                playbackContext.launchSeededAutoplay(playbackController) {
+                                    AutoplaySeeds.artistSeeds(page.title, page.browseId, songs)
+                                }
+                            }
+                        },
+                        // The artist on this page, banned from autoplay by name.
+                        onBanArtist = { AppSettings.banArtist(page.title) },
                     )
                 }
             }
@@ -1551,7 +1578,8 @@ private val SOFT_FOOT_BLUR = 48.dp
 
 /**
  * Shuffle • Play • Star — the artist page's action row: a large Play circle
- * with a small glass circle either side.
+ * with a small glass circle either side. An overflow circle after the star
+ * holds the page's menu — "Start Autoplay" and "Never autoplay this artist".
  *
  * The star is the page's existing subscribe toggle. Where the page offers none
  * (a guest) an empty slot of the same size keeps Play in the middle.
@@ -1567,6 +1595,17 @@ private fun ActionRow(
     onToggleSubscription: (() -> Unit)? = null,
     /** Apple's fill for the Play circle; null leaves it white. */
     playColor: Color? = null,
+    /**
+     * The artist page's overflow, in the same circle-button style as the
+     * release page's: "Start Autoplay", the artist's own tracks with the
+     * AutoPlay setting on. Null where no overflow is offered.
+     */
+    onStartAutoplay: (() -> Unit)? = null,
+    /**
+     * Bans the artist on the page from autoplay. Null where no ban is offered —
+     * the release page has no single artist to ban, so this stays artist-only.
+     */
+    onBanArtist: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -1606,6 +1645,55 @@ private fun ActionRow(
             )
         } else {
             Spacer(Modifier.size(ARTIST_SIDE_BUTTON))
+        }
+
+        if (onStartAutoplay != null || onBanArtist != null) {
+            var menuOpen by remember { mutableStateOf(false) }
+            Box {
+                CircleIconButton(
+                    icon = Icons.Rounded.MoreHoriz,
+                    contentDescription = stringResource(R.string.more),
+                    palette = palette,
+                    onClick = { menuOpen = true },
+                    haptic = Haptic.Select,
+                    size = ARTIST_SIDE_BUTTON,
+                )
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                ) {
+                    if (onStartAutoplay != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.start_autoplay)) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = SonariqIcons.Infinity,
+                                    contentDescription = null,
+                                )
+                            },
+                            onClick = {
+                                menuOpen = false
+                                onStartAutoplay()
+                            },
+                        )
+                    }
+                    if (onBanArtist != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.never_autoplay_artist)) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Block,
+                                    contentDescription = null,
+                                )
+                            },
+                            onClick = {
+                                menuOpen = false
+                                onBanArtist()
+                            },
+                        )
+                    }
+                }
+            }
         }
     }
     Spacer(Modifier.height(bottomSpace))

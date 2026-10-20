@@ -1,7 +1,7 @@
 package com.music.sonariq.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +17,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -26,6 +28,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,8 +45,12 @@ import com.music.sonariq.data.model.artworkAt
 import com.music.sonariq.data.mood.MomentSlot
 import com.music.sonariq.data.mood.MomentStations
 import com.music.sonariq.data.stats.ListeningStats
+import com.music.sonariq.playback.launchSeededAutoplay
+import com.music.sonariq.playback.rememberMediaController
+import com.music.sonariq.ui.icons.SonariqIcons
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -53,7 +60,9 @@ import kotlinx.coroutines.withContext
  * The station is built in the background when Home appears — seeded from the
  * listener's own plays in this slot's hours (falling back to their
  * most-played, then to real search results) — and tapping the card plays the
- * already-built station outright, no menu, no intermediate screen. When
+ * already-built station outright, no intermediate screen. Holding the card
+ * opens its menu: "Start Autoplay" starts the same station with the AutoPlay
+ * setting on, so the music keeps going from the playing tracks. When
  * nothing real can be built (no history and no network), the section stays
  * hidden rather than showing an empty or invented card.
  *
@@ -67,6 +76,11 @@ fun MomentStationSection(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    // The card's own "Start Autoplay": the station is already built and in
+    // hand, so this path plays it with the AutoPlay setting on rather than
+    // going back through the caller's plain play tap.
+    val controller = rememberMediaController()
+    val scope = rememberCoroutineScope()
     var slot by remember { mutableStateOf(MomentSlot.current()) }
     var station by remember { mutableStateOf<MomentStations.Station?>(null) }
     var building by remember { mutableStateOf(true) }
@@ -120,6 +134,11 @@ fun MomentStationSection(
                 slot = slot,
                 station = current,
                 onPlay = { onPlayStation(current.songs, slot) },
+                onStartAutoplay = {
+                    scope.launch {
+                        context.launchSeededAutoplay(controller) { current.songs }
+                    }
+                },
             )
         }
     }
@@ -141,9 +160,11 @@ private fun MomentStationCard(
     slot: MomentSlot,
     station: MomentStations.Station,
     onPlay: () -> Unit,
+    onStartAutoplay: () -> Unit,
 ) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
+    var menuOpen by remember { mutableStateOf(false) }
     val subtitle = stringResource(
         if (station.personal) R.string.moment_subtitle_personal
         else R.string.moment_subtitle_fresh,
@@ -151,14 +172,20 @@ private fun MomentStationCard(
     val count = context.resources.getQuantityString(
         R.plurals.song_count_plural, station.songs.size, station.songs.size,
     )
-    Row(
-        modifier = Modifier
-            .padding(horizontal = 16.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(colors.surfaceVariant)
-            .clickable { onPlay() }
-            .padding(12.dp),
+    // A tap plays the station outright; holding the card offers "Start
+    // Autoplay" — the same station, started with the AutoPlay setting on.
+    Box {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(colors.surfaceVariant)
+                .combinedClickable(
+                    onClick = onPlay,
+                    onLongClick = { menuOpen = true },
+                )
+                .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -223,6 +250,25 @@ private fun MomentStationCard(
                 contentDescription = stringResource(R.string.moment_play_station),
                 tint = colors.onPrimary,
                 modifier = Modifier.size(28.dp),
+            )
+        }
+        }
+        DropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.start_autoplay)) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = SonariqIcons.Infinity,
+                        contentDescription = null,
+                    )
+                },
+                onClick = {
+                    menuOpen = false
+                    onStartAutoplay()
+                },
             )
         }
     }

@@ -1,6 +1,8 @@
 package com.music.sonariq.playback
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import com.music.sonariq.data.LocalMediaRepository
 import com.music.sonariq.data.YtMusicRepository
 import com.music.sonariq.data.listentogether.ListenTogether
@@ -15,7 +17,9 @@ import com.music.sonariq.download.Downloads
 import com.music.sonariq.playback.QueueCoordinator.asQueueEntry
 import com.music.sonariq.playback.vibe.VibeAnalyzer
 import com.music.sonariq.playback.vibe.VibeAutoplay
+import com.music.sonariq.playback.vibe.VibePlayStats
 import com.music.sonariq.playback.vibe.VibeStore
+import com.music.sonariq.playback.vibe.VibeVector
 import kotlinx.coroutines.CancellationException
 
 /** Most AutoPlay-suggested tracks kept queued ahead of the current one at once. */
@@ -86,8 +90,8 @@ fun autoplayQueueNeedsRefresh(
     currentIndex == itemCount - 1
 
 /**
- * Finds the YouTube id that should seed AutoPlay for a song. Module tracks do not
- * carry YouTube ids, so they are matched on YouTube before the radio request.
+ * Finds the streaming id that should seed AutoPlay for a song. Module tracks do
+ * not carry streaming ids, so they are matched against the catalogue first.
  */
 suspend fun youtubeSeedFor(song: Song): String? {
     if (SourceRegistry.parseTrackKey(song.videoId) == null) return song.videoId
@@ -106,10 +110,13 @@ suspend fun youtubeSeedFor(song: Song): String? {
  * the only caller for the AutoPlay toggle; the player UI's explicit radio start
  * uses this same helper for its initial station batch.
  *
- * When [context] is provided, SmartAutoplay predictions lead the queue: songs
- * the user actually plays after [seedSong] come first, then YouTube's radio
- * fills the rest. The predictor only leads when it has learned enough —
- * otherwise radio runs the show as before.
+ * When [context] is provided, the batch is built as a mix: the user's library
+ * and downloads are scored by vibe (see [loadVibeAutoplay]) and interleaved
+ * with radio discovery in the proportions of the autoplay mix settings, with
+ * SmartAutoplay predictions leading the discovery share. When vibe scoring
+ * can't verify anything — no session vibe, nothing passing the threshold —
+ * radio alone fills the batch, as before. Banned tracks and artists are
+ * filtered out of every source.
  */
 suspend fun loadAutoplayTracks(
     existing: List<Song>,
@@ -117,17 +124,55 @@ suspend fun loadAutoplayTracks(
     limit: Int = MAX_QUEUED_AUTOPLAY,
     context: Context? = null,
 ): Result<List<Song>> {
-    // Vibe autoplay leads when enabled: match the session's vibe against the
-    // offline library. The regular radio path below is the fallback — vibe
-    // returning empty means "couldn't verify anything", not an error.
+    val bannedIds = AppSettings.autoplayBannedSongIds.value
+    val bannedArtists = AppSettings.autoplayBannedArtists.value
+
     if (context != null) {
-        val vibe = runCatching { loadVibeAutoplay(context, existing, seedSong, limit) }
-            .getOrDefault(emptyList())
-        if (vibe.isNotEmpty()) return Result.success(vibe)
+        // Downloads-only playback never touches the network; so does a
+        // device with no validated internet. Both build from downloads only.
+        val downloadsOnly = AppSettings.autoplayDownloadsOnly.value ||
+            !hasValidatedInternet(context)
+        val mixed = runCatching {
+            loadVibeAutoplay(
+                context = context,
+                existing = existing,
+                seedSong = seedSong,
+                limit = limit,
+                bannedIds = bannedIds,
+                bannedArtists = bannedArtists,
+                downloadsOnly = downloadsOnly,
+            ) {
+                loadDiscoveryBatch(context, existing, seedSong, limit, bannedIds, bannedArtists)
+                    .getOrDefault(emptyList())
+            }
+        }.getOrDefault(emptyList())
+        if (mixed.isNotEmpty()) return Result.success(mixed)
+        // There is no radio fallback for a downloads-only batch: nothing else
+        // is allowed to play, so an empty batch is the honest answer.
+        if (downloadsOnly) return Result.success(emptyList())
     }
 
-    val seed = youtubeSeedFor(seedSong) ?: return Result.success(emptyList())
-    val related = YtMusicRepository.radio(seed).getOrElse { return Result.failure(it) }
+    val discovery = loadDiscoveryBatch(context, existing, seedSong, limit, bannedIds, bannedArtists)
+        .getOrElse { return Result.failure(it) }
+    if (discovery.isEmpty()) return Result.success(emptyList())
+    return Result.success(toQueueEntries(discovery, seedSong))
+}
+
+/**
+ * The discovery share of a batch: SmartAutoplay predictions first (only once
+ * the predictor has learned enough), then radio for the seed, all run
+ * through the bans and the queue's own de-duplication and artist caps.
+ */
+private suspend fun loadDiscoveryBatch(
+    context: Context?,
+    existing: List<Song>,
+    seedSong: Song,
+    limit: Int,
+    bannedIds: Set<String>,
+    bannedArtists: Set<String>,
+): Result<List<Song>> = runCatching {
+    val seed = youtubeSeedFor(seedSong) ?: return@runCatching emptyList()
+    val related = YtMusicRepository.radio(seed).getOrThrow()
 
     // Smart predictions first: resolve cached predictions to full songs.
     val predicted: List<Song> = if (context != null) {
@@ -151,76 +196,286 @@ suspend fun loadAutoplayTracks(
         }.getOrDefault(emptyList())
     } else emptyList()
 
-    val combined = (predicted + related).distinctBy { it.videoId }
-    val extra = QueueBuilder.extend(existing, combined, limit)
-    if (extra.isEmpty()) return Result.success(emptyList())
+    val combined = (predicted + related)
+        .filterNot { AutoplayPolicy.isBanned(it.videoId, it.artist, bannedIds, bannedArtists) }
+        .distinctBy { it.videoId }
+    QueueBuilder.extend(existing, combined, limit)
+}
 
-    return Result.success(extra.map {
-        it.copy(
-            radioName = seedSong.radioName,
-            playbackSource = seedSong.playbackSource,
-            playbackSourceType = seedSong.playbackSourceType,
-            playbackSourceId = seedSong.playbackSourceId,
-        ).asQueueEntry(QueueTier.AUTOPLAY)
-    })
+/** Tags one batch as autoplay queue entries inheriting the seed's source. */
+private fun toQueueEntries(songs: List<Song>, seedSong: Song): List<Song> = songs.map {
+    it.copy(
+        radioName = seedSong.radioName,
+        playbackSource = seedSong.playbackSource,
+        playbackSourceType = seedSong.playbackSourceType,
+        playbackSourceId = seedSong.playbackSourceId,
+    ).asQueueEntry(QueueTier.AUTOPLAY)
 }
 
 /**
- * Vibe-first autoplay batch, or empty when there is nothing vibe-verified to
- * play. The session vibe is read from the last few tracks' stored vibes; the
- * candidates are the user's offline library (downloads + local files), which
- * needs no sign-in and is guaranteed playable. Everything then goes through
- * [VibeAutoplay.selectNext]'s purity rule: no stored vibe, no pick.
+ * True when the device has an internet connection the system has actually
+ * validated. Without that, radio and search are dead weight and autoplay
+ * stays on the downloads, which are guaranteed playable.
+ */
+private fun hasValidatedInternet(context: Context): Boolean {
+    val manager = context.getSystemService(ConnectivityManager::class.java) ?: return false
+    val network = manager.activeNetwork ?: return false
+    val capabilities = manager.getNetworkCapabilities(network) ?: return false
+    return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+}
+
+/**
+ * The session vibe: the last few tracks' stored vibes blended into one, or
+ * null when nothing usable is stored. Shared by the mixed batch and the
+ * downloads-only batch.
+ */
+private fun sessionVibeOf(
+    context: Context,
+    existing: List<Song>,
+    seedSong: Song,
+): VibeVector? {
+    val recentVibes = (existing.takeLast(5) + seedSong)
+        .mapNotNull { VibeStore.getVibe(context, it.videoId)?.vector }
+        .filter { !it.isEmpty() }
+    if (recentVibes.isEmpty()) return null
+    return VibeAnalyzer.sessionVibe(recentVibes).takeUnless { it.isEmpty() }
+}
+
+/**
+ * Vibe-first autoplay batch, mixed per the autoplay mix settings, or empty
+ * when there is nothing to build from and the caller should fall back to
+ * radio. The session vibe is read from the last few tracks' stored vibes;
+ * the vibe candidates are the user's offline library (downloads + local
+ * files), which needs no sign-in and is guaranteed playable. Everything
+ * vibe-scored goes through [VibeAutoplay.selectNext]'s purity rule: no
+ * stored vibe, no pick.
+ *
+ * [loadDiscovery] supplies the discovery share and is only invoked when its
+ * mix weight is non-zero.
  */
 private suspend fun loadVibeAutoplay(
     context: Context,
     existing: List<Song>,
     seedSong: Song,
     limit: Int,
+    bannedIds: Set<String>,
+    bannedArtists: Set<String>,
+    downloadsOnly: Boolean,
+    loadDiscovery: suspend () -> List<Song>,
 ): List<Song> {
+    val banned: (Song) -> Boolean = {
+        AutoplayPolicy.isBanned(it.videoId, it.artist, bannedIds, bannedArtists)
+    }
+    val excludeIds = (existing.map { it.videoId } + seedSong.videoId).toSet()
+
+    // Offline or downloads-only: downloads are the whole world. Vibe-scored
+    // when a session vibe exists, taste-ordered when it doesn't.
+    if (downloadsOnly) {
+        return loadDownloadsOnlyBatch(
+            context = context,
+            existing = existing,
+            seedSong = seedSong,
+            limit = limit,
+            bannedIds = bannedIds,
+            bannedArtists = bannedArtists,
+        )
+    }
+
     if (!AppSettings.vibeAutoplay.value) return emptyList()
 
-    // The session vibe, blended from the last few tracks' stored vibes.
-    val recentVibes = (existing.takeLast(5) + seedSong)
-        .mapNotNull { VibeStore.getVibe(context, it.videoId)?.vector }
-        .filter { !it.isEmpty() }
-    if (recentVibes.isEmpty()) return emptyList()
-    val sessionVibe = VibeAnalyzer.sessionVibe(recentVibes)
-    if (sessionVibe.isEmpty()) return emptyList()
+    val sessionVibe = sessionVibeOf(context, existing, seedSong) ?: return emptyList()
 
-    // The offline library: downloads and local files, capped for performance.
+    // The mix's two offline pools: local files are the library share,
+    // downloads are their own share, capped for performance.
     val downloaded = runCatching { Downloads.getDownloadedSongs(context) }
         .getOrDefault(emptyList())
+        .filter { it.videoId.isNotBlank() && !banned(it) }
+        .distinctBy { it.videoId }
+        .take(MAX_VIBE_CANDIDATES)
     val local = if (LocalMediaRepository.hasStoragePermission(context)) {
         runCatching { LocalMediaRepository.getLocalMusic(context) }
             .getOrDefault(emptyList())
+            .filter { it.videoId.isNotBlank() && !banned(it) }
+            .distinctBy { it.videoId }
+            .take(MAX_VIBE_CANDIDATES)
     } else {
         emptyList()
     }
-    val candidates = (downloaded + local)
-        .filter { it.videoId.isNotBlank() }
-        .distinctBy { it.videoId }
-        .take(MAX_VIBE_CANDIDATES)
-    if (candidates.isEmpty()) return emptyList()
+    if (downloaded.isEmpty() && local.isEmpty()) return emptyList()
+
+    // Exploration bends the vibe threshold and the per-artist cap: Safe
+    // stays close to the seed, Adventurous wanders further.
+    val exploration = AppSettings.autoplayExploration.value
+    val threshold = AutoplayPolicy.explorationThreshold(
+        exploration,
+        AppSettings.vibeStrictness.value,
+    )
+    val artistCap = AutoplayPolicy.explorationArtistCap(exploration)
 
     val stats = VibeAutoplay.loadPlayStats(context)
+    val tasteScore = VibeAutoplay.tasteScore(stats)
+
+    val libraryPicks = pickVibePool(
+        context, sessionVibe, local, excludeIds, limit,
+        threshold, artistCap, bannedIds, bannedArtists, stats, tasteScore,
+    )
+    val downloadsPicks = pickVibePool(
+        context, sessionVibe, downloaded, excludeIds, limit,
+        threshold, artistCap, bannedIds, bannedArtists, stats, tasteScore,
+    )
+
+    val weights = AutoplayPolicy.normaliseMix(
+        AppSettings.autoplayMixLibrary.value,
+        AppSettings.autoplayMixDownloads.value,
+        AppSettings.autoplayMixDiscovery.value,
+    )
+    // The discovery share is fetched only when it carries weight; the
+    // interleave then applies the proportions to whatever was picked.
+    val discovery = if (weights[2] > 0f) {
+        runCatching { loadDiscovery() }.getOrDefault(emptyList())
+    } else {
+        emptyList()
+    }
+
+    val mixed = AutoplayPolicy.interleaveByWeight(
+        listOf(libraryPicks, downloadsPicks, discovery),
+        weights,
+        limit,
+    )
+    if (mixed.isEmpty()) return emptyList()
+    return toQueueEntries(mixed, seedSong)
+}
+
+/**
+ * One offline pool's vibe picks: scored by [VibeAutoplay.selectNext] with the
+ * session's exploration and energy shaping applied, then — in discovery
+ * mode — re-anchored so never-played tracks lead with familiar ones between
+ * them.
+ */
+private fun pickVibePool(
+    context: Context,
+    sessionVibe: VibeVector,
+    candidates: List<Song>,
+    excludeIds: Set<String>,
+    limit: Int,
+    threshold: Float,
+    artistCap: Int,
+    bannedIds: Set<String>,
+    bannedArtists: Set<String>,
+    stats: VibePlayStats,
+    tasteScore: (String) -> Float,
+): List<Song> {
+    if (candidates.isEmpty()) return emptyList()
+    // Familiar-only (the session engine's driving mode): the pool is cut to
+    // tracks with a real play count before any scoring — an honest filter on
+    // recorded history, applied here where the stats already live.
+    val pool = if (AutoplaySession.familiarOnly) {
+        candidates.filter { (stats.plays[it.videoId] ?: 0) > 0 }
+    } else {
+        candidates
+    }
+    if (pool.isEmpty()) return emptyList()
     val picked = VibeAutoplay.selectNext(
         context = context,
         sessionVibe = sessionVibe,
-        candidates = candidates,
-        excludeIds = (existing.map { it.videoId } + seedSong.videoId).toSet(),
+        candidates = pool,
+        excludeIds = excludeIds,
         limit = limit,
-        strictness = AppSettings.vibeStrictness.value,
+        strictness = threshold,
         includeForgottenFavorites = AppSettings.vibeForgottenFavorites.value,
-        tasteScore = VibeAutoplay.tasteScore(stats),
+        tasteScore = tasteScore,
         lastPlayedAt = { stats.lastPlayedMs[it] ?: 0L },
+        targetEnergy = AutoplaySession.targetEnergy,
+        energyWeight = AutoplaySession.energyWeight,
+        artistCap = artistCap,
+        bannedIds = bannedIds,
+        bannedArtists = bannedArtists,
     )
-    return picked.map {
-        it.copy(
-            radioName = seedSong.radioName,
-            playbackSource = seedSong.playbackSource,
-            playbackSourceType = seedSong.playbackSourceType,
-            playbackSourceId = seedSong.playbackSourceId,
-        ).asQueueEntry(QueueTier.AUTOPLAY)
+    if (picked.isEmpty() || !AppSettings.autoplayDiscoveryMode.value) return picked
+
+    val (neverPlayed, anchors) = picked.partition { (stats.plays[it.videoId] ?: 0) <= 0 }
+    return if (neverPlayed.isEmpty()) {
+        picked
+    } else {
+        AutoplayPolicy.discoveryAnchored(neverPlayed, anchors, limit)
     }
+}
+
+/**
+ * The batch for offline / downloads-only playback: downloads only, always.
+ * Vibe-scored when a session vibe exists; when vibe returns nothing (or is
+ * off), the fallback is the user's real taste over their downloads — best
+ * taste score first, most recently played winning ties — so the order is
+ * deterministic and never a guess. Ban-filtered either way.
+ */
+private suspend fun loadDownloadsOnlyBatch(
+    context: Context,
+    existing: List<Song>,
+    seedSong: Song,
+    limit: Int,
+    bannedIds: Set<String>,
+    bannedArtists: Set<String>,
+): List<Song> {
+    val banned: (Song) -> Boolean = {
+        AutoplayPolicy.isBanned(it.videoId, it.artist, bannedIds, bannedArtists)
+    }
+    val excludeIds = (existing.map { it.videoId } + seedSong.videoId).toSet()
+    val downloads = runCatching { Downloads.getDownloadedSongs(context) }
+        .getOrDefault(emptyList())
+        .filter { it.videoId.isNotBlank() && it.videoId !in excludeIds && !banned(it) }
+        .distinctBy { it.videoId }
+        .take(MAX_VIBE_CANDIDATES)
+    if (downloads.isEmpty()) return emptyList()
+
+    val stats = VibeAutoplay.loadPlayStats(context)
+    val tasteScore = VibeAutoplay.tasteScore(stats)
+
+    // Familiar-only (driving): downloads are cut to tracks already played,
+    // on the same recorded-history rule as the mixed batch's pools.
+    val pool = if (AutoplaySession.familiarOnly) {
+        downloads.filter { (stats.plays[it.videoId] ?: 0) > 0 }
+    } else {
+        downloads
+    }
+    if (pool.isEmpty()) return emptyList()
+
+    val vibeOrdered: List<Song> = if (AppSettings.vibeAutoplay.value) {
+        val sessionVibe = sessionVibeOf(context, existing, seedSong)
+        if (sessionVibe != null) {
+            val exploration = AppSettings.autoplayExploration.value
+            VibeAutoplay.selectNext(
+                context = context,
+                sessionVibe = sessionVibe,
+                candidates = pool,
+                excludeIds = emptySet(), // already filtered above
+                limit = limit,
+                strictness = AutoplayPolicy.explorationThreshold(
+                    exploration,
+                    AppSettings.vibeStrictness.value,
+                ),
+                includeForgottenFavorites = AppSettings.vibeForgottenFavorites.value,
+                tasteScore = tasteScore,
+                lastPlayedAt = { stats.lastPlayedMs[it] ?: 0L },
+                targetEnergy = AutoplaySession.targetEnergy,
+                energyWeight = AutoplaySession.energyWeight,
+                artistCap = AutoplayPolicy.explorationArtistCap(exploration),
+                bannedIds = bannedIds,
+                bannedArtists = bannedArtists,
+            )
+        } else {
+            emptyList()
+        }
+    } else {
+        emptyList()
+    }
+
+    val ordered = vibeOrdered.ifEmpty {
+        pool.sortedWith(
+            compareByDescending<Song> { tasteScore(it.videoId) }
+                .thenByDescending { stats.lastPlayedMs[it.videoId] ?: 0L },
+        ).take(limit)
+    }
+    if (ordered.isEmpty()) return emptyList()
+    return toQueueEntries(ordered, seedSong)
 }

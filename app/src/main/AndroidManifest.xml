@@ -26,6 +26,12 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <!--
+      Activity autoplay's step-cadence signal (ActivityMonitor). Runtime on
+      API 29+; the feature stays honestly OFF where it isn't granted.
+    -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+
+    <!--
       In-app updates: handing a downloaded APK to the system installer. The
       per-app "install unknown apps" switch is still the user's to flip; this
       only lets the request reach the installer.

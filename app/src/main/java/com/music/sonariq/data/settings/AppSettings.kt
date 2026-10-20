@@ -563,6 +563,82 @@ object AppSettings {
      */
     val vibeStrictness = MutableStateFlow(0.6f)
 
+    // ── Autoplay 2.21 ──────────────────────────────────────────────────────
+
+    /**
+     * Where autoplay draws from, as relative weights — not percentages that
+     * sum to a hundred, just three numbers read against each other. 40/35/25
+     * is the stock split: the library first, downloads a hair behind,
+     * discovery last.
+     */
+    val autoplayMixLibrary = MutableStateFlow(40)
+
+    /** See [autoplayMixLibrary]. */
+    val autoplayMixDownloads = MutableStateFlow(35)
+
+    /** See [autoplayMixLibrary]. */
+    val autoplayMixDiscovery = MutableStateFlow(25)
+
+    /**
+     * How far autoplay may stray: 0 = Safe, 1 = Balanced, 2 = Adventurous.
+     * A plain int rather than an enum, so the engine's matching tiers map
+     * straight onto it.
+     */
+    val autoplayExploration = MutableStateFlow(1)
+
+    /**
+     * Discovery mode: lean autoplay into songs the listener has never
+     * played. Off by default — an unfamiliar track is a bigger ask than a
+     * familiar one.
+     */
+    val autoplayDiscoveryMode = MutableStateFlow(false)
+
+    /** Track ids autoplay must never serve, added from a song's menu. */
+    val autoplayBannedSongIds = MutableStateFlow<Set<String>>(emptySet())
+
+    /**
+     * Artist names autoplay must never serve, stored lowercased — see
+     * [banArtist]. Added from an artist's menu.
+     */
+    val autoplayBannedArtists = MutableStateFlow<Set<String>>(emptySet())
+
+    /** Autoplay only from what's downloaded; stream nothing. */
+    val autoplayDownloadsOnly = MutableStateFlow(false)
+
+    /**
+     * Autoplay from the listener's motion and step sensors — a session that
+     * follows the activity. Turns itself off if the device has nothing to
+     * listen to.
+     */
+    val activityAutoplay = MutableStateFlow(false)
+
+    /** Wind down towards [windDownBedtimeMinutes], calming the music ahead of it. */
+    val windDownEnabled = MutableStateFlow(false)
+
+    /** Bedtime, in minutes since midnight. 1380 is 23:00. */
+    val windDownBedtimeMinutes = MutableStateFlow(1380)
+
+    /** How many minutes before bedtime the wind-down begins. */
+    val windDownLeadMinutes = MutableStateFlow(60)
+
+    /**
+     * Workout session: the music follows the workout's energy curve for
+     * [workoutLengthMinutes] from [workoutStartedAtMs].
+     */
+    val workoutMode = MutableStateFlow(false)
+
+    /** When the current workout session started, 0 when none is running. */
+    val workoutStartedAtMs = MutableStateFlow(0L)
+
+    /** How long a workout session runs, in minutes. */
+    val workoutLengthMinutes = MutableStateFlow(45)
+
+    /**
+     * How a workout session's energy moves: 0 = Steady, 1 = Build,
+     * 2 = Peak & Coast, 3 = Wind Down.
+     */
+    val energyCurve = MutableStateFlow(0)
+
     /** Whether the queue is held in shuffled order (Mix button). */
     val shuffleEnabled = MutableStateFlow(false)
 
@@ -1111,6 +1187,22 @@ object AppSettings {
         vibeForgottenFavorites.value = prefs.getBoolean(KEY_VIBE_FORGOTTEN_FAVORITES, true)
         vibeStrictness.value = prefs.getFloat(KEY_VIBE_STRICTNESS, DEFAULT_VIBE_STRICTNESS)
             .coerceIn(MIN_VIBE_STRICTNESS, MAX_VIBE_STRICTNESS)
+        autoplayMixLibrary.value = prefs.getInt(KEY_AUTOPLAY_MIX_LIBRARY, 40).coerceIn(0, 100)
+        autoplayMixDownloads.value = prefs.getInt(KEY_AUTOPLAY_MIX_DOWNLOADS, 35).coerceIn(0, 100)
+        autoplayMixDiscovery.value = prefs.getInt(KEY_AUTOPLAY_MIX_DISCOVERY, 25).coerceIn(0, 100)
+        autoplayExploration.value = prefs.getInt(KEY_AUTOPLAY_EXPLORATION, 1).coerceIn(0, 2)
+        autoplayDiscoveryMode.value = prefs.getBoolean(KEY_AUTOPLAY_DISCOVERY_MODE, false)
+        autoplayBannedSongIds.value = prefs.getStringSet(KEY_AUTOPLAY_BANNED_SONG_IDS, emptySet()).orEmpty()
+        autoplayBannedArtists.value = prefs.getStringSet(KEY_AUTOPLAY_BANNED_ARTISTS, emptySet()).orEmpty()
+        autoplayDownloadsOnly.value = prefs.getBoolean(KEY_AUTOPLAY_DOWNLOADS_ONLY, false)
+        activityAutoplay.value = prefs.getBoolean(KEY_ACTIVITY_AUTOPLAY, false)
+        windDownEnabled.value = prefs.getBoolean(KEY_WIND_DOWN_ENABLED, false)
+        windDownBedtimeMinutes.value = prefs.getInt(KEY_WIND_DOWN_BEDTIME_MINUTES, 1380).coerceIn(0, 1439)
+        windDownLeadMinutes.value = prefs.getInt(KEY_WIND_DOWN_LEAD_MINUTES, 60).coerceIn(0, 720)
+        workoutMode.value = prefs.getBoolean(KEY_WORKOUT_MODE, false)
+        workoutStartedAtMs.value = prefs.getLong(KEY_WORKOUT_STARTED_AT_MS, 0L)
+        workoutLengthMinutes.value = prefs.getInt(KEY_WORKOUT_LENGTH_MINUTES, 45).coerceIn(1, 480)
+        energyCurve.value = prefs.getInt(KEY_ENERGY_CURVE, 0).coerceIn(0, 3)
         shuffleEnabled.value = prefs.getBoolean(KEY_SHUFFLE_ENABLED, false)
         repeatMode.value = prefs.getInt(KEY_REPEAT_MODE, Player.REPEAT_MODE_OFF)
         showNerdStats.value = prefs.getBoolean(KEY_NERD_STATS, false)
@@ -1376,6 +1468,123 @@ object AppSettings {
         val normalized = value.coerceIn(MIN_VIBE_STRICTNESS, MAX_VIBE_STRICTNESS)
         vibeStrictness.value = normalized
         prefs.edit().putFloat(KEY_VIBE_STRICTNESS, normalized).apply()
+    }
+
+    fun setAutoplayMixLibrary(value: Int) {
+        val normalized = value.coerceIn(0, 100)
+        autoplayMixLibrary.value = normalized
+        prefs.edit().putInt(KEY_AUTOPLAY_MIX_LIBRARY, normalized).apply()
+    }
+
+    fun setAutoplayMixDownloads(value: Int) {
+        val normalized = value.coerceIn(0, 100)
+        autoplayMixDownloads.value = normalized
+        prefs.edit().putInt(KEY_AUTOPLAY_MIX_DOWNLOADS, normalized).apply()
+    }
+
+    fun setAutoplayMixDiscovery(value: Int) {
+        val normalized = value.coerceIn(0, 100)
+        autoplayMixDiscovery.value = normalized
+        prefs.edit().putInt(KEY_AUTOPLAY_MIX_DISCOVERY, normalized).apply()
+    }
+
+    fun setAutoplayExploration(value: Int) {
+        val normalized = value.coerceIn(0, 2)
+        autoplayExploration.value = normalized
+        prefs.edit().putInt(KEY_AUTOPLAY_EXPLORATION, normalized).apply()
+    }
+
+    fun setAutoplayDiscoveryMode(value: Boolean) {
+        autoplayDiscoveryMode.value = value
+        prefs.edit().putBoolean(KEY_AUTOPLAY_DISCOVERY_MODE, value).apply()
+    }
+
+    fun setAutoplayBannedSongIds(value: Set<String>) {
+        autoplayBannedSongIds.value = value.toSet()
+        prefs.edit().putStringSet(KEY_AUTOPLAY_BANNED_SONG_IDS, value.toSet()).apply()
+    }
+
+    fun setAutoplayBannedArtists(value: Set<String>) {
+        val normalized = value.map { it.lowercase() }.toSet()
+        autoplayBannedArtists.value = normalized
+        prefs.edit().putStringSet(KEY_AUTOPLAY_BANNED_ARTISTS, normalized).apply()
+    }
+
+    /** Adds [id] to the songs autoplay must never serve. */
+    fun banSong(id: String) {
+        setAutoplayBannedSongIds(autoplayBannedSongIds.value + id)
+    }
+
+    /** Lifts the ban on [id]. */
+    fun unbanSong(id: String) {
+        setAutoplayBannedSongIds(autoplayBannedSongIds.value - id)
+    }
+
+    /**
+     * Adds [name] to the artists autoplay must never serve, normalised to
+     * lowercase so "The Beatles" and "the beatles" are the same ban.
+     */
+    fun banArtist(name: String) {
+        setAutoplayBannedArtists(autoplayBannedArtists.value + name.lowercase())
+    }
+
+    /** Lifts the ban on [name]. */
+    fun unbanArtist(name: String) {
+        setAutoplayBannedArtists(autoplayBannedArtists.value - name.lowercase())
+    }
+
+    fun setAutoplayDownloadsOnly(value: Boolean) {
+        autoplayDownloadsOnly.value = value
+        prefs.edit().putBoolean(KEY_AUTOPLAY_DOWNLOADS_ONLY, value).apply()
+    }
+
+    fun setActivityAutoplay(value: Boolean) {
+        activityAutoplay.value = value
+        prefs.edit().putBoolean(KEY_ACTIVITY_AUTOPLAY, value).apply()
+    }
+
+    fun setWindDownEnabled(value: Boolean) {
+        windDownEnabled.value = value
+        prefs.edit().putBoolean(KEY_WIND_DOWN_ENABLED, value).apply()
+    }
+
+    fun setWindDownBedtimeMinutes(value: Int) {
+        val normalized = value.coerceIn(0, 1439)
+        windDownBedtimeMinutes.value = normalized
+        prefs.edit().putInt(KEY_WIND_DOWN_BEDTIME_MINUTES, normalized).apply()
+    }
+
+    fun setWindDownLeadMinutes(value: Int) {
+        val normalized = value.coerceIn(0, 720)
+        windDownLeadMinutes.value = normalized
+        prefs.edit().putInt(KEY_WIND_DOWN_LEAD_MINUTES, normalized).apply()
+    }
+
+    /**
+     * Switching on stamps the session's start; switching off clears it, so
+     * the engine never inherits a stale session.
+     */
+    fun setWorkoutMode(value: Boolean) {
+        workoutMode.value = value
+        prefs.edit().putBoolean(KEY_WORKOUT_MODE, value).apply()
+        setWorkoutStartedAtMs(if (value) System.currentTimeMillis() else 0L)
+    }
+
+    fun setWorkoutStartedAtMs(value: Long) {
+        workoutStartedAtMs.value = value
+        prefs.edit().putLong(KEY_WORKOUT_STARTED_AT_MS, value).apply()
+    }
+
+    fun setWorkoutLengthMinutes(value: Int) {
+        val normalized = value.coerceIn(1, 480)
+        workoutLengthMinutes.value = normalized
+        prefs.edit().putInt(KEY_WORKOUT_LENGTH_MINUTES, normalized).apply()
+    }
+
+    fun setEnergyCurve(value: Int) {
+        val normalized = value.coerceIn(0, 3)
+        energyCurve.value = normalized
+        prefs.edit().putInt(KEY_ENERGY_CURVE, normalized).apply()
     }
 
     fun setShuffleEnabled(value: Boolean) {
@@ -2639,6 +2848,22 @@ object AppSettings {
     private const val KEY_VIBE_AUTOPLAY = "vibe_autoplay"
     private const val KEY_VIBE_FORGOTTEN_FAVORITES = "vibe_forgotten_favorites"
     private const val KEY_VIBE_STRICTNESS = "vibe_strictness"
+    private const val KEY_AUTOPLAY_MIX_LIBRARY = "autoplay_mix_library"
+    private const val KEY_AUTOPLAY_MIX_DOWNLOADS = "autoplay_mix_downloads"
+    private const val KEY_AUTOPLAY_MIX_DISCOVERY = "autoplay_mix_discovery"
+    private const val KEY_AUTOPLAY_EXPLORATION = "autoplay_exploration"
+    private const val KEY_AUTOPLAY_DISCOVERY_MODE = "autoplay_discovery_mode"
+    private const val KEY_AUTOPLAY_BANNED_SONG_IDS = "autoplay_banned_song_ids"
+    private const val KEY_AUTOPLAY_BANNED_ARTISTS = "autoplay_banned_artists"
+    private const val KEY_AUTOPLAY_DOWNLOADS_ONLY = "autoplay_downloads_only"
+    private const val KEY_ACTIVITY_AUTOPLAY = "activity_autoplay"
+    private const val KEY_WIND_DOWN_ENABLED = "wind_down_enabled"
+    private const val KEY_WIND_DOWN_BEDTIME_MINUTES = "wind_down_bedtime_minutes"
+    private const val KEY_WIND_DOWN_LEAD_MINUTES = "wind_down_lead_minutes"
+    private const val KEY_WORKOUT_MODE = "workout_mode"
+    private const val KEY_WORKOUT_STARTED_AT_MS = "workout_started_at_ms"
+    private const val KEY_WORKOUT_LENGTH_MINUTES = "workout_length_minutes"
+    private const val KEY_ENERGY_CURVE = "energy_curve"
     private const val KEY_SHUFFLE_ENABLED = "shuffle_enabled"
     private const val KEY_REPEAT_MODE = "repeat_mode"
     private const val KEY_NERD_STATS = "show_nerd_stats"

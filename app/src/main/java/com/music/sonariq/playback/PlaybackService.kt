@@ -172,6 +172,7 @@ import kotlin.math.sqrt
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
+import java.util.Calendar
 import java.util.Locale
 
 
@@ -681,6 +682,9 @@ class PlaybackService : MediaLibraryService() {
     private val loudnessA = LoudnessProcessor().apply { gainFor = ::loudnessGainFor }
     private val loudnessB = LoudnessProcessor().apply { gainFor = ::loudnessGainFor }
     private var loudnessRetryJob: Job? = null
+
+    /** The session engine (energy curve / workout / wind-down / activity). */
+    private val sessionEngine = SessionEngine()
 
     /** The platform audio session currently advertised to system audio tools. */
     private var advertisedAudioEffectSessionId: Int = C.AUDIO_SESSION_ID_UNSET
@@ -1741,6 +1745,7 @@ class PlaybackService : MediaLibraryService() {
         observeScrobbling()
         observeDiscord()
         watchSleepTimer()
+        sessionEngine.observe()
         val restored = if (PartyPersonalQueueStash.hasStash()) {
             val stashed = PartyPersonalQueueStash.load()
             PartyPersonalQueueStash.clear()
@@ -3017,6 +3022,8 @@ class PlaybackService : MediaLibraryService() {
         // kind the Cached songs folder lists. See [AudioCache.Origin].
         mediaItem?.let { AudioCache.notePlayed(it.toSong(), it.localConfiguration?.uri) }
         mediaItem?.toSong()?.let { QueueHistoryLog.notePlayed(it) }
+        // The session engine's energy curve counts real track changes.
+        sessionEngine.noteTrackChange()
         scheduleForeignCachePurge()
         mediaItem?.mediaId?.let { id ->
             resolveLocalBitrate(id, mediaItem)
@@ -5673,6 +5680,231 @@ class PlaybackService : MediaLibraryService() {
     }
 
     /**
+     * SessionEngine: the autoplay session engine. Ticks every 30 seconds and
+     * writes the session's energy intent into [AutoplaySession], in this
+     * priority order:
+     *
+     * 1. **Wind-down** — inside [bedtime − lead, bedtime] the target glides
+     *    down via [SessionEnergy.windDownTarget]; when bedtime is reached it
+     *    hands off to [SleepTimer]'s real API (a 15-minute timer, so the
+     *    service's own watcher pauses with the listener's fade-out setting)
+     *    and clears the session intent.
+     * 2. **Workout** — while a workout session runs, the target follows
+     *    [SessionEnergy.workoutTarget]; at 100% the workout is turned off
+     *    and the target is cleared.
+     * 3. **Energy curve** — per the `energyCurve` preset and a count of real
+     *    track changes while the curve is active, via
+     *    [SessionEnergy.curveTarget].
+     * 4. **Activity** — from [ActivityMonitor]'s real signals: running 0.8,
+     *    walking 0.55, driving sets [AutoplaySession.familiarOnly] (familiar
+     *    tracks only) with no energy target, and UNKNOWN/UNAVAILABLE change
+     *    nothing.
+     *
+     * The job only runs while at least one of the four is armed; with none
+     * active the session intent is cleared. [ActivityMonitor] is started and
+     * stopped with the job when activity autoplay is on. The wind-down
+     * bookkeeping is in-memory: a swipe-away kills the service and the
+     * engine with it, which is itself a clean stop.
+     */
+    private inner class SessionEngine {
+
+        private companion object {
+            /** How often the session intent is re-derived. */
+            const val TICK_MS = 30_000L
+
+            /** Sleep-timer length armed when bedtime arrives. */
+            const val WIND_DOWN_HANDOFF_MINUTES = 15
+        }
+
+        private var job: Job? = null
+
+        /** Real track changes seen while an energy-curve preset is active. */
+        private var tracksPlayed = 0
+
+        /** The preset the counter belongs to; -1 when no curve is active. */
+        private var lastCurvePreset = -1
+
+        /** Minutes until bedtime on the previous tick, for crossing detection. */
+        private var prevMinsUntilBedtime: Int? = null
+
+        /** Local day the bedtime hand-off fired on — once per day. */
+        private var lastWindDownFiredDay = Long.MIN_VALUE
+
+        private var monitorStarted = false
+
+        /** Runs the tick only while at least one session feature is armed. */
+        fun observe() {
+            scope.launch {
+                combine(
+                    AppSettings.activityAutoplay,
+                    AppSettings.windDownEnabled,
+                    AppSettings.workoutMode,
+                    AppSettings.energyCurve,
+                ) { activity, windDown, workout, curve ->
+                    activity || windDown || workout || curve != 0
+                }.distinctUntilChanged().collect { active ->
+                    if (active) start() else stop()
+                }
+            }
+        }
+
+        fun start() {
+            if (job != null) return
+            syncMonitor()
+            job = scope.launch {
+                while (isActive) {
+                    runCatching { tick() }
+                    delay(TICK_MS)
+                }
+            }
+        }
+
+        /** Stops the tick and the monitor, and clears the session intent. */
+        fun stop() {
+            job?.cancel()
+            job = null
+            if (monitorStarted) {
+                ActivityMonitor.stop()
+                monitorStarted = false
+            }
+            tracksPlayed = 0
+            lastCurvePreset = -1
+            prevMinsUntilBedtime = null
+            AutoplaySession.targetEnergy = null
+            AutoplaySession.familiarOnly = false
+        }
+
+        /** One real track change while a curve preset is active. */
+        fun noteTrackChange() {
+            if (AppSettings.energyCurve.value != 0) tracksPlayed++
+        }
+
+        /** Starts/stops the activity monitor to match the setting. */
+        private fun syncMonitor() {
+            if (AppSettings.activityAutoplay.value && !monitorStarted) {
+                ActivityMonitor.start(applicationContext)
+                monitorStarted = true
+            } else if (!AppSettings.activityAutoplay.value && monitorStarted) {
+                ActivityMonitor.stop()
+                monitorStarted = false
+            }
+        }
+
+        private fun tick() {
+            syncMonitor()
+            val calendar = Calendar.getInstance()
+            val nowMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+            val dayKey = calendar.get(Calendar.YEAR) * 1000L + calendar.get(Calendar.DAY_OF_YEAR)
+
+            // 1. Wind-down — owns the session only inside its window.
+            if (AppSettings.windDownEnabled.value && windDownTick(nowMinutes, dayKey)) return
+
+            // 2. Workout — only when a session was genuinely started.
+            if (AppSettings.workoutMode.value && workoutTick()) return
+
+            // 3. Energy curve.
+            val preset = AppSettings.energyCurve.value
+            if (preset != 0) {
+                if (preset != lastCurvePreset) {
+                    tracksPlayed = 0
+                    lastCurvePreset = preset
+                }
+                AutoplaySession.targetEnergy = SessionEnergy.curveTarget(preset, tracksPlayed)
+                AutoplaySession.familiarOnly = false
+                return
+            }
+            lastCurvePreset = -1
+            tracksPlayed = 0
+
+            // 4. Activity — real signals only; nothing to report changes nothing.
+            if (AppSettings.activityAutoplay.value) {
+                ActivityMonitor.refresh(applicationContext)
+                when (ActivityMonitor.state.value) {
+                    ActivityMonitor.ActivityState.RUNNING -> {
+                        AutoplaySession.targetEnergy = 0.8f
+                        AutoplaySession.familiarOnly = false
+                    }
+                    ActivityMonitor.ActivityState.WALKING -> {
+                        AutoplaySession.targetEnergy = 0.55f
+                        AutoplaySession.familiarOnly = false
+                    }
+                    ActivityMonitor.ActivityState.DRIVING -> {
+                        AutoplaySession.targetEnergy = null
+                        AutoplaySession.familiarOnly = true
+                    }
+                    else -> Unit // UNKNOWN or UNAVAILABLE: leave the session as it is.
+                }
+                return
+            }
+
+            AutoplaySession.targetEnergy = null
+            AutoplaySession.familiarOnly = false
+        }
+
+        /**
+         * The wind-down window [bedtime − lead, bedtime], midnight-wrapped:
+         * minutes-until-bedtime counts down lead → 0 on a 24-hour clock.
+         * Returns true when wind-down owns the session this tick.
+         */
+        private fun windDownTick(nowMinutes: Int, dayKey: Long): Boolean {
+            val bedtime = AppSettings.windDownBedtimeMinutes.value
+            val lead = AppSettings.windDownLeadMinutes.value.coerceAtLeast(0)
+            val minsUntil = (bedtime - nowMinutes + 1440) % 1440
+            val prev = prevMinsUntilBedtime
+            if (minsUntil <= lead) {
+                // Bedtime reached: hand the session to the sleep timer and
+                // clear the intent. Fires once per local day even if the
+                // bedtime minute spans two ticks.
+                if (prev != null && prev > 0 && minsUntil == 0) {
+                    handOffToSleepTimer(dayKey)
+                    prevMinsUntilBedtime = minsUntil
+                    return true
+                }
+                prevMinsUntilBedtime = minsUntil
+                // With no lead the window is the bedtime minute itself: at
+                // full wind-down already.
+                val progress = if (lead <= 0) 1f else (lead - minsUntil).toFloat() / lead
+                AutoplaySession.targetEnergy = SessionEnergy.windDownTarget(progress)
+                AutoplaySession.familiarOnly = false
+                return true
+            }
+            // Bedtime fell between ticks (the window closed by wrapping past
+            // midnight on the 24-hour clock): still hands off, once per day.
+            if (prev != null && prev <= lead) handOffToSleepTimer(dayKey)
+            prevMinsUntilBedtime = null
+            return false
+        }
+
+        /** At bedtime, let the sleep timer take the session from here. */
+        private fun handOffToSleepTimer(dayKey: Long) {
+            if (lastWindDownFiredDay == dayKey) return
+            lastWindDownFiredDay = dayKey
+            // Never trample a timer the listener set themselves.
+            if (!SleepTimer.isRunning) SleepTimer.start(WIND_DOWN_HANDOFF_MINUTES)
+            AutoplaySession.targetEnergy = null
+            AutoplaySession.familiarOnly = false
+        }
+
+        /** The workout curve, or false when there is nothing to compute from. */
+        private fun workoutTick(): Boolean {
+            val started = AppSettings.workoutStartedAtMs.value
+            // Enabled with no recorded start: no honest progress exists.
+            if (started <= 0L) return false
+            val lengthMs = AppSettings.workoutLengthMinutes.value.coerceAtLeast(1) * 60_000L
+            val progress = (System.currentTimeMillis() - started).toFloat() / lengthMs
+            if (progress >= 1f) {
+                AppSettings.setWorkoutMode(false)
+                AutoplaySession.targetEnergy = null
+                AutoplaySession.familiarOnly = false
+            } else {
+                AutoplaySession.targetEnergy = SessionEnergy.workoutTarget(progress)
+                AutoplaySession.familiarOnly = false
+            }
+            return true
+        }
+    }
+
+    /**
      * Buffers as far ahead as a whole track rather than a rolling window.
      *
      * Media3's audio default stops loading at 13 buffer segments — around 830kB,
@@ -6833,6 +7065,9 @@ class PlaybackService : MediaLibraryService() {
                 runCatching { rpc.closeRPC() }
             }
         }
+        // The session engine goes quiet with the service: no stale target
+        // energy or driving filter survives into the next service instance.
+        sessionEngine.stop()
         scope.cancel()
         crossfade?.release()
         crossfade = null

@@ -210,6 +210,8 @@ import com.music.sonariq.playback.beginRadioQueue
 import com.music.sonariq.playback.commitRadioQueue
 import com.music.sonariq.playback.fromAutoplay
 import com.music.sonariq.playback.hasYouTubeOriginal
+import com.music.sonariq.playback.AutoplaySeeds
+import com.music.sonariq.playback.launchSeededAutoplay
 import com.music.sonariq.playback.loadAutoplayTracks
 import com.music.sonariq.playback.radio.RadioSession
 import com.music.sonariq.playback.radio.RadioSource
@@ -3491,6 +3493,25 @@ private fun SonariqApp(
                             state = exploreState,
                             listState = exploreListState,
                             onCategoryClick = viewModel::openMoodGenre,
+                            // Genre and era autoplay, seeded from the same
+                            // launchpad the other "Start Autoplay" actions
+                            // use: seeds load off the main thread and start
+                            // with the AutoPlay setting on, or the screen
+                            // answers that nothing real could be found.
+                            onCategoryAutoplay = { category ->
+                                scope.launch {
+                                    context.launchSeededAutoplay(controller) {
+                                        AutoplaySeeds.genreSeeds(category.title)
+                                    }
+                                }
+                            },
+                            onEraAutoplay = { decade ->
+                                scope.launch {
+                                    context.launchSeededAutoplay(controller) {
+                                        AutoplaySeeds.eraSeeds(decade)
+                                    }
+                                }
+                            },
                             onRetry = viewModel::loadExplore,
                             refreshing = MainViewModel.Feed.EXPLORE in refreshing,
                             onRefresh = { viewModel.refresh(MainViewModel.Feed.EXPLORE) },

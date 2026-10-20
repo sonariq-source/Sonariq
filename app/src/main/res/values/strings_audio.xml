@@ -7,6 +7,11 @@
     <string name="radio_badge_content">Radio playing: %1$s. Tap to stop.</string>
     <string name="radio_started">Radio: %1$s</string>
 
+    <!-- Sonariq Autoplay -->
+    <string name="start_autoplay">Start Autoplay</string>
+    <string name="never_autoplay_song">Never autoplay this song</string>
+    <string name="never_autoplay_artist">Never autoplay this artist</string>
+
     <!-- Sound &amp; data settings screen -->
     <string name="sound_and_data">Sound &amp; data</string>
     <string name="sound_and_data_subtitle">Output, mono, canvas visuals and data saver</string>

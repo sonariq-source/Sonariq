@@ -361,6 +361,7 @@ internal fun InlineQueue(
                         onRemove = {},
                         draggable = true,
                         lifted = true,
+                        showAutoplayBadge = drag.section == QueueSection.AUTOPLAY,
                         modifier = Modifier.offset { IntOffset(0, drag.heldTop.roundToInt()) },
                     )
                 }
@@ -397,6 +398,9 @@ private fun LazyListScope.queueSection(
             onRemove = { onRemove(track.timelineIndex) },
             locked = locked,
             draggable = !locked,
+            // A row reads like every other row unless it says it is an
+            // autoplay pick: the section heading alone doesn't mark the row.
+            showAutoplayBadge = section == QueueSection.AUTOPLAY,
             onDragStart = { drag.start(track.key, section) },
             onDrag = drag::drag,
             onDragEnd = { drag.end(track.key) },
@@ -630,7 +634,13 @@ private class QueueDrag(private val listState: LazyListState) {
     var autoScrollSpeed = 0f
         private set
 
-    private var section = QueueSection.USER
+    /**
+     * The section the held row belongs to, set by [start]; a drag never leaves
+     * it. Read where the dragged overlay copy is drawn so it carries the
+     * row's own marking.
+     */
+    var section = QueueSection.USER
+        private set
     private var heldCenter = 0f
     private var heldSize = 0
 
@@ -753,6 +763,8 @@ private fun InlineQueueRow(
     draggable: Boolean = false,
     /** The copy drawn under the finger while the row is being moved. */
     lifted: Boolean = false,
+    /** Marks the row as an autoplay pick in its own right. */
+    showAutoplayBadge: Boolean = false,
     onDragStart: () -> Unit = {},
     onDrag: (Float) -> Unit = {},
     onDragEnd: () -> Unit = {},
@@ -815,6 +827,18 @@ private fun InlineQueueRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            if (showAutoplayBadge) {
+                // Tertiary line, quieter than the artist: enough to name the
+                // row as an autoplay pick without turning it into a banner.
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = stringResource(Res.string.autoplay),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.45f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         if (isCurrent) {
             Icon(

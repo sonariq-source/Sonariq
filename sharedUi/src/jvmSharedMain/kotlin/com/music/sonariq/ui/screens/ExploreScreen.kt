@@ -4,7 +4,9 @@ import com.music.sonariq.sharedui.resources.*
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,12 +25,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,6 +63,7 @@ import com.music.sonariq.ui.components.PAGE_GUTTER
 import com.music.sonariq.ui.components.PullToRefresh
 import com.music.sonariq.ui.components.ShimmerBox
 import com.music.sonariq.ui.components.feedSkeleton
+import com.music.sonariq.ui.icons.SonariqIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,6 +71,18 @@ fun ExploreScreen(
     state: UiState<List<MoodGenreSection>>,
     listState: LazyListState,
     onCategoryClick: (MoodGenre) -> Unit,
+    /**
+     * Holding a category card offers "Start Autoplay" for that category.
+     * A host-only action — the autoplay machinery lives outside this
+     * module — so null wherever the host offers none (the desktop).
+     */
+    onCategoryAutoplay: ((MoodGenre) -> Unit)? = null,
+    /**
+     * Starts a decade's autoplay (e.g. "90s") from the era chip row. Null
+     * hides the row entirely, on the same host-only terms as
+     * [onCategoryAutoplay].
+     */
+    onEraAutoplay: ((String) -> Unit)? = null,
     onRetry: () -> Unit,
     refreshing: Boolean,
     onRefresh: () -> Unit,
@@ -104,6 +125,9 @@ fun ExploreScreen(
                         }
                     }
                 }
+                if (onEraAutoplay != null) {
+                    item { EraAutoplayRow(onEraAutoplay = onEraAutoplay) }
+                }
                 when (state) {
                     UiState.Loading -> item { ExploreSkeletonRows(columns) }
                     is UiState.Error -> item {
@@ -116,9 +140,53 @@ fun ExploreScreen(
                             .distinctBy { it.browseId to it.params }
                             .chunked(columns)
                         itemsIndexed(rows, key = { _, row -> row.first().let { "${it.browseId}|${it.params}" } }) { index, row ->
-                            MoodGenreRow(row = row, columns = columns, rowIndex = index, onCategoryClick = onCategoryClick)
+                            MoodGenreRow(row = row, columns = columns, rowIndex = index, onCategoryClick = onCategoryClick, onCategoryAutoplay = onCategoryAutoplay)
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/** The decades the era row offers, in the form the era seeds expect. */
+private val ERA_DECADES = listOf("70s", "80s", "90s", "2000s", "2010s")
+
+/**
+ * The era row: a short heading and a horizontal strip of decade chips above
+ * the mood and genre grid. The chips exist for one thing only — tapping one
+ * starts that decade's autoplay through the host's [onEraAutoplay] — so the
+ * row is part of the screen's heading, not of its category grid.
+ */
+@Composable
+private fun EraAutoplayRow(onEraAutoplay: (String) -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = PAGE_GUTTER)
+            .padding(bottom = 16.dp),
+    ) {
+        Text(
+            text = stringResource(Res.string.era),
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(ERA_DECADES, key = { it }) { decade ->
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable { onEraAutoplay(decade) }
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = decade,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
@@ -131,6 +199,7 @@ private fun MoodGenreRow(
     columns: Int,
     rowIndex: Int,
     onCategoryClick: (MoodGenre) -> Unit,
+    onCategoryAutoplay: ((MoodGenre) -> Unit)? = null,
 ) {
     // A staggered mosaic: on two columns the wide card swaps sides every row.
     val staggered = columns == 2 && row.size == 2
@@ -145,6 +214,7 @@ private fun MoodGenreRow(
             MoodGenreCard(
                 item = item,
                 onClick = { onCategoryClick(item) },
+                onAutoplay = onCategoryAutoplay?.let { start -> { start(item) } },
                 modifier = Modifier.weight(weight),
             )
         }
@@ -157,19 +227,34 @@ private fun MoodGenreRow(
  * A solid stripe down the left and the category's cover filling the rest,
  * redrawn as a duotone of the stripe's colour so every card reads as one
  * tinted sleeve rather than a photo pasted onto a swatch.
+ *
+ * [onAutoplay] is the card's held-press menu: "Start Autoplay" builds this
+ * category's autoplay queue through the host. Null where the host offers no
+ * autoplay, and the card keeps its plain tap.
  */
 @Composable
 private fun MoodGenreCard(
     item: MoodGenre,
     onClick: () -> Unit,
+    onAutoplay: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val shape = SonariqLeaf
+    var menuOpen by remember { mutableStateOf(false) }
     Box(
         modifier = modifier.height(MOOD_CARD_HEIGHT).clip(shape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .border(1.dp, Color.White.copy(alpha = 0.10f), shape)
-            .clickable(onClick = onClick),
+            .then(
+                if (onAutoplay != null) {
+                    Modifier.combinedClickable(
+                        onClick = onClick,
+                        onLongClick = { menuOpen = true },
+                    )
+                } else {
+                    Modifier.clickable(onClick = onClick)
+                },
+            ),
     ) {
         item.thumbnailUrl?.let { artwork ->
             AsyncImage(
@@ -198,6 +283,26 @@ private fun MoodGenreCard(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+        if (onAutoplay != null) {
+            DropdownMenu(
+                expanded = menuOpen,
+                onDismissRequest = { menuOpen = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.start_autoplay)) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = SonariqIcons.Infinity,
+                            contentDescription = null,
+                        )
+                    },
+                    onClick = {
+                        menuOpen = false
+                        onAutoplay()
+                    },
+                )
+            }
         }
     }
 }

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
@@ -305,6 +306,28 @@ fun SongActionsSheet(
             accent = palette.accent,
             onClick = onStartRadio,
         )
+        // Autoplay's own exclusions, ban-on-sight like the other rows here —
+        // the ban writes straight to AppSettings, the same way the rows
+        // below read sleep-timer and download state where they're drawn, so
+        // both the sheet and the held-row popup get it with no extra
+        // plumbing. An already-banned id or name re-bans to the same set,
+        // and the ban itself is lifted under Settings' Never autoplay list.
+        if (song.videoId.isNotBlank()) {
+            ActionRow(
+                icon = Icons.Rounded.Block,
+                label = stringResource(R.string.never_autoplay_song),
+                accent = palette.accent,
+                onClick = { AppSettings.banSong(song.videoId) },
+            )
+        }
+        if (song.artist.isNotBlank()) {
+            ActionRow(
+                icon = Icons.Rounded.Block,
+                label = stringResource(R.string.never_autoplay_artist),
+                accent = palette.accent,
+                onClick = { AppSettings.banArtist(song.artist) },
+            )
+        }
         ActionRow(
             icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
             label = stringResource(R.string.play_next),

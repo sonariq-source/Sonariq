@@ -107,6 +107,13 @@ import androidx.compose.material.icons.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Waves
 import androidx.compose.material.icons.rounded.Wifi
+import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.FitnessCenter
+import androidx.compose.material.icons.rounded.Sensors
+import androidx.compose.material.icons.rounded.TrendingUp
+import org.json.JSONObject
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
@@ -246,6 +253,21 @@ fun SettingsScreen(
     val vibeAutoplay by AppSettings.vibeAutoplay.collectAsStateWithLifecycle()
     val vibeForgottenFavorites by AppSettings.vibeForgottenFavorites.collectAsStateWithLifecycle()
     val vibeStrictness by AppSettings.vibeStrictness.collectAsStateWithLifecycle()
+    val autoplayMixLibrary by AppSettings.autoplayMixLibrary.collectAsStateWithLifecycle()
+    val autoplayMixDownloads by AppSettings.autoplayMixDownloads.collectAsStateWithLifecycle()
+    val autoplayMixDiscovery by AppSettings.autoplayMixDiscovery.collectAsStateWithLifecycle()
+    val autoplayExploration by AppSettings.autoplayExploration.collectAsStateWithLifecycle()
+    val autoplayDiscoveryMode by AppSettings.autoplayDiscoveryMode.collectAsStateWithLifecycle()
+    val autoplayBannedSongIds by AppSettings.autoplayBannedSongIds.collectAsStateWithLifecycle()
+    val autoplayBannedArtists by AppSettings.autoplayBannedArtists.collectAsStateWithLifecycle()
+    val autoplayDownloadsOnly by AppSettings.autoplayDownloadsOnly.collectAsStateWithLifecycle()
+    val activityAutoplay by AppSettings.activityAutoplay.collectAsStateWithLifecycle()
+    val windDownEnabled by AppSettings.windDownEnabled.collectAsStateWithLifecycle()
+    val windDownBedtimeMinutes by AppSettings.windDownBedtimeMinutes.collectAsStateWithLifecycle()
+    val windDownLeadMinutes by AppSettings.windDownLeadMinutes.collectAsStateWithLifecycle()
+    val workoutMode by AppSettings.workoutMode.collectAsStateWithLifecycle()
+    val workoutLengthMinutes by AppSettings.workoutLengthMinutes.collectAsStateWithLifecycle()
+    val energyCurve by AppSettings.energyCurve.collectAsStateWithLifecycle()
     val smartFade by AppSettings.smartFadeEnabled.collectAsStateWithLifecycle()
     val djMix by AppSettings.djMixEnabled.collectAsStateWithLifecycle()
     val automixPerformance by AppSettings.automixPerformanceMode.collectAsStateWithLifecycle()
@@ -439,6 +461,7 @@ fun SettingsScreen(
     }
     var showListenBrainzTokenDialog by remember { mutableStateOf(false) }
     var showCastAppIdDialog by remember { mutableStateOf(false) }
+    var showNeverAutoplay by remember { mutableStateOf(false) }
     // Full-screen sub-screens opened from the rows below. Each renders as an
     // overlay at the bottom of this composable and dismisses itself, so the
     // rows stay self-contained with no MainActivity navigation changes.
@@ -458,6 +481,27 @@ fun SettingsScreen(
         runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         }.getOrNull() ?: "1.0"
+    }
+
+    // Titles for banned songs, resolved from the SmartAutoplay song cache in
+    // this device's preferences — the one place the app keeps id -> title and
+    // artist for tracks it learned transitions for. A cache hit shows the
+    // real title; a miss falls back to a shortened id rather than a guess.
+    val bannedSongTitles: Map<String, String> = remember(context, autoplayBannedSongIds) {
+        runCatching {
+            val store = context.getSharedPreferences("smart_autoplay", Context.MODE_PRIVATE)
+            val songs = JSONObject(store.getString("songs", null) ?: "{}")
+            autoplayBannedSongIds.associateWith { id ->
+                val entry = songs.optJSONObject(id)
+                val title = entry?.optString("title")?.takeIf { it.isNotBlank() }
+                val artist = entry?.optString("artist")?.takeIf { it.isNotBlank() }
+                when {
+                    title != null && artist != null -> "$title · $artist"
+                    title != null -> title
+                    else -> id.take(8)
+                }
+            }
+        }.getOrDefault(autoplayBannedSongIds.associateWith { it.take(8) })
     }
 
     // Made fresh on every pass rather than remembered: it tallies the rows
@@ -1149,6 +1193,318 @@ fun SettingsScreen(
             }
         }
 
+
+        // Autoplay 2.21: where the continuation comes from and the shapes it
+        // may take — source weights, exploration, bans, activity, wind-down
+        // and workout sessions. Its own group rather than more rows on
+        // Playback, which is where the master switch and the vibe engine stay.
+        SearchableSettingsGroup(search, header = stringResource(R.string.autoplay_section), headerIcon = Icons.Rounded.AutoAwesome) {
+            val mixLibraryTitle = stringResource(R.string.autoplay_mix_library)
+            row(mixLibraryTitle, "autoplay", "mix", "weight", "source", "library") {
+                SliderRow(
+                    icon = Icons.Rounded.LibraryMusic,
+                    title = mixLibraryTitle,
+                    value = autoplayMixLibrary.toString(),
+                    sliderValue = autoplayMixLibrary.toFloat(),
+                    onSliderValue = { AppSettings.setAutoplayMixLibrary(it.roundToInt()) },
+                    valueRange = 0f..100f,
+                    steps = 99,
+                )
+            }
+            val mixDownloadsTitle = stringResource(R.string.autoplay_mix_downloads)
+            row(mixDownloadsTitle, "autoplay", "mix", "weight", "source", "download", divided = false) {
+                SliderRow(
+                    icon = Icons.Rounded.Download,
+                    title = mixDownloadsTitle,
+                    value = autoplayMixDownloads.toString(),
+                    sliderValue = autoplayMixDownloads.toFloat(),
+                    onSliderValue = { AppSettings.setAutoplayMixDownloads(it.roundToInt()) },
+                    valueRange = 0f..100f,
+                    steps = 99,
+                )
+            }
+            val mixDiscoveryTitle = stringResource(R.string.autoplay_mix_discovery)
+            row(mixDiscoveryTitle, "autoplay", "mix", "weight", "source", "discovery", "new", divided = false) {
+                SliderRow(
+                    icon = Icons.Rounded.Star,
+                    title = mixDiscoveryTitle,
+                    value = autoplayMixDiscovery.toString(),
+                    sliderValue = autoplayMixDiscovery.toFloat(),
+                    onSliderValue = { AppSettings.setAutoplayMixDiscovery(it.roundToInt()) },
+                    valueRange = 0f..100f,
+                    steps = 99,
+                )
+            }
+            val mixCaption = stringResource(R.string.autoplay_mix_caption)
+            row(mixCaption, "autoplay", "weights", divided = false) {
+                Text(
+                    text = mixCaption,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = TEXT_INSET, end = ROW_INSET, bottom = 12.dp),
+                )
+            }
+            val explorationTitle = stringResource(R.string.autoplay_exploration)
+            row(explorationTitle, "autoplay", "exploration", "safe", "adventurous") {
+                SettingsRow(
+                    icon = Icons.Rounded.Tune,
+                    title = explorationTitle,
+                    subtitle = stringResource(R.string.autoplay_exploration_subtitle),
+                )
+                SegmentedControl(
+                    options = listOf(
+                        stringResource(R.string.autoplay_exploration_safe),
+                        stringResource(R.string.autoplay_exploration_balanced),
+                        stringResource(R.string.autoplay_exploration_adventurous),
+                    ),
+                    selectedIndex = autoplayExploration,
+                    onSelect = AppSettings::setAutoplayExploration,
+                    modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
+                )
+            }
+            val discoveryModeTitle = stringResource(R.string.autoplay_discovery_mode)
+            row(discoveryModeTitle, "autoplay", "discovery", "new", "unplayed") {
+                SettingsRow(
+                    icon = Icons.Rounded.AutoAwesome,
+                    title = discoveryModeTitle,
+                    subtitle = stringResource(R.string.autoplay_discovery_mode_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = autoplayDiscoveryMode,
+                            onCheckedChange = AppSettings::setAutoplayDiscoveryMode,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setAutoplayDiscoveryMode(!autoplayDiscoveryMode) },
+                )
+            }
+            val downloadsOnlyTitle = stringResource(R.string.autoplay_downloads_only)
+            row(downloadsOnlyTitle, "autoplay", "downloads", "offline", "downloaded only") {
+                SettingsRow(
+                    icon = Icons.Rounded.Download,
+                    title = downloadsOnlyTitle,
+                    subtitle = stringResource(R.string.autoplay_downloads_only_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = autoplayDownloadsOnly,
+                            onCheckedChange = AppSettings::setAutoplayDownloadsOnly,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setAutoplayDownloadsOnly(!autoplayDownloadsOnly) },
+                )
+            }
+            val activityAutoplayTitle = stringResource(R.string.activity_autoplay)
+            row(activityAutoplayTitle, "autoplay", "activity", "steps", "motion", "sensors") {
+                SettingsRow(
+                    icon = Icons.Rounded.Sensors,
+                    title = activityAutoplayTitle,
+                    subtitle = stringResource(R.string.activity_autoplay_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = activityAutoplay,
+                            onCheckedChange = AppSettings::setActivityAutoplay,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setActivityAutoplay(!activityAutoplay) },
+                )
+            }
+            // The never-play list: bans are added from a song's or artist's
+            // menu, so this row manages and clears them rather than creating
+            // new ones. Empty, it explains where bans come from instead.
+            val neverTitle = stringResource(R.string.autoplay_never_title)
+            val neverCount = buildString {
+                if (autoplayBannedArtists.isNotEmpty()) {
+                    append(
+                        context.resources.getQuantityString(
+                            R.plurals.autoplay_banned_artists_count,
+                            autoplayBannedArtists.size,
+                            autoplayBannedArtists.size,
+                        ),
+                    )
+                }
+                if (autoplayBannedArtists.isNotEmpty() && autoplayBannedSongIds.isNotEmpty()) {
+                    append(" · ")
+                }
+                if (autoplayBannedSongIds.isNotEmpty()) {
+                    append(
+                        context.resources.getQuantityString(
+                            R.plurals.autoplay_banned_songs_count,
+                            autoplayBannedSongIds.size,
+                            autoplayBannedSongIds.size,
+                        ),
+                    )
+                }
+            }
+            row(neverTitle, "autoplay", "never", "ban", "banned", "block", *autoplayBannedArtists.toTypedArray()) {
+                SettingsRow(
+                    icon = Icons.Rounded.Block,
+                    title = neverTitle,
+                    subtitle = stringResource(R.string.autoplay_never_empty)
+                        .takeIf { autoplayBannedArtists.isEmpty() && autoplayBannedSongIds.isEmpty() },
+                    value = neverCount.takeIf { it.isNotEmpty() },
+                    onClick = { showNeverAutoplay = !showNeverAutoplay },
+                )
+            }
+            if (showNeverAutoplay && autoplayBannedArtists.isNotEmpty()) {
+                row(stringResource(R.string.autoplay_never_artists), "autoplay", "banned", "artists", divided = false) {
+                    Text(
+                        text = stringResource(R.string.autoplay_never_artists),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = TEXT_INSET, end = ROW_INSET, top = 4.dp, bottom = 2.dp),
+                    )
+                }
+                autoplayBannedArtists.sorted().forEach { artist ->
+                    row(artist, "autoplay", "banned", "artist", divided = false) {
+                        BannedItemRow(
+                            icon = Icons.Rounded.Person,
+                            label = artist.replaceFirstChar { char ->
+                                if (char.isLowerCase()) char.titlecase(Locale.ROOT) else char.toString()
+                            },
+                            onRemove = { AppSettings.unbanArtist(artist) },
+                        )
+                    }
+                }
+            }
+            if (showNeverAutoplay && autoplayBannedSongIds.isNotEmpty()) {
+                row(stringResource(R.string.autoplay_never_songs), "autoplay", "banned", "songs", divided = false) {
+                    Text(
+                        text = stringResource(R.string.autoplay_never_songs),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = TEXT_INSET, end = ROW_INSET, top = 4.dp, bottom = 2.dp),
+                    )
+                }
+                autoplayBannedSongIds.sorted().forEach { id ->
+                    row(bannedSongTitles[id] ?: id, "autoplay", "banned", "song", divided = false) {
+                        BannedItemRow(
+                            icon = Icons.Rounded.LibraryMusic,
+                            label = bannedSongTitles[id] ?: id.take(8),
+                            onRemove = { AppSettings.unbanSong(id) },
+                        )
+                    }
+                }
+            }
+            val windDownTitle = stringResource(R.string.autoplay_wind_down)
+            row(windDownTitle, "wind down", "bedtime", "sleep", "evening") {
+                SettingsRow(
+                    icon = Icons.Rounded.Bedtime,
+                    title = windDownTitle,
+                    subtitle = stringResource(R.string.autoplay_wind_down_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = windDownEnabled,
+                            onCheckedChange = AppSettings::setWindDownEnabled,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setWindDownEnabled(!windDownEnabled) },
+                )
+            }
+            if (windDownEnabled) {
+                val bedtimeTitle = stringResource(R.string.autoplay_wind_down_bedtime)
+                row(bedtimeTitle, "wind down", "bedtime", divided = false) {
+                    StepperRow(
+                        title = bedtimeTitle,
+                        value = "%02d:%02d".format(windDownBedtimeMinutes / 60, windDownBedtimeMinutes % 60),
+                        onMinus = {
+                            AppSettings.setWindDownBedtimeMinutes(
+                                (windDownBedtimeMinutes - 15 + 1440) % 1440,
+                            )
+                        },
+                        onPlus = {
+                            AppSettings.setWindDownBedtimeMinutes(
+                                (windDownBedtimeMinutes + 15) % 1440,
+                            )
+                        },
+                    )
+                }
+                val leadTitle = stringResource(R.string.autoplay_wind_down_lead)
+                row(leadTitle, "wind down", "lead", "before bed", divided = false) {
+                    val leadOptions = listOf(30, 60, 90, 120)
+                    val leadIndex = leadOptions.indexOf(windDownLeadMinutes).takeIf { it >= 0 } ?: 1
+                    StepperRow(
+                        title = leadTitle,
+                        value = stringResource(R.string.autoplay_lead_minutes, windDownLeadMinutes),
+                        onMinus = {
+                            if (leadIndex > 0) AppSettings.setWindDownLeadMinutes(leadOptions[leadIndex - 1])
+                        },
+                        onPlus = {
+                            if (leadIndex < leadOptions.lastIndex) {
+                                AppSettings.setWindDownLeadMinutes(leadOptions[leadIndex + 1])
+                            }
+                        },
+                        minusEnabled = leadIndex > 0,
+                        plusEnabled = leadIndex < leadOptions.lastIndex,
+                    )
+                }
+            }
+            val workoutTitle = stringResource(R.string.autoplay_workout)
+            row(workoutTitle, "workout", "exercise", "gym", "session") {
+                SettingsRow(
+                    icon = Icons.Rounded.FitnessCenter,
+                    title = workoutTitle,
+                    subtitle = stringResource(R.string.autoplay_workout_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = workoutMode,
+                            onCheckedChange = AppSettings::setWorkoutMode,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setWorkoutMode(!workoutMode) },
+                )
+            }
+            if (workoutMode) {
+                val workoutLengthTitle = stringResource(R.string.autoplay_workout_length)
+                row(workoutLengthTitle, "workout", "length", "duration", divided = false) {
+                    StepperRow(
+                        title = workoutLengthTitle,
+                        value = stringResource(R.string.autoplay_minutes, workoutLengthMinutes),
+                        onMinus = {
+                            AppSettings.setWorkoutLengthMinutes(
+                                (workoutLengthMinutes - 15).coerceAtLeast(15),
+                            )
+                        },
+                        onPlus = {
+                            AppSettings.setWorkoutLengthMinutes(
+                                (workoutLengthMinutes + 15).coerceAtMost(120),
+                            )
+                        },
+                        minusEnabled = workoutLengthMinutes > 15,
+                        plusEnabled = workoutLengthMinutes < 120,
+                    )
+                }
+            }
+            val energyCurveTitle = stringResource(R.string.autoplay_energy_curve)
+            row(energyCurveTitle, "energy", "curve", "workout", "peak", "steady") {
+                SettingsRow(
+                    icon = Icons.Rounded.TrendingUp,
+                    title = energyCurveTitle,
+                )
+                EnergyCurvePills(
+                    selected = energyCurve,
+                    onSelect = AppSettings::setEnergyCurve,
+                )
+            }
+        }
 
         SearchableSettingsGroup(search, header = stringResource(R.string.appearance), headerIcon = Icons.Rounded.Palette) {
             val themeTitle = stringResource(R.string.theme)
@@ -3752,6 +4108,160 @@ private fun SmartDownloadsCountRow(
                     color = if (chosen) MaterialTheme.colorScheme.onPrimary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+    }
+}
+
+/**
+ * One banned artist or song inside the "Never autoplay" expander: the name —
+ * a real title where the SmartAutoplay cache could resolve one, a shortened
+ * id otherwise — and an X that lifts the ban.
+ */
+@Composable
+private fun BannedItemRow(
+    icon: ImageVector,
+    label: String,
+    onRemove: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = TEXT_INSET, end = ROW_INSET, top = 2.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onBackground,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onRemove) {
+            Icon(
+                imageVector = Icons.Rounded.Close,
+                contentDescription = stringResource(R.string.autoplay_remove_ban),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * A − value + row for the settings with no slider: bedtimes, lead times and
+ * session lengths. Inset to sit beneath the row that switched the feature on.
+ */
+@Composable
+private fun StepperRow(
+    title: String,
+    value: String,
+    onMinus: () -> Unit,
+    onPlus: () -> Unit,
+    minusEnabled: Boolean = true,
+    plusEnabled: Boolean = true,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = TEXT_INSET, end = ROW_INSET, top = 2.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onMinus, enabled = minusEnabled) {
+            Icon(
+                imageVector = Icons.Rounded.Remove,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.width(84.dp),
+        )
+        IconButton(onClick = onPlus, enabled = plusEnabled) {
+            Icon(
+                imageVector = Icons.Rounded.Add,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * The workout energy curve: four options in two rows of pills, in the Smart
+ * Downloads count treatment — four pills on one line would squeeze
+ * "Peak & Coast" past reading.
+ */
+@Composable
+private fun EnergyCurvePills(
+    selected: Int,
+    onSelect: (Int) -> Unit,
+) {
+    val options = listOf(
+        stringResource(R.string.autoplay_energy_steady),
+        stringResource(R.string.autoplay_energy_build),
+        stringResource(R.string.autoplay_energy_peak_coast),
+        stringResource(R.string.autoplay_energy_wind_down),
+    )
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        for (first in listOf(0, 2)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                for (index in listOf(first, first + 1)) {
+                    val chosen = index == selected
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(shape)
+                            .background(
+                                if (chosen) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            )
+                            .border(
+                                1.dp,
+                                if (chosen) Color.Transparent
+                                else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                                shape,
+                            )
+                            .clickable { if (!chosen) onSelect(index) }
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = options[index],
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (chosen) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
         }
     }
