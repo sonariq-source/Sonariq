@@ -5708,13 +5708,11 @@ class PlaybackService : MediaLibraryService() {
      */
     private inner class SessionEngine {
 
-        private companion object {
-            /** How often the session intent is re-derived. */
-            const val TICK_MS = 30_000L
+        /** How often the session intent is re-derived. */
+        private val TICK_MS = 30_000L
 
-            /** Sleep-timer length armed when bedtime arrives. */
-            const val WIND_DOWN_HANDOFF_MINUTES = 15
-        }
+        /** Sleep-timer length armed when bedtime arrives. */
+        private val WIND_DOWN_HANDOFF_MINUTES = 15
 
         private var job: Job? = null
 
