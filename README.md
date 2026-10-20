@@ -103,6 +103,7 @@
 - **Dynamic themes** — the UI accent follows your album artwork's colours (toggle in Settings).
 - **Liquid glass, buttery edition** — faster, smoother glass nav with a proper on/off toggle; animations stay on either way.
 - **Your logo everywhere** — the white Sonariq waveform mark replaces every leftover placeholder.
+- **Full-cover Now Playing** — the album artwork fills the whole player screen edge to edge, with a readability gradient over it; toggle it in Settings (on by default).
 
 ### Widgets & sharing
 - **Share songs** — story cards, text share and Sonariq links. Tap "Share with lyrics" to pick your favourite lines (up to 5) and share the 1080×1920 lyrics card — the same theme as the lyrics screen, everywhere. Copy link gives a Sonariq link that opens the song straight in the app.
