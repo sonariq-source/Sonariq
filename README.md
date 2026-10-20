@@ -80,6 +80,8 @@
 - **Translations & romanisation**, per-track offset, in-lyrics search and copy.
 - **Lyrics translation overlay** — automatic translated subtitle lines in Now Playing (an explicit romanise tap wins over the overlay).
 - **Lock-screen lyrics** — the current line shows right on your lock screen.
+- **Instant lyrics** — the next tracks in your queue are prefetched before they start, and your liked songs and favourites are warmed up in the background; the cache holds ten times more, so repeats load instantly.
+- **Reference-style presentation** — the sung word lights up and holds on the beat, lines fade with distance from the active one, auto-scroll glides smoothly, tap any line to seek, and animated dots count down the instrumental breaks.
 
 ### Smart autoplay & AI radio
 - **Vibe autoplay engine** — detects the vibe of what you're playing (Last.fm listener tags + on-device tempo/key/energy analysis + your listening behaviour) and keeps the music flowing in that mood forever; the queue refills when 3 songs remain, skips teach it your taste, and a vibe badge on Now Playing shows what it's feeling.
