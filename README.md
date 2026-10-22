@@ -80,7 +80,7 @@
 - **Translations & romanisation**, per-track offset, in-lyrics search and copy.
 - **Lyrics translation overlay** — automatic translated subtitle lines in Now Playing (an explicit romanise tap wins over the overlay).
 - **Lock-screen lyrics** — the current line shows right on your lock screen.
-- **Instant lyrics** — the next tracks in your queue are prefetched before they start, and your liked songs and favourites are warmed up in the background; the cache holds ten times more, so repeats load instantly.
+- **Instant lyrics** — your whole queue, home shelves and playlist pages are prefetched before you press play, and your liked songs and favourites are warmed up in the background; lookups surface the best match within seconds, so lyrics are simply there when the song starts.
 - **Reference-style presentation** — the sung word lights up and holds on the beat, lines fade with distance from the active one, auto-scroll glides smoothly, tap any line to seek, and animated dots count down the instrumental breaks.
 
 ### Smart autoplay & AI radio
@@ -103,7 +103,7 @@
 - **Dynamic themes** — the UI accent follows your album artwork's colours (toggle in Settings).
 - **Liquid glass, buttery edition** — faster, smoother glass nav with a proper on/off toggle; animations stay on either way.
 - **Your logo everywhere** — the white Sonariq waveform mark replaces every leftover placeholder.
-- **Full-cover Now Playing** — the album artwork fills the whole player screen edge to edge, with a readability gradient over it; toggle it in Settings (on by default).
+- **Full-cover Now Playing** — the album artwork fills the whole player screen edge to edge; in landscape it rests behind the player as a softened, darkened backdrop with a slow zoom drift and smooth crossfades between tracks; toggle it in Settings (on by default).
 
 ### Widgets & sharing
 - **Share songs** — story cards, text share and Sonariq links. Tap "Share with lyrics" to pick your favourite lines (up to 5) and share the 1080×1920 lyrics card — the same theme as the lyrics screen, everywhere. Copy link gives a Sonariq link that opens the song straight in the app.
