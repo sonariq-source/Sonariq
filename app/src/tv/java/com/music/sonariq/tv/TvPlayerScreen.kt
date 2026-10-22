@@ -136,14 +136,20 @@ fun TvPlayerScreen(
 
     Box(Modifier.fillMaxSize()) {
         // Static full-cover artwork backdrop: one image, one scrim,
-        // nothing animated — cheap enough for weak TV hardware.
+        // nothing animated — no drift, no crossfade, cheap enough for
+        // weak TV hardware. The scrim is dark at every stop and
+        // bottom-weighted, so even a mostly pale cover stays an ambient
+        // field behind the sleeve and the lyrics and can never wash
+        // the screen out to light grey.
         if (fullBleedArtwork) {
             song.artworkAt(1024)?.let { backdropArtwork ->
                 AsyncImage(
                     model = backdropArtwork,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black),
                 )
                 Box(
                     Modifier
@@ -151,8 +157,9 @@ fun TvPlayerScreen(
                         .background(
                             Brush.verticalGradient(
                                 colors = listOf(
-                                    Color.Black.copy(alpha = 0.55f),
-                                    Color.Black.copy(alpha = 0.78f),
+                                    Color.Black.copy(alpha = 0.68f),
+                                    Color.Black.copy(alpha = 0.82f),
+                                    Color.Black.copy(alpha = 0.90f),
                                 ),
                             ),
                         ),

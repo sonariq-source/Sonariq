@@ -3342,8 +3342,14 @@ internal fun rememberLyricsTranslation(
             stringResource(Res.string.lyrics_already_romanized)
         // Provider attribution removed per user request — clean Apple Music-like UI.
         lyricsSource != null -> ""
-        lyricsUnavailable -> stringResource(Res.string.no_lyrics_found)
-        lyrics.isNullOrEmpty() -> loadingText
+        // No second copy of the empty state here: while a lookup runs, the
+        // one loading line lives in the lyrics pane itself (its placeholder
+        // in landscape, the skeleton in portrait, the strip over the
+        // scrubber on the main pane), and once it has missed, the pane's
+        // "not available" line says so. This status line repeating either
+        // underneath the pane is what put the same sentence on screen twice
+        // at once in landscape.
+        lyrics.isNullOrEmpty() -> ""
         else -> stringResource(Res.string.lyrics_saved_with_download)
     }
 

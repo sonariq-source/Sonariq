@@ -412,11 +412,63 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     providerFinished(generation, source, result)
                 },
                 onSourceCancelled = { source -> providerCancelled(generation, source) },
+                // The panel shows the best already-matched result once the
+                // deadline passes instead of waiting on every straggler;
+                // the value returned below is the final winner, which
+                // replaces it in place when a better one lands.
+                deadlineMs = com.music.sonariq.data.lyrics.LyricsLookupPolicy.PLAYER_DEADLINE_MS,
+                onDeadlineResult = { early ->
+                    if (generation == lyricsGeneration) {
+                        val validated = validatedLyrics(early)
+                        _lyrics.value = validated?.lines
+                        _lyricsSource.value = validated?.source
+                        _lyricsChecked.value = true
+                    }
+                },
             )
             val validated = validatedLyrics(found)
             _lyrics.value = validated?.lines
             _lyricsSource.value = validated?.source
             _lyricsChecked.value = true
+        }
+    }
+
+    /**
+     * Warms lyrics for the tracks Home puts on screen — every shelf the
+     * feed lands with (recently played, listen again, liked and the rest)
+     * — so playing one of them opens the panel with words already there.
+     * Re-planned only when the set of track ids actually changes; the
+     * prefetch itself drops anything already cached or already racing.
+     */
+    private fun startHomeLyricsPrefetch() {
+        var plannedIds: Set<String> = emptySet()
+        var prefetchJob: Job? = null
+        viewModelScope.launch {
+            _home.collect { state ->
+                val shelves = (state as? UiState.Success)?.data ?: return@collect
+                val songs = shelves.flatMap { shelf ->
+                    shelf.items.mapNotNull { item ->
+                        val videoId = item.videoId?.takeIf { it.isNotBlank() }
+                            ?: return@mapNotNull null
+                        Song(
+                            videoId = videoId,
+                            title = item.title,
+                            artist = com.music.sonariq.data.innertube.InnertubeParser
+                                .artistFromSubtitle(item.subtitle),
+                            thumbnailUrl = item.thumbnailUrl,
+                        )
+                    }
+                }
+                val ids = songs.mapTo(HashSet()) { it.videoId }
+                if (ids == plannedIds) return@collect
+                plannedIds = ids
+                // A new shelf set supersedes the old plan; races already
+                // running finish inside the repository either way.
+                prefetchJob?.cancel()
+                prefetchJob = viewModelScope.launch {
+                    com.music.sonariq.download.LyricsListPrefetch.prefetch(songs)
+                }
+            }
         }
     }
 
@@ -1381,6 +1433,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         startSearchPipeline()
         startSuggestPipeline()
         startTypeaheadMediaPipeline()
+        startHomeLyricsPrefetch()
         loadHome()
         loadExplore()
         if (_signedIn.value) {

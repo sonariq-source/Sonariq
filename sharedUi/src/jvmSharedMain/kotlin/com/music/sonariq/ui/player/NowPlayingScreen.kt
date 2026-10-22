@@ -1782,13 +1782,18 @@ fun NowPlayingScreen(
                 },
                 background = { backgroundModifier ->
                     if (fullCoverShowing) {
-                        // Full-cover in landscape: the sharp cover fills the
-                        // screen behind the columns, with its scrims always on
-                        // — the sleeve stays a card in its own column.
+                        // Full-cover in landscape: the ambient shape — the
+                        // cover heavily blurred and darkened behind the
+                        // columns, with its scrims always on. The boxed
+                        // sleeve in the left column stays the one sharp
+                        // copy; a second sharp copy back here read as the
+                        // same artwork drawn twice, and its pale areas
+                        // washed the right column out.
                         FullCoverArtworkBackdrop(
                             request = art.request,
                             visible = true,
                             scrimAlpha = { 1f },
+                            ambient = true,
                             modifier = backgroundModifier.hazeSource(playerHaze),
                         )
                     } else {
@@ -2132,6 +2137,10 @@ fun NowPlayingScreen(
             request = art.request,
             visible = fullCoverShowing,
             scrimAlpha = { p().coerceAtLeast(if (heroClip != null) 0.5f else 0f) },
+            // Portrait keeps the sharp poster shape: there is no separate
+            // boxed sleeve to duplicate here — the sleeve *is* this poster
+            // (see sleeveRect), so nothing is removed or blurred.
+            ambient = false,
             modifier = Modifier.matchParentSize(),
         )
 

@@ -9,7 +9,9 @@ import java.util.zip.GZIPOutputStream
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class LyricsDiskCacheTest {
 
@@ -125,5 +127,33 @@ class LyricsDiskCacheTest {
         assertEquals(LyricsSource.LRCLIB, hit.source)
         assertEquals(lines, hit.lines)
         assertEquals(LyricTiming.LINE_SYNCED, hit.timing)
+    }
+
+    @Test
+    fun knownMissReadsFreshDiskEntry() = runBlocking {
+        val root = Files.createTempDirectory("lyrics-miss-test").toFile()
+        val key = LyricsRepository.cacheKey("video-miss", null)!!
+        val directory = File(root, "lyrics_v1")
+        check(directory.mkdirs())
+        File(directory, "$key.miss").writeText(System.currentTimeMillis().toString())
+
+        LyricsRepository.cacheDir = root
+        assertTrue(LyricsRepository.isKnownMiss("video-miss", null))
+        assertFalse(LyricsRepository.isKnownMiss("video-other", null))
+    }
+
+    @Test
+    fun knownMissExpiresDiskEntryPastTtl() = runBlocking {
+        val root = Files.createTempDirectory("lyrics-miss-test").toFile()
+        val key = LyricsRepository.cacheKey("video-stale", null)!!
+        val directory = File(root, "lyrics_v1")
+        check(directory.mkdirs())
+        val stale = System.currentTimeMillis() - LyricsLookupPolicy.NEGATIVE_TTL_MS - 1_000L
+        val file = File(directory, "$key.miss")
+        file.writeText(stale.toString())
+
+        LyricsRepository.cacheDir = root
+        assertFalse(LyricsRepository.isKnownMiss("video-stale", null))
+        assertFalse(file.exists())
     }
 }

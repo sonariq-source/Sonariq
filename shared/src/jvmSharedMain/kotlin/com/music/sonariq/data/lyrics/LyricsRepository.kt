@@ -4,6 +4,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
@@ -125,6 +126,100 @@ object LyricsRepository {
         onSourceResult: ((LyricsSource, Result?) -> Unit)? = null,
         /** Lets callers turn a cancelled race loser back into "not fetched". */
         onSourceCancelled: ((LyricsSource) -> Unit)? = null,
+        /**
+         * Player lookups only: how long to wait for the whole race before
+         * surfacing the best already-matched result through
+         * [onDeadlineResult]. Null (the default, used by every background
+         * prefetch) keeps the original run-to-completion behaviour.
+         */
+        deadlineMs: Long? = null,
+        /**
+         * Called at most once, when [deadlineMs] passes with a matched
+         * result already in hand. The lookup keeps racing afterwards: the
+         * returned value is the final winner, which may be a better
+         * (word-synced) upgrade over the deadline result. Only results that
+         * passed the race's own matching are ever reported here.
+         */
+        onDeadlineResult: ((Result) -> Unit)? = null,
+    ): Result? {
+        // A remembered genuine miss answers at once — no race, no wait —
+        // until its TTL runs out. Checked before any shared work is joined
+        // or started, so a missed track costs nothing to reopen.
+        if (isKnownMiss(videoId, isrc)) return null
+        // One race per track: a prefetch already running for this track is
+        // the player's lookup too, rather than a second set of requests
+        // racing the first. Callers' source callbacks are fanned out, so a
+        // joining caller still hears every provider attempt.
+        val key = inFlightKey(videoId, sources, order, prioritizeSyllableSync, isrc)
+        val callbacks = SourceCallbacks(onSourceStarted, onSourceResult, onSourceCancelled)
+        val entry = inFlight.computeIfAbsent(key) { createdKey ->
+            val created = InFlightLookup()
+            created.listeners += callbacks
+            if (onDeadlineResult != null) created.deadlineListeners += onDeadlineResult
+            created.deferred = lookupScope.async {
+                try {
+                    raceLyrics(
+                        videoId = videoId,
+                        title = title,
+                        artist = artist,
+                        durationMs = durationMs,
+                        album = album,
+                        sources = sources,
+                        order = order,
+                        prioritizeSyllableSync = prioritizeSyllableSync,
+                        isrc = isrc,
+                        emitStarted = created::emitStarted,
+                        emitResult = created::emitResult,
+                        emitCancelled = created::emitCancelled,
+                        deadlineAtNanos = created::deadlineAtNanos,
+                        emitDeadline = created::emitDeadline,
+                    )
+                } finally {
+                    inFlight.remove(createdKey, created)
+                }
+            }
+            created
+        }
+        if (callbacks !in entry.listeners) entry.listeners += callbacks
+        // The deadline belongs to the shared lookup, not to whoever started
+        // it: a player joining a background race still gets its deadline,
+        // and the earliest deadline any caller asked for is the one used.
+        if (deadlineMs != null) {
+            val current = entry.requestedDeadlineMs
+            if (current == null || deadlineMs < current) {
+                entry.requestedDeadlineMs = deadlineMs
+            }
+        }
+        if (onDeadlineResult != null) {
+            // Joined after the deadline already fired: hand over what it
+            // surfaced rather than leaving this caller waiting in silence.
+            entry.addDeadlineListener(onDeadlineResult)?.let { onDeadlineResult(it) }
+        }
+        return entry.deferred.await()
+    }
+
+    /**
+     * The provider race itself, run once per track in [lookupScope] and
+     * shared by every concurrent caller — see [lyrics]. Previously this was
+     * the whole of [lyrics]; the matching, ordering and winner rules are
+     * unchanged.
+     */
+    private suspend fun raceLyrics(
+        videoId: String,
+        title: String,
+        artist: String,
+        durationMs: Long,
+        album: String?,
+        sources: Set<LyricsSource>,
+        order: List<LyricsSource>,
+        prioritizeSyllableSync: Boolean,
+        isrc: String?,
+        emitStarted: (LyricsSource) -> Unit,
+        emitResult: (LyricsSource, Result?) -> Unit,
+        emitCancelled: (LyricsSource) -> Unit,
+        /** The shared lookup's deadline as an absolute nanoTime, or null. */
+        deadlineAtNanos: () -> Long?,
+        emitDeadline: (Result) -> Unit,
     ): Result? = coroutineScope {
         val sequence = (order + LyricsSource.offered)
             .distinct()
@@ -156,7 +251,7 @@ object LyricsRepository {
         val racing: List<Pair<LyricsSource, Deferred<Result?>>> = sequence.map { source ->
             val startMode = if (source == LyricsSource.GENIUS) kotlinx.coroutines.CoroutineStart.LAZY else kotlinx.coroutines.CoroutineStart.DEFAULT
             source to async(Dispatchers.IO, start = startMode) {
-                onSourceStarted?.invoke(source)
+                emitStarted(source)
                 try {
                     val found = fetch(
                         source,
@@ -169,13 +264,13 @@ object LyricsRepository {
                         hit,
                         documents::get,
                     )?.let { result(source, it) }
-                    onSourceResult?.invoke(source, found)
+                    emitResult(source, found)
                     found
                 } catch (cancelled: CancellationException) {
-                    onSourceCancelled?.invoke(source)
+                    emitCancelled(source)
                     throw cancelled
                 } catch (_: Exception) {
-                    onSourceResult?.invoke(source, null)
+                    emitResult(source, null)
                     null
                 }
             }
@@ -194,18 +289,124 @@ object LyricsRepository {
                 writeCache(videoId, recording, timed)
                 return timed
             }
-            for ((source, job) in racing) {
-                // If we already found a line-synced or better result, skip Genius completely
-                if (lineSynced != null && source == LyricsSource.GENIUS) continue
-
-                val found = runCatching { job.await() }.getOrNull() ?: continue
-                if (found.lines.any { it.isWordSynced }) return@coroutineScope deliver(found)
-                if (!prioritizeSyllableSync && found.lines.any { it.timeMs > 0 }) {
-                    return@coroutineScope deliver(found)
+            // The player's deadline, counted from the shared lookup's
+            // start and read through [deadlineAtNanos] on every pass: a
+            // caller can join an already-running background race and bring
+            // its deadline with it. When the deadline passes, the best
+            // result that has *already* matched is surfaced through
+            // [emitDeadline] instead of the panel waiting on the slowest
+            // straggler; the race then keeps going, and only a better-timed
+            // (word-synced) result can replace what was surfaced — the
+            // upgrade path below. Pure background lookups never have a
+            // deadline requested, so for them the waits below are the
+            // original unbounded ones, in short slices so a deadline
+            // requested mid-wait is still honoured.
+            var deadlineResult: Result? = null
+            var deadlineFired = false
+            // Only ever peeks at jobs that have already finished — awaiting
+            // one here would start the lazy plain-text source early and
+            // would wait on exactly the stragglers the deadline exists to
+            // skip. What it picks goes through the race's own winner rules
+            // ([LyricsLookupPolicy.pickDeadlineWinner]), so the deadline can
+            // only surface a result the full race would itself have taken.
+            suspend fun fireDeadline() {
+                if (deadlineFired) return
+                deadlineFired = true
+                val completed = racing.map { (_, job) ->
+                    if (job.isCompleted && job.getCompletionExceptionOrNull() == null) {
+                        runCatching { job.await() }.getOrNull()
+                    } else {
+                        null
+                    }
                 }
-                if (lineSynced == null) lineSynced = found
+                val best = LyricsLookupPolicy.pickDeadlineWinner(
+                    completedInOrder = completed,
+                    prioritizeSyllableSync = prioritizeSyllableSync,
+                    fallback = lineSynced,
+                ) ?: return
+                val delivered = deliver(best)
+                deadlineResult = delivered
+                emitDeadline(delivered)
+                // A word-synced deadline result is the best this race can
+                // ever produce; the caller's return value is already decided.
+                if (delivered.lines.any { it.isWordSynced }) {
+                    throw DeadlineSettled(delivered)
+                }
             }
-            lineSynced?.let { deliver(it) }
+            try {
+                for ((source, job) in racing) {
+                    // If we already found a line-synced or better result, skip Genius completely
+                    if ((lineSynced != null || deadlineResult != null) &&
+                        source == LyricsSource.GENIUS
+                    ) {
+                        continue
+                    }
+
+                    // Awaits [job], honouring the shared lookup's deadline
+                    // whenever one has been requested by any caller.
+                    suspend fun awaitJob(): Result? {
+                        while (true) {
+                            if (deadlineFired) {
+                                // Past the deadline: keep collecting, but
+                                // only a word-synced upgrade is acted on.
+                                return runCatching { job.await() }.getOrNull()
+                            }
+                            val deadlineAt = deadlineAtNanos()
+                            if (deadlineAt == null) {
+                                withTimeoutOrNull(DEADLINE_POLL_MS) {
+                                    runCatching { job.await() }.getOrNull()
+                                }
+                                if (job.isCompleted) {
+                                    return runCatching { job.await() }.getOrNull()
+                                }
+                                // Still running and still no deadline: wait
+                                // another slice.
+                                continue
+                            }
+                            val remainingMs = (deadlineAt - System.nanoTime()) / NANOS_PER_MS
+                            if (remainingMs <= 0L) {
+                                fireDeadline()
+                                return runCatching { job.await() }.getOrNull()
+                            }
+                            val raced = withTimeoutOrNull(remainingMs) {
+                                runCatching { job.await() }.getOrNull()
+                            }
+                            if (raced == null && !job.isCompleted) {
+                                // The wait timed out on a job still running:
+                                // that is the deadline, not a miss.
+                                fireDeadline()
+                                return runCatching { job.await() }.getOrNull()
+                            }
+                            return raced
+                        }
+                    }
+                    val found = awaitJob()
+                    if (found == null) continue
+                    if (found.lines.any { it.isWordSynced }) {
+                        return@coroutineScope deliver(found)
+                    }
+                    if (deadlineResult != null) {
+                        // Something is already on screen; a merely
+                        // line-synced latecomer is not an upgrade.
+                        if (lineSynced == null) lineSynced = found
+                        continue
+                    }
+                    if (!prioritizeSyllableSync && found.lines.any { it.timeMs > 0 }) {
+                        return@coroutineScope deliver(found)
+                    }
+                    if (lineSynced == null) lineSynced = found
+                }
+            } catch (settled: DeadlineSettled) {
+                return@coroutineScope settled.result
+            }
+            lineSynced?.let { return@coroutineScope deliver(it) }
+            deadlineResult?.let { return@coroutineScope it }
+            // Every provider was asked and none matched: a genuine miss,
+            // remembered so reopening this track answers promptly instead
+            // of re-running the whole race. An empty source set is a
+            // settings state, not a miss, and is never remembered.
+            if (sequence.isNotEmpty()) recordMiss(videoId, recording)
+            null
         } finally {
             // Whoever lost the race is no longer worth waiting on, and
             // coroutineScope will not return while they are still running.
@@ -322,6 +523,169 @@ object LyricsRepository {
         isrcs.put(videoId, isrc)
     }
 
+    // ---- Shared in-flight lookups -------------------------------------
+
+    private const val NANOS_PER_MS = 1_000_000L
+
+    /** Slice for waits that have no deadline yet; see the race loop. */
+    private const val DEADLINE_POLL_MS = 250L
+
+    /** Control flow for a deadline that surfaced a word-synced winner. */
+    private class DeadlineSettled(val result: Result) : Exception()
+
+    /** One caller's provider-attempt callbacks, fanned out from a shared race. */
+    private data class SourceCallbacks(
+        val started: ((LyricsSource) -> Unit)?,
+        val result: ((LyricsSource, Result?) -> Unit)?,
+        val cancelled: ((LyricsSource) -> Unit)?,
+    )
+
+    /**
+     * A race in flight, shared by every concurrent caller for the same
+     * track. Runs in [lookupScope] rather than any caller's scope, so one
+     * caller leaving (a track skip, a page closing) never cancels work
+     * another caller is still waiting on — and the finisher writes the
+     * disk cache either way, which is what the next lookup reads.
+     */
+    private class InFlightLookup {
+        lateinit var deferred: Deferred<Result?>
+        val listeners = Collections.synchronizedList(mutableListOf<SourceCallbacks>())
+        val deadlineListeners =
+            Collections.synchronizedList(mutableListOf<(Result) -> Unit>())
+
+        /** When this lookup started, for deadline arithmetic. */
+        val startedAtNanos: Long = System.nanoTime()
+
+        /** The earliest deadline any caller has asked for, if any. */
+        @Volatile
+        var requestedDeadlineMs: Long? = null
+
+        fun deadlineAtNanos(): Long? =
+            requestedDeadlineMs?.takeIf { it > 0 }
+                ?.let { startedAtNanos + it * NANOS_PER_MS }
+
+        @Volatile
+        var deadlineResult: Result? = null
+            private set
+
+        fun emitStarted(source: LyricsSource) =
+            listeners.toList().forEach { it.started?.invoke(source) }
+
+        fun emitResult(source: LyricsSource, result: Result?) =
+            listeners.toList().forEach { it.result?.invoke(source, result) }
+
+        fun emitCancelled(source: LyricsSource) =
+            listeners.toList().forEach { it.cancelled?.invoke(source) }
+
+        fun emitDeadline(result: Result) {
+            val targets = synchronized(this) {
+                deadlineResult = result
+                deadlineListeners.toList()
+            }
+            targets.forEach { it(result) }
+        }
+
+        /**
+         * Registers a deadline listener, handing back the deadline result
+         * when it already fired — atomically, so a listener can never be
+         * both registered for the firing and handed the result separately.
+         */
+        fun addDeadlineListener(listener: (Result) -> Unit): Result? =
+            synchronized(this) {
+                if (listener !in deadlineListeners) deadlineListeners += listener
+                deadlineResult
+            }
+    }
+
+    private val lookupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val inFlight = ConcurrentHashMap<String, InFlightLookup>()
+
+    /**
+     * Identity of one shared lookup: the track, plus the settings that
+     * decide its answer. Two callers asking with different source sets are
+     * asking different questions and never share a race.
+     */
+    private fun inFlightKey(
+        videoId: String,
+        sources: Set<LyricsSource>,
+        order: List<LyricsSource>,
+        prioritizeSyllableSync: Boolean,
+        isrc: String?,
+    ): String = buildString {
+        append(videoId)
+        append('|')
+        append(sources.map { it.name }.sorted().joinToString(","))
+        append('|')
+        append(order.joinToString(",") { it.name })
+        append('|')
+        append(if (prioritizeSyllableSync) '1' else '0')
+        append('|')
+        append(isrc.orEmpty())
+    }
+
+    // ---- Negative cache ------------------------------------------------
+
+    /** When each track last missed everywhere, this session. Keyed like [cacheKey]. */
+    private val sessionMisses = ConcurrentHashMap<String, Long>()
+
+    /**
+     * Whether this track is a remembered genuine miss — every enabled
+     * provider was asked, none matched, and the miss is still within
+     * [LyricsLookupPolicy.NEGATIVE_TTL_MS]. In memory for the session and
+     * on disk beside the lyrics cache, so a miss survives a restart too.
+     * Never throws; an unreadable entry is simply not a miss.
+     */
+    suspend fun isKnownMiss(videoId: String, isrc: String? = null): Boolean {
+        val key = cacheKey(videoId, isrc) ?: return false
+        val now = System.currentTimeMillis()
+        sessionMisses[key]?.let { missedAt ->
+            if (LyricsLookupPolicy.isNegativeFresh(missedAt, now)) return true
+            sessionMisses.remove(key, missedAt)
+        }
+        return withContext(Dispatchers.IO) {
+            diskMutex.withLock {
+                val root = cacheDir ?: return@withLock false
+                val file = File(File(root, CACHE_DIRECTORY), "$key.miss")
+                if (!file.isFile) return@withLock false
+                val missedAt = runCatching { file.readText().trim().toLong() }.getOrNull()
+                if (missedAt == null ||
+                    !LyricsLookupPolicy.isNegativeFresh(missedAt, System.currentTimeMillis())
+                ) {
+                    file.delete()
+                    false
+                } else {
+                    sessionMisses[key] = missedAt
+                    true
+                }
+            }
+        }
+    }
+
+    /** Remembers a genuine miss, in memory and (where there is one) on disk. */
+    private suspend fun recordMiss(videoId: String, isrc: String?) {
+        val key = cacheKey(videoId, isrc) ?: return
+        val now = System.currentTimeMillis()
+        sessionMisses[key] = now
+        withContext(Dispatchers.IO) {
+            diskMutex.withLock {
+                val root = cacheDir ?: return@withLock
+                val directory = File(root, CACHE_DIRECTORY)
+                if (!directory.exists() && !directory.mkdirs()) return@withLock
+                runCatching {
+                    File(directory, "$key.miss").writeText(now.toString())
+                }
+            }
+        }
+    }
+
+    /** Forgets a remembered miss — a later lookup found lyrics after all. */
+    private fun forgetMiss(videoId: String, isrc: String?) {
+        val key = cacheKey(videoId, isrc) ?: return
+        sessionMisses.remove(key)
+        val root = cacheDir ?: return
+        runCatching { File(File(root, CACHE_DIRECTORY), "$key.miss").delete() }
+    }
+
     /**
      * Where fetched lyrics are kept between runs — the phone's cache directory,
      * the desktop's media cache. Null keeps them in memory only.
@@ -412,13 +776,15 @@ object LyricsRepository {
                         temporary.copyTo(destination, overwrite = true)
                         temporary.delete()
                     }
+                    // A hit retires any remembered miss for this track.
+                    forgetMiss(videoId, isrc)
                     trimCache(directory)
                 }.onFailure { temporary.delete() }
             }
         }
 
     private fun trimCache(directory: File) {
-        val files = directory.listFiles { file -> file.extension == "gz" }
+        val files = directory.listFiles { file -> file.extension == "gz" || file.extension == "miss" }
             ?.sortedBy(File::lastModified)
             .orEmpty()
         if (files.size > MAX_CACHE_FILES) files.take(files.size - MAX_CACHE_FILES).forEach(File::delete)

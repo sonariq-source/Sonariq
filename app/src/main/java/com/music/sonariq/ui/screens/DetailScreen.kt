@@ -350,6 +350,14 @@ fun DetailScreen(
 ) {
     val rawSongs = (page.songs as? UiState.Success)?.data.orEmpty()
     val songs = remember(rawSongs, songSort) { rawSongs.sortedForDetail(songSort) }
+    // Warm lyrics for the page's tracks while it is open, so playing one
+    // opens the lyrics panel with the words already there. Tied to this
+    // page: leaving cancels whatever has not started.
+    LaunchedEffect(page.browseId, songs) {
+        if (songs.isNotEmpty()) {
+            com.music.sonariq.download.LyricsListPrefetch.prefetch(songs)
+        }
+    }
     // What a numbered row shows regardless of [songSort] — an album's track
     // numbers are the sleeve's own and must not relabel themselves to match
     // wherever a sort put the row.

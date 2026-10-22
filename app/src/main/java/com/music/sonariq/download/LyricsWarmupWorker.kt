@@ -108,8 +108,14 @@ class LyricsWarmupWorker(
         // [LyricsRepository.readCache] is suspend and the planner's
         // isCached probe is not, so the cache check happens here, up front,
         // and the planner sees only what still needs a lookup.
-        val uncachedLiked = liked.filter { LyricsRepository.readCache(it.videoId, null) == null }
-        val uncachedStats = stats.filter { LyricsRepository.readCache(it.videoId, null) == null }
+        val uncachedLiked = liked.filter {
+            LyricsRepository.readCache(it.videoId, null) == null &&
+                !LyricsRepository.isKnownMiss(it.videoId)
+        }
+        val uncachedStats = stats.filter {
+            LyricsRepository.readCache(it.videoId, null) == null &&
+                !LyricsRepository.isKnownMiss(it.videoId)
+        }
         val plan = planWarmup(uncachedLiked, uncachedStats, cap = WARMUP_CAP) { false }
         if (plan.isEmpty()) return 0
         val order = AppSettings.lyricsSourceOrder.value

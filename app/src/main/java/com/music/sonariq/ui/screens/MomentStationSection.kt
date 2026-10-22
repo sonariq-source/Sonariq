@@ -116,6 +116,13 @@ fun MomentStationSection(
     }
 
     val songs = station?.songs.orEmpty()
+    // The built station is on screen: warm its tracks' lyrics so playing
+    // it opens the lyrics panel with the words already there.
+    LaunchedEffect(songs) {
+        if (songs.isNotEmpty()) {
+            com.music.sonariq.download.LyricsListPrefetch.prefetch(songs)
+        }
+    }
     if (!building && songs.isEmpty()) return
 
     val colors = MaterialTheme.colorScheme

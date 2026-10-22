@@ -49,7 +49,48 @@ class LyricsPrefetchTest {
     fun planPrefetchRespectsCapAndDefaultCap() {
         val queue = (0..20).map { candidate("v$it") }
         assertEquals(3, planPrefetch(queue, currentIndex = -1, cap = 3, isCached = nothingCached).size)
-        assertEquals(8, planPrefetch(queue, currentIndex = -1, isCached = nothingCached).size)
+        assertEquals(21, planPrefetch(queue, currentIndex = -1, isCached = nothingCached).size)
+    }
+
+    @Test
+    fun planPrefetchDefaultCapCoversWholeQueueUpTo100() {
+        val queue = (0..149).map { candidate("v$it") }
+        val plan = planPrefetch(queue, currentIndex = -1, isCached = nothingCached)
+        assertEquals(QUEUE_PREFETCH_CAP, plan.size)
+        assertEquals(100, plan.size)
+        assertEquals("v0", plan.first().videoId)
+        assertEquals("v99", plan.last().videoId)
+    }
+
+    @Test
+    fun planPrefetchWholeQueueSkipsOnlyCurrentAndEarlier() {
+        val queue = (0..119).map { candidate("v$it") }
+        val plan = planPrefetch(queue, currentIndex = 19, isCached = nothingCached)
+        assertEquals(100, plan.size)
+        assertEquals("v20", plan.first().videoId)
+    }
+
+    @Test
+    fun planListPrefetchCoversVisibleListCapped() {
+        val visible = (0..59).map { candidate("v$it") }
+        val plan = planListPrefetch(visible, isCached = nothingCached)
+        assertEquals(LyricsLookupPolicy.LIST_PREFETCH_CAP, plan.size)
+        assertEquals(40, plan.size)
+        assertEquals(5, planListPrefetch(visible, cap = 5, isCached = nothingCached).size)
+    }
+
+    @Test
+    fun planListPrefetchDedupesAndExcludesCachedAndBlank() {
+        val visible = listOf(
+            candidate("a"),
+            candidate("b"),
+            candidate("a", title = "second"),
+            candidate(""),
+            candidate("c"),
+        )
+        val plan = planListPrefetch(visible, isCached = { it == "b" })
+        assertEquals(listOf("a", "c"), plan.map { it.videoId })
+        assertEquals("title-a", plan.first().title)
     }
 
     @Test

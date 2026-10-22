@@ -103,6 +103,7 @@ import com.music.sonariq.data.lyrics.EmbeddedLyrics
 import com.music.sonariq.data.lyrics.LyricLine
 import com.music.sonariq.data.lyrics.LyricsRepository
 import com.music.sonariq.data.lyrics.PrefetchCandidate
+import com.music.sonariq.data.lyrics.QUEUE_PREFETCH_CAP
 import com.music.sonariq.data.lyrics.planPrefetch
 import com.music.sonariq.data.model.NOTIFICATION_ART_PX
 import com.music.sonariq.data.model.SearchFilter
@@ -7174,8 +7175,9 @@ class PlaybackService : MediaLibraryService() {
     }
 
     /**
-     * Warms the lyrics disk cache for the tracks coming up in the queue, so
-     * the panel opens instantly when each one starts.
+     * Warms the lyrics disk cache for every track still to come in the
+     * queue (up to [LYRICS_PREFETCH_LOOKAHEAD]), so the panel opens
+     * instantly when each one starts.
      *
      * The upcoming window is walked off the timeline in real play order —
      * [Timeline.getNextWindowIndex] with the player's own shuffle state —
@@ -7235,7 +7237,8 @@ class PlaybackService : MediaLibraryService() {
                 // starts a second fetch for a track already being fetched.
                 val uncached = upcoming.filter { candidate ->
                     candidate.videoId !in lyricsPrefetchInFlight &&
-                        LyricsRepository.readCache(candidate.videoId, null) == null
+                        LyricsRepository.readCache(candidate.videoId, null) == null &&
+                        !LyricsRepository.isKnownMiss(candidate.videoId)
                 }
                 val plan = planPrefetch(uncached, currentIndex = -1, cap = LYRICS_PREFETCH_LOOKAHEAD) { false }
                 if (plan.isEmpty()) return@launch
@@ -8780,8 +8783,11 @@ class PlaybackService : MediaLibraryService() {
         const val FOREIGN_CACHE_PURGE_DELAY_MS = 30_000L
         /** How many upcoming tracks [scheduleForeignCachePurge] leaves alone for read-ahead and Automix. */
         const val FOREIGN_CACHE_KEEP_AHEAD = 3
-        /** How many tracks past the playing one [prefetchUpcomingLyrics] looks ahead. */
-        const val LYRICS_PREFETCH_LOOKAHEAD = 8
+        /**
+         * How many tracks past the playing one [prefetchUpcomingLyrics]
+         * warms: the whole queue, bounded by the planner's own cap.
+         */
+        const val LYRICS_PREFETCH_LOOKAHEAD = QUEUE_PREFETCH_CAP
         /** Bound on one lookahead lyrics lookup, so a slow service never stalls the rest. */
         const val LYRICS_PREFETCH_ITEM_MS = 60_000L
         /** Stagger between lookahead launches, so a queue change never stampedes the network. */
