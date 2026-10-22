@@ -24,6 +24,20 @@ object LyricsLookupPolicy {
     /** How long a genuine all-providers miss is remembered before a re-race. */
     const val NEGATIVE_TTL_MS = 7L * 24 * 60 * 60 * 1000
 
+    /**
+     * How long to wait before re-offering a track to AI measurement after
+     * a full set of attempts already failed to time it.
+     *
+     * The throttle that keeps a song the measurement cannot crack from
+     * being re-measured on every play: one full set of attempts a day is
+     * persistence, ten a day is a loop. A track that could not be timed
+     * yesterday may be timed today — a different edit, a corrected
+     * alignment, a quieter network — so the record expires rather than
+     * barring the track forever, but inside the interval background
+     * triggers leave it alone entirely.
+     */
+    const val AI_RETRY_INTERVAL_MS: Long = 24L * 60 * 60 * 1000
+
     /** The most tracks one list (Home shelf, detail page) warms at once. */
     const val LIST_PREFETCH_CAP = 40
 
@@ -176,5 +190,28 @@ object LyricsLookupPolicy {
         if (missedAtMs <= 0L) return false
         val age = nowMs - missedAtMs
         return age in 0 until ttlMs
+    }
+
+    /**
+     * Whether AI measurement is due for a track whose last full set of
+     * attempts was exhausted at [exhaustedAtMs], judged at [nowMs].
+     *
+     * Due when there is no record at all ([exhaustedAtMs] is null) — the
+     * track has never exhausted its attempts, so nothing throttles it —
+     * and due once the full [intervalMs] has passed since the recorded
+     * exhaustion, the boundary itself included. Not due inside the
+     * interval, and not due when the record sits in the future: a clock
+     * that moved backwards leaves a negative age, which is inside every
+     * positive interval, so a skewed clock delays a retry rather than
+     * triggering one early. Pure arithmetic, so the caller decides what
+     * "now" is and tests need no clock.
+     */
+    fun isAiRetryDue(
+        exhaustedAtMs: Long?,
+        nowMs: Long,
+        intervalMs: Long = AI_RETRY_INTERVAL_MS,
+    ): Boolean {
+        val exhaustedAt = exhaustedAtMs ?: return true
+        return nowMs - exhaustedAt >= intervalMs
     }
 }

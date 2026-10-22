@@ -49,6 +49,16 @@ import kotlin.math.roundToLong
  * choice is the caller's, made from whatever the track's own metadata
  * actually says.
  *
+ * A caller may also hand the service the lyric text it already has, as
+ * [transcribe]'s `prompt`: the words a provider already gave us, offered
+ * as context so the transcription is biased toward the words actually
+ * sung rather than the words the audio most resembles. That matters most
+ * where a line is quiet, fast, or in a language the primary model hears
+ * less often — exactly the places a mishearing would otherwise send the
+ * alignment chasing a word that was never sung. The prompt is omitted
+ * entirely when the caller has no text worth sending, and it is never
+ * logged, for the same reason the key is not.
+ *
  * Analysis reads the track's audio file only. There is no microphone and
  * no capture of anything the device plays: the bytes sent are the bytes of
  * a file the app already has or has just fetched for this track.
@@ -108,8 +118,14 @@ object TranscriptionClient {
      * form part; null (or blank) sends no language part at all, so the far
      * side detects the language from the audio rather than being told.
      *
+     * [prompt] is optional context for the transcription — in practice
+     * the lyric text the caller already has for this track, built by
+     * [buildTranscriptionPrompt]. A non-blank one is sent as its own form
+     * part; null (or blank) sends no prompt part at all.
+     *
      * The blocking OkHttp call runs on [Dispatchers.IO]; the multipart
-     * build only stats the file. Never logs [apiKey] — or the audio.
+     * build only stats the file. Never logs [apiKey], [prompt] — or the
+     * audio.
      */
     suspend fun transcribe(
         audio: File,
@@ -118,6 +134,7 @@ object TranscriptionClient {
         endpointUrl: String = DEFAULT_ENDPOINT,
         model: String = DEFAULT_MODEL,
         language: String? = null,
+        prompt: String? = null,
     ): List<TranscribedWord>? {
         if (apiKey.isBlank() || !audio.isFile || audio.length() == 0L) return null
         return withContext(Dispatchers.IO) {
@@ -136,6 +153,13 @@ object TranscriptionClient {
                         // the language itself instead of trusting a guess.
                         if (!language.isNullOrBlank()) {
                             addFormDataPart("language", language)
+                        }
+                        // The prompt, only where the caller actually has
+                        // lyric text worth sending: with no part sent, the
+                        // far side transcribes the audio on its own terms
+                        // rather than being steered by nothing.
+                        if (!prompt.isNullOrBlank()) {
+                            addFormDataPart("prompt", prompt)
                         }
                     }
                     .addFormDataPart("response_format", "verbose_json")

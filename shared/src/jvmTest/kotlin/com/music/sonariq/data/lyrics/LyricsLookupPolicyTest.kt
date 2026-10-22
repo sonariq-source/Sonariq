@@ -125,6 +125,76 @@ class LyricsLookupPolicyTest {
     }
 
     @Test
+    fun aiRetryIntervalIsOneDay() {
+        assertEquals(24L * 60 * 60 * 1000, LyricsLookupPolicy.AI_RETRY_INTERVAL_MS)
+    }
+
+    @Test
+    fun aiRetryDueWhenThereIsNoRecord() {
+        // Never exhausted its attempts: nothing throttles a first try,
+        // at any "now" at all.
+        assertTrue(LyricsLookupPolicy.isAiRetryDue(null, 0L))
+        assertTrue(LyricsLookupPolicy.isAiRetryDue(null, 1_000_000L))
+    }
+
+    @Test
+    fun aiRetryDueAtAndAfterTheIntervalBoundary() {
+        val exhaustedAt = 1_000_000L
+        // Exactly at the boundary the interval has fully passed: due.
+        assertTrue(
+            LyricsLookupPolicy.isAiRetryDue(
+                exhaustedAt,
+                exhaustedAt + LyricsLookupPolicy.AI_RETRY_INTERVAL_MS,
+            ),
+        )
+        assertTrue(
+            LyricsLookupPolicy.isAiRetryDue(
+                exhaustedAt,
+                exhaustedAt + LyricsLookupPolicy.AI_RETRY_INTERVAL_MS * 3,
+            ),
+        )
+    }
+
+    @Test
+    fun aiRetryNotDueInsideTheInterval() {
+        val exhaustedAt = 1_000_000L
+        assertFalse(LyricsLookupPolicy.isAiRetryDue(exhaustedAt, exhaustedAt))
+        // One millisecond short of the boundary is still inside it.
+        assertFalse(
+            LyricsLookupPolicy.isAiRetryDue(
+                exhaustedAt,
+                exhaustedAt + LyricsLookupPolicy.AI_RETRY_INTERVAL_MS - 1,
+            ),
+        )
+    }
+
+    @Test
+    fun aiRetryNotDueForARecordInTheFuture() {
+        // Clock skew: the record is ahead of "now", so its age is
+        // negative — inside the interval, not past it. A skewed clock
+        // delays the retry rather than triggering one early.
+        val now = 1_000_000L
+        assertFalse(LyricsLookupPolicy.isAiRetryDue(now + 60_000L, now))
+        assertFalse(
+            LyricsLookupPolicy.isAiRetryDue(
+                now + LyricsLookupPolicy.AI_RETRY_INTERVAL_MS,
+                now,
+            ),
+        )
+    }
+
+    @Test
+    fun aiRetryHonoursACustomInterval() {
+        val exhaustedAt = 1_000_000L
+        assertTrue(
+            LyricsLookupPolicy.isAiRetryDue(exhaustedAt, exhaustedAt + 500L, intervalMs = 500L),
+        )
+        assertFalse(
+            LyricsLookupPolicy.isAiRetryDue(exhaustedAt, exhaustedAt + 499L, intervalMs = 500L),
+        )
+    }
+
+    @Test
     fun ttmlSourcesAreExactlyTheTtmlCarriers() {
         assertEquals(
             setOf(

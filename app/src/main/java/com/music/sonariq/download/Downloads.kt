@@ -756,6 +756,62 @@ object Downloads {
             }
         }
 
+    /**
+     * The recorded download for [videoId] as a [Song], or null when the
+     * track is not in the record or its file no longer exists.
+     *
+     * The single-track counterpart to [getCollectionSongs], built the same
+     * way for the same reasons: the uri comes from [_saved] with the
+     * [_savedMetadata] record as its fallback, the metadata itself falls
+     * back to whichever entry names that uri (a music video and the
+     * catalogue track it resolved to are two ids for one file), existence
+     * is verified through [DownloadStore.exists] rather than trusted from
+     * the record, and the dates and format badge are resolved exactly as
+     * the collection path resolves them — [resolvedDownloadDates] for the
+     * dates, and the legacy badge read for a file whose record predates
+     * the format being persisted. A file the check finds gone prunes
+     * every alias that named it, as the collection path does.
+     *
+     * Touches the filesystem, so call it off the main thread.
+     */
+    suspend fun savedSong(context: Context, videoId: String): Song? =
+        withContext(Dispatchers.IO) {
+            val metadata = _savedMetadata.value
+            val saved = _saved.value
+            val uriString = saved[videoId] ?: metadata[videoId]?.uri
+                ?: return@withContext null
+            val uri = uriString.toUri()
+            if (!DownloadStore.exists(context, uri)) {
+                saved.filterValues { it == uriString }.keys.forEach(::forget)
+                return@withContext null
+            }
+            val metadataByUri = metadata.values.associateBy { it.uri }
+            val meta = metadata[videoId] ?: metadataByUri[uriString]
+                ?: return@withContext null
+            val fileModifiedMillis = uri.takeIf { it.scheme == "file" }
+                ?.path
+                ?.let(::File)
+                ?.lastModified()
+                ?.takeIf { it > 0 }
+            val (dateAddedSeconds, dateModifiedSeconds) = resolvedDownloadDates(
+                persistedAddedSeconds = meta.dateAddedSeconds,
+                fileModifiedMillis = fileModifiedMillis,
+            )
+            Song(
+                videoId = videoId,
+                title = meta.title,
+                artist = meta.artist,
+                thumbnailUrl = meta.thumbnailUrl,
+                durationText = meta.durationText,
+                albumName = meta.albumName,
+                localUri = uriString,
+                downloadFormat = meta.downloadFormat
+                    ?: legacyYoutubeDownloadBadge(context, uri),
+                localDateAddedSeconds = dateAddedSeconds,
+                localDateModifiedSeconds = dateModifiedSeconds,
+            )
+        }
+
     private fun String.toUri(): Uri = Uri.parse(this)
 
     // ---- Driven by DownloadService -----------------------------------------
@@ -992,6 +1048,18 @@ object Downloads {
             remember(song, track, uri)
             DownloadSession.done(id)
             clear(id)
+            // This path returns before the try below, so it needs its own
+            // offer: the file is already the track's exact audio on the
+            // device, and the job re-reads the settled lyrics from the
+            // repository cache and no-ops unless they are line-only.
+            // Fire-and-forget — the gates inside AiWordSync decide.
+            AiWordSync.maybeAlign(
+                videoId = track.videoId,
+                title = track.title,
+                artist = track.artist,
+                durationMs = track.durationMillis(),
+                immediate = false,
+            )
             return
         }
         val route = plan.route ?: error("Nothing to download")
@@ -1100,6 +1168,24 @@ object Downloads {
             lyrics?.cancel()
             artwork?.cancel()
         }
+        // Offer the finished track for AI word sync. Placed after the
+        // try/catch/finally on purpose: the catch rethrows, so this line is
+        // reached only on success, and every successful path funnels past
+        // it — the main commit path and the HLS/DASH manifest path both
+        // return from the coroutineScope above and land here, as does the
+        // adopt-an-existing-file check inside the scope. The job re-reads
+        // the settled lyrics from the repository cache the tag fetch just
+        // populated and no-ops unless they are line-only; the downloaded
+        // file is the exact audio, so a fresh download is the cheapest
+        // measurement the feature ever gets. Fire-and-forget — the gates
+        // inside AiWordSync decide whether anything actually runs.
+        AiWordSync.maybeAlign(
+            videoId = track.videoId,
+            title = track.title,
+            artist = track.artist,
+            durationMs = track.durationMillis(),
+            immediate = false,
+        )
     }
 
     /**

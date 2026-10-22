@@ -804,6 +804,83 @@ object LyricsRepository {
         runCatching { File(File(root, CACHE_DIRECTORY), "$key.miss").delete() }
     }
 
+    // ---- AI measurement exhaustion --------------------------------------
+
+    /**
+     * When this track last exhausted every AI measurement attempt offered
+     * to it, in epoch milliseconds, or null when there is no such record.
+     *
+     * The record is a sidecar file beside the lyrics cache, keyed exactly
+     * like the remembered misses (see [isKnownMiss]) and holding the
+     * timestamp as plain text. It means one specific thing: every
+     * transcription attempt this track was offered came back unable to
+     * time the whole song. It is written only by the AI job after a full
+     * attempt ladder, never by early bail-outs — no audio, no network —
+     * which are transient and say nothing about the track. Background
+     * triggers read it through [LyricsLookupPolicy.isAiRetryDue] so such
+     * a track is re-offered at most once a day instead of on every play
+     * or prefetch.
+     *
+     * Never throws; a missing cache directory, a missing file, an
+     * unreadable file and an unparseable timestamp all read as no record,
+     * which [LyricsLookupPolicy.isAiRetryDue] treats as due — a broken
+     * record must never bar a track from measurement forever.
+     */
+    suspend fun aiAttemptExhaustedAtMs(videoId: String, isrc: String? = null): Long? {
+        val key = cacheKey(videoId, isrc) ?: return null
+        return withContext(Dispatchers.IO) {
+            diskMutex.withLock {
+                val root = cacheDir ?: return@withLock null
+                val file = File(File(root, CACHE_DIRECTORY), "$key.aitried")
+                if (!file.isFile) return@withLock null
+                runCatching { file.readText().trim().toLong() }.getOrNull()
+            }
+        }
+    }
+
+    /**
+     * Records that this track has just exhausted a full set of AI
+     * measurement attempts — see [aiAttemptExhaustedAtMs] for what the
+     * record means and who may write it. [nowMs] is the exhaustion time,
+     * defaulting to now; callers pass it explicitly only in tests.
+     *
+     * Never throws and does nothing where there is no cache directory:
+     * without a disk the record could not outlive the session anyway,
+     * and an in-memory copy would only throttle retries this process
+     * already dedupes by other means.
+     */
+    suspend fun noteAiAttemptExhausted(
+        videoId: String,
+        isrc: String? = null,
+        nowMs: Long = System.currentTimeMillis(),
+    ) {
+        val key = cacheKey(videoId, isrc) ?: return
+        withContext(Dispatchers.IO) {
+            diskMutex.withLock {
+                val root = cacheDir ?: return@withLock
+                val directory = File(root, CACHE_DIRECTORY)
+                if (!directory.exists() && !directory.mkdirs()) return@withLock
+                runCatching {
+                    File(directory, "$key.aitried").writeText(nowMs.toString())
+                }
+            }
+        }
+    }
+
+    /**
+     * Forgets an AI exhaustion record — a stored measurement retires it,
+     * the same way a cache hit retires a remembered miss. Called only
+     * from [storeAiResult] after its successful write, never from the
+     * general cache write: an ordinary provisional lookup landing in the
+     * cache says nothing about whether measurement can time the track,
+     * so it must not reset the throttle.
+     */
+    private fun forgetAiAttempt(videoId: String, isrc: String?) {
+        val key = cacheKey(videoId, isrc) ?: return
+        val root = cacheDir ?: return
+        runCatching { File(File(root, CACHE_DIRECTORY), "$key.aitried").delete() }
+    }
+
     /**
      * Where fetched lyrics are kept between runs — the phone's cache directory,
      * the desktop's media cache. Null keeps them in memory only.
@@ -1000,6 +1077,13 @@ object LyricsRepository {
             }
         }
         writeCache(videoId, isrc, timed)
+        // A stored measurement retires the track's exhaustion record, the
+        // same way a cache hit retires a remembered miss: the record
+        // existed to throttle retries of a track measurement could not
+        // time, and this track has now been timed. Done here rather than
+        // in [writeCache], so ordinary provisional writes through the
+        // race never reset that throttle.
+        forgetAiAttempt(videoId, isrc)
         return true
     }
 

@@ -19,7 +19,8 @@ import kotlin.test.assertTrue
  * a `verbose_json` answer, the null it answers with for every failure, and
  * the shape of the one request it makes — a multipart POST carrying only
  * the audio, the model and the format fields, plus a language part where
- * the caller passed a language hint, under the caller's key.
+ * the caller passed a language hint and a prompt part where the caller
+ * passed a prompt, under the caller's key.
  */
 class TranscriptionClientTest {
 
@@ -164,6 +165,66 @@ class TranscriptionClientTest {
         checkNotNull(request)
         val body = request.body.readUtf8()
         assertFalse(body.contains("""name="language""""))
+    }
+
+    @Test
+    fun aPromptIsSentAsItsOwnFormPart() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"words":[{"word":"hi","start":0.0,"end":0.2}]}"""))
+
+        TranscriptionClient.transcribe(
+            audio = audio,
+            mimeType = "audio/mp4",
+            apiKey = "test-key",
+            endpointUrl = endpoint(),
+            prompt = "the words the singer actually sings",
+        )
+
+        val request = server.takeRequest(5, TimeUnit.SECONDS)
+        checkNotNull(request)
+        val body = request.body.readUtf8()
+        // Exactly one prompt part, carrying the prompt the caller passed.
+        assertEquals(1, body.split("""name="prompt"""").size - 1)
+        assertTrue(
+            body.contains("\r\nthe words the singer actually sings\r\n"),
+            "the prompt part carries the prompt",
+        )
+    }
+
+    @Test
+    fun noPromptSendsNoPromptPart() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"words":[{"word":"hi","start":0.0,"end":0.2}]}"""))
+
+        TranscriptionClient.transcribe(
+            audio = audio,
+            mimeType = "audio/mp4",
+            apiKey = "test-key",
+            endpointUrl = endpoint(),
+            prompt = null,
+        )
+
+        val request = server.takeRequest(5, TimeUnit.SECONDS)
+        checkNotNull(request)
+        val body = request.body.readUtf8()
+        // No prompt, no part: the far side transcribes on its own terms.
+        assertFalse(body.contains("""name="prompt""""))
+    }
+
+    @Test
+    fun aBlankPromptSendsNoPromptPart() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"words":[{"word":"hi","start":0.0,"end":0.2}]}"""))
+
+        TranscriptionClient.transcribe(
+            audio = audio,
+            mimeType = "audio/mp4",
+            apiKey = "test-key",
+            endpointUrl = endpoint(),
+            prompt = "",
+        )
+
+        val request = server.takeRequest(5, TimeUnit.SECONDS)
+        checkNotNull(request)
+        val body = request.body.readUtf8()
+        assertFalse(body.contains("""name="prompt""""))
     }
 
     @Test

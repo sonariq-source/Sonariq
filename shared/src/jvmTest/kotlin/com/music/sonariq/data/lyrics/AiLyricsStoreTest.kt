@@ -250,4 +250,101 @@ class AiLyricsStoreTest {
         assertFalse(LyricsRepository.storeAiResult("video-plain", null, lineOnly))
         assertNull(LyricsRepository.readCache("video-plain", null))
     }
+
+    @Test
+    fun aiAttemptExhaustedRoundTripsTheTimestamp() = runBlocking {
+        tempRoot()
+        val exhaustedAt = 1_700_000_000_000L
+
+        LyricsRepository.noteAiAttemptExhausted("video-exhausted", null, exhaustedAt)
+
+        assertEquals(
+            exhaustedAt,
+            LyricsRepository.aiAttemptExhaustedAtMs("video-exhausted", null),
+        )
+        // Keyed like the cache itself: another track has no record, and
+        // the same track under a different keying does not leak across —
+        // the video id is the key whether or not an ISRC rides along.
+        assertNull(LyricsRepository.aiAttemptExhaustedAtMs("video-other", null))
+        assertEquals(
+            exhaustedAt,
+            LyricsRepository.aiAttemptExhaustedAtMs("video-exhausted", "USRC123"),
+        )
+    }
+
+    @Test
+    fun aiAttemptExhaustedReadsNullWhenAbsent() = runBlocking {
+        tempRoot()
+
+        assertNull(LyricsRepository.aiAttemptExhaustedAtMs("video-never-tried", null))
+    }
+
+    @Test
+    fun aiAttemptExhaustedReadsNullForAnUnparseableRecord() = runBlocking {
+        val root = tempRoot()
+        val key = LyricsRepository.cacheKey("video-corrupt", null)!!
+        val directory = File(root, "lyrics_v1")
+        check(directory.mkdirs() || directory.isDirectory)
+        File(directory, "$key.aitried").writeText("not-a-timestamp")
+
+        // A broken record reads as no record — due, never barred forever.
+        assertNull(LyricsRepository.aiAttemptExhaustedAtMs("video-corrupt", null))
+        assertTrue(
+            LyricsLookupPolicy.isAiRetryDue(
+                LyricsRepository.aiAttemptExhaustedAtMs("video-corrupt", null),
+                System.currentTimeMillis(),
+            ),
+        )
+    }
+
+    @Test
+    fun aiAttemptExhaustedIsANoOpWithoutACacheDir() = runBlocking {
+        LyricsRepository.cacheDir = null
+
+        // Never throws, stores nothing, reads back as no record.
+        LyricsRepository.noteAiAttemptExhausted("video-nodir", null, 1_700_000_000_000L)
+        assertNull(LyricsRepository.aiAttemptExhaustedAtMs("video-nodir", null))
+    }
+
+    @Test
+    fun aSuccessfulAiStoreClearsTheExhaustionRecord() = runBlocking {
+        tempRoot()
+        val exhaustedAt = 1_700_000_000_000L
+        LyricsRepository.noteAiAttemptExhausted("video-cleared", null, exhaustedAt)
+        assertEquals(
+            exhaustedAt,
+            LyricsRepository.aiAttemptExhaustedAtMs("video-cleared", null),
+        )
+
+        assertTrue(LyricsRepository.storeAiResult("video-cleared", null, aiResult()))
+
+        // The track has now been timed, so the throttle record is retired
+        // — the same retirement a cache hit gives a remembered miss.
+        assertNull(LyricsRepository.aiAttemptExhaustedAtMs("video-cleared", null))
+    }
+
+    @Test
+    fun aRefusedProvisionalStoreDoesNotClearTheExhaustionRecord() = runBlocking {
+        tempRoot()
+        val exhaustedAt = 1_700_000_000_000L
+        LyricsRepository.noteAiAttemptExhausted("video-still-throttled", null, exhaustedAt)
+
+        // A merely provisional (line-only) result is refused by the AI
+        // store, and the refusal must leave the record standing: only a
+        // stored measurement retires it. This is the practical pin for
+        // the general cache-write path too — that path is private and
+        // reachable only through the provider race, so it cannot be
+        // staged directly with this harness; what is pinned here is
+        // that no store short of a successful AI one clears the record,
+        // and in the implementation the forget call sits only after
+        // [LyricsRepository.storeAiResult]'s successful write, never in
+        // the shared cache write itself.
+        val lineOnly = LyricsRepository.Result(LyricsSource.LRCLIB, lineOnlyLines)
+        assertFalse(LyricsRepository.storeAiResult("video-still-throttled", null, lineOnly))
+
+        assertEquals(
+            exhaustedAt,
+            LyricsRepository.aiAttemptExhaustedAtMs("video-still-throttled", null),
+        )
+    }
 }

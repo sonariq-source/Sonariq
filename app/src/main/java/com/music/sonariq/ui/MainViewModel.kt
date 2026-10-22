@@ -24,6 +24,7 @@ import com.music.sonariq.data.spotify.SpotifyLibrary
 import com.music.sonariq.data.spotify.SpotifyTrack
 import com.music.sonariq.data.lyrics.EmbeddedLyrics
 import com.music.sonariq.data.lyrics.LyricLine
+import com.music.sonariq.data.lyrics.LyricTiming
 import com.music.sonariq.data.lyrics.LyricsRepository
 import com.music.sonariq.data.lyrics.LyricsSource
 import com.music.sonariq.data.settings.AppSettings
@@ -399,6 +400,50 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     // not which of the eight services they came from months ago.
                     _lyricsSource.value = null
                     _lyricsChecked.value = true
+                    // The file's lyrics are a snapshot from download day.
+                    // The repository cache may since have measured word
+                    // timings for this track, or found better ones, so a
+                    // line-only snapshot is not the end of the story: the
+                    // panel follows the cache the way the streamed path
+                    // does — checking it first for an upgrade that already
+                    // landed, then offering the track for measurement —
+                    // under the same generation guard as every other swap
+                    // in this lookup, while the file's own copy remains
+                    // the offline floor underneath it all. Lines already
+                    // word-timed need none of this and are left exactly
+                    // as they were shown.
+                    if (embedded.isAiWordSyncCandidate()) {
+                        val cached = LyricsRepository.readCache(videoId, null)
+                        if (cached != null &&
+                            (cached.timing == LyricTiming.WORD_SYNCED ||
+                                cached.timing == LyricTiming.WORD_SYNCED_AI_MEASURED) &&
+                            generation == lyricsGeneration
+                        ) {
+                            // Keep the embedded lines if validation
+                            // somehow returns nothing — what is already
+                            // on screen is honest line sync either way.
+                            validatedLyrics(cached)?.let { _lyrics.value = it.lines }
+                        }
+                        val localFile = localUri
+                            ?.takeIf { it.startsWith("file://") }
+                            ?.let { Uri.parse(it).path?.let(::File) }
+                            ?.takeIf { it.isFile }
+                        com.music.sonariq.download.AiWordSync.maybeAlign(
+                            videoId = videoId,
+                            title = title,
+                            artist = artist,
+                            durationMs = durationMs,
+                            localAudio = localFile,
+                            immediate = true,
+                            onAligned = { aligned ->
+                                if (generation == lyricsGeneration) {
+                                    validatedLyrics(aligned)?.let {
+                                        _lyrics.value = it.lines
+                                    }
+                                }
+                            },
+                        )
+                    }
                     return@launch
                 }
             }

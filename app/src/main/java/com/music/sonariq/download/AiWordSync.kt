@@ -10,9 +10,15 @@ import com.music.sonariq.data.DebugLog as Log
 import com.music.sonariq.data.innertube.StreamResolver
 import com.music.sonariq.data.lyrics.AiLyricAligner
 import com.music.sonariq.data.lyrics.LyricLanguageDetector
+import com.music.sonariq.data.lyrics.LyricLine
 import com.music.sonariq.data.lyrics.LyricTiming
+import com.music.sonariq.data.lyrics.LyricsLookupPolicy
 import com.music.sonariq.data.lyrics.LyricsRepository
 import com.music.sonariq.data.lyrics.TranscriptionClient
+import com.music.sonariq.data.lyrics.buildTranscriptionPrompt
+import com.music.sonariq.data.lyrics.lyricTiming
+import com.music.sonariq.data.lyrics.toEnhancedLrc
+import com.music.sonariq.data.lyrics.toLrc
 import com.music.sonariq.data.settings.AppSettings
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -53,51 +59,161 @@ internal fun LyricsRepository.Result.isAiWordSyncCandidate(): Boolean =
         timing != LyricTiming.WORD_SYNCED_AI_MEASURED
 
 /**
- * Which of a job's two alignment attempts, if either, earned storing.
+ * The tag-side twin of the [LyricsRepository.Result] candidate check
+ * above, for lyrics that came out of a file and never were a repository
+ * result: lines read back from a download's own tags by the embedded
+ * lyrics reader, offered for measurement by the player wiring.
+ *
+ * The tests are the same, answered from the lines themselves: there are
+ * words worth timing, and the lines' own timing — [lyricTiming], the
+ * shared classification the repository also stamps its results with —
+ * is neither provider word sync ([LyricTiming.WORD_SYNCED]) nor an
+ * earlier measurement ([LyricTiming.WORD_SYNCED_AI_MEASURED]). Any other
+ * bucket qualifies, including estimated word sync, whose timings the
+ * repository strips on sight anyway: what is left underneath them is
+ * honest line sync, and honest line sync is exactly what a job here
+ * exists to upgrade.
+ */
+internal fun List<LyricLine>.isAiWordSyncCandidate(): Boolean {
+    val timing = lyricTiming()
+    return any { it.text.isNotBlank() } &&
+        timing != LyricTiming.WORD_SYNCED &&
+        timing != LyricTiming.WORD_SYNCED_AI_MEASURED
+}
+
+/**
+ * One rung of a job's attempt ladder: which model transcribes, which
+ * language hint it is given (null sends no hint at all, leaving the far
+ * side to detect the language from the audio), and whether the lyric
+ * prompt built from the settled lines goes with the audio.
+ *
+ * A value, not a behaviour, so the whole ladder a job will climb is
+ * testable without a device or a network — see [aiAttemptPlan].
+ */
+internal data class AiAttemptSpec(
+    val model: String,
+    val language: String?,
+    val withPrompt: Boolean,
+)
+
+/**
+ * The order a job tries to time one song in, first to last.
+ *
+ * Each attempt removes one steering assumption the previous one made,
+ * because a failed attempt says something was wrong with the steering
+ * as often as with the listening:
+ *
+ *  1. The primary model, the detected language, and the prompt — every
+ *     steer the job has, and the attempt that settles most songs.
+ *  2. The primary model and the prompt, but no language: where the
+ *     detector misread the lyrics, an unsteered listen is the different
+ *     opinion worth having before a different model is.
+ *  3. The alternate model, with the language and the prompt restored:
+ *     a different listener, given the same full brief the first one got.
+ *  4. The alternate model, no language, and no prompt — the bare listen
+ *     this feature shipped with before the prompt existed, kept as the
+ *     last rung so a prompt that somehow steers wrong can cost the
+ *     first three attempts but never the job.
+ *
+ * The ladder stops at the first attempt that times the whole song (see
+ * [pickAiAttempt]); later rungs are never paid for once an earlier one
+ * has landed. Identical specs collapse: with no detected language the
+ * first two rungs are the same call, so the plan runs to three entries
+ * rather than paying for that call twice.
+ */
+internal fun aiAttemptPlan(detectedLanguage: String?): List<AiAttemptSpec> =
+    listOf(
+        AiAttemptSpec(
+            model = TranscriptionClient.DEFAULT_MODEL,
+            language = detectedLanguage,
+            withPrompt = true,
+        ),
+        AiAttemptSpec(
+            model = TranscriptionClient.DEFAULT_MODEL,
+            language = null,
+            withPrompt = true,
+        ),
+        AiAttemptSpec(
+            model = TranscriptionClient.ALTERNATE_MODEL,
+            language = detectedLanguage,
+            withPrompt = true,
+        ),
+        AiAttemptSpec(
+            model = TranscriptionClient.ALTERNATE_MODEL,
+            language = null,
+            withPrompt = false,
+        ),
+    ).distinct()
+
+/**
+ * Which of a job's alignment attempts, if any, earned storing: the
+ * first complete one, in ladder order.
  *
  * An attempt is complete only when its outcome carries lines — which
  * [AiLyricAligner.alignDetailed] grants solely when *every* non-gap lead
- * line earned measured words, never for a partial song. So a complete
- * first attempt wins outright, a complete second attempt wins over an
- * incomplete first, and two incomplete attempts store nothing at all:
- * the track keeps its honest line sync whole rather than a patchwork of
- * word-synced and line-synced lines, and a later offer tries again.
+ * line earned measured words, never for a partial song. So the earliest
+ * complete attempt wins outright, a later complete attempt wins over
+ * every incomplete one before it, and a ladder of incomplete attempts
+ * stores nothing at all: the track keeps its honest line sync whole
+ * rather than a patchwork of word-synced and line-synced lines.
  *
- * Either attempt may be null — a transcription that failed or heard
+ * Any attempt may be null — a transcription that failed or heard
  * nothing produces no outcome to judge. Pure, so the decision is
  * testable without a device or a network.
  */
 internal fun pickAiAttempt(
-    first: AiLyricAligner.AlignOutcome?,
-    second: AiLyricAligner.AlignOutcome?,
-): AiLyricAligner.AlignOutcome? = when {
-    first?.lines != null -> first
-    second?.lines != null -> second
-    else -> null
-}
+    outcomes: List<AiLyricAligner.AlignOutcome?>,
+): AiLyricAligner.AlignOutcome? = outcomes.firstOrNull { it?.lines != null }
 
 /**
- * The better of a job's two attempts, whether or not either earned
- * storing — the attempt a log line should describe when [pickAiAttempt]
- * stored nothing.
+ * The two-attempt form of [pickAiAttempt] over a list, kept for the
+ * callers and tests written against the original two-attempt ladder.
+ */
+internal fun pickAiAttempt(
+    first: AiLyricAligner.AlignOutcome?,
+    second: AiLyricAligner.AlignOutcome?,
+): AiLyricAligner.AlignOutcome? = pickAiAttempt(listOf(first, second))
+
+/**
+ * The best of a job's attempts, whether or not any earned storing —
+ * the attempt a log line should describe when [pickAiAttempt] stored
+ * nothing.
  *
  * Complete beats incomplete, because a complete attempt timed the whole
  * song. Between two incomplete attempts, the one that passed more lead
- * lines got closer; a tie keeps the first, which is also the attempt the
- * primary model and the detected language produced. "Better" here is a
- * report, never a licence to store: an incomplete best is still not
- * stored, which is [pickAiAttempt]'s separate call.
+ * lines got closer; a tie keeps the earlier attempt, which is also the
+ * more fully steered one — the ladder's order is its own tiebreak.
+ * "Better" here is a report, never a licence to store: an incomplete
+ * best is still not stored, which is [pickAiAttempt]'s separate call.
+ */
+internal fun bestAiAttempt(
+    outcomes: List<AiLyricAligner.AlignOutcome?>,
+): AiLyricAligner.AlignOutcome? {
+    var best: AiLyricAligner.AlignOutcome? = null
+    for (outcome in outcomes) {
+        val candidate = outcome ?: continue
+        val current = best
+        when {
+            current == null -> best = candidate
+            // An earlier complete attempt is never displaced: not by a
+            // later complete one (the ladder already preferred it) and
+            // certainly not by an incomplete one.
+            current.lines != null -> Unit
+            candidate.lines != null -> best = candidate
+            candidate.passedLeadLines > current.passedLeadLines -> best = candidate
+        }
+    }
+    return best
+}
+
+/**
+ * The two-attempt form of [bestAiAttempt] over a list, kept for the
+ * callers and tests written against the original two-attempt ladder.
  */
 internal fun bestAiAttempt(
     first: AiLyricAligner.AlignOutcome?,
     second: AiLyricAligner.AlignOutcome?,
-): AiLyricAligner.AlignOutcome? {
-    if (first == null) return second
-    if (second == null) return first
-    if (first.lines != null) return first
-    if (second.lines != null) return second
-    return if (first.passedLeadLines >= second.passedLeadLines) first else second
-}
+): AiLyricAligner.AlignOutcome? = bestAiAttempt(listOf(first, second))
 
 /**
  * Background word sync for tracks no lyrics provider could word-sync.
@@ -110,16 +226,30 @@ internal fun bestAiAttempt(
  * result and keeps it provisional — the ordinary lookup keeps hunting for
  * provider timings and replaces these when it finds them.
  *
- * One job measures twice before it gives up. The first attempt asks the
- * primary transcription model for the audio, with the lyrics' own
- * language as a hint where [LyricLanguageDetector] can name one, and
- * aligns per line against the provider line timings. Only a complete
- * result — every non-gap lead line earning measured words — is stored.
- * Anything less starts a second attempt over the same audio with the
- * alternate model and no language hint; if that too comes back
- * incomplete, nothing is stored at all. A half-timed song is worse than
- * an honestly line-synced one, so the job ends quietly and a later offer
- * retries, exactly as a failed job always has.
+ * One job climbs a ladder of attempts before it gives up — see
+ * [aiAttemptPlan] for the rungs and why they are ordered as they are.
+ * The prompt is built once, from the settled lines, by
+ * [buildTranscriptionPrompt], and the language is detected once, by
+ * [LyricLanguageDetector]; the rungs then differ only in which of those
+ * steers they carry and which model listens. Every rung transcribes the
+ * one audio file the job acquired and aligns per line against the
+ * provider line timings. Only a complete result — every non-gap lead
+ * line earning measured words — is stored, and the ladder stops at the
+ * first one. If every rung comes back incomplete, nothing is stored at
+ * all: a half-timed song is worse than an honestly line-synced one.
+ *
+ * A job that exhausts the ladder that way is remembered for a day
+ * ([LyricsRepository.noteAiAttemptExhausted]): until
+ * [LyricsLookupPolicy.AI_RETRY_INTERVAL_MS] has passed, no trigger —
+ * a play, a prefetch, a warm-up — starts the ladder for that track
+ * again, because four steered listens failing in the morning is not a
+ * reason to pay for four more at noon. The daily warm-up is the
+ * guaranteed retry: it offers every candidate again, and by the time
+ * it runs the day has passed and the gate is open. The record is
+ * written only for a genuine exhaustion — audio in hand, every rung
+ * run — never for the transient dead ends (no lyrics, no audio, the
+ * gate itself closed), which may clear at any moment and must not be
+ * remembered as failures.
  *
  * The audio is only ever the track's file, and it has to be the *same*
  * audio the player would play: the stream the resolver settles on is the
@@ -139,11 +269,17 @@ internal fun bestAiAttempt(
  *
  * Jobs are fire-and-forget and cheap to offer: every trigger in the app
  * calls [maybeAlign] and moves on, and the gates inside (enabled, key,
- * per-track dedupe, and for background jobs the Wi-Fi-only switch) decide
- * whether anything actually runs. A job that fails at any step — no
- * lyrics, no audio, a refused or unreachable transcription, an alignment
- * the aligner would not sign — simply ends. Nothing is written on failure,
- * not even a marker: a later play or prefetch may try again.
+ * per-track dedupe, the retry gate above, and for background jobs the
+ * Wi-Fi-only switch) decide whether anything actually runs. A job that
+ * fails at any step — no lyrics, no audio, a refused or unreachable
+ * transcription, an alignment the aligner would not sign — simply ends,
+ * and writes nothing but the exhaustion record described above, and
+ * that only when the ladder itself ran dry.
+ *
+ * A stored result is also written back into the track's own download,
+ * where there is one — see [persistUpgradeToDownload] — so a downloaded
+ * track carries its upgrade in the file itself and keeps it offline,
+ * rather than depending on the lyrics cache surviving.
  */
 object AiWordSync {
 
@@ -246,8 +382,8 @@ object AiWordSync {
                 throw e
             } catch (e: Exception) {
                 // A failed measurement is a non-event: the track keeps its
-                // line sync, nothing was written, and a later offer may try
-                // again. Said in the log and nowhere else.
+                // line sync, no result was stored, and a later offer may
+                // try again. Said in the log and nowhere else.
                 Log.d(TAG, "AI word sync skipped for $videoId: ${e.message}")
             } finally {
                 inFlight.remove(videoId)
@@ -296,78 +432,185 @@ object AiWordSync {
         ) {
             return
         }
+        // The retry gate, checked here — after the settled lyrics are in
+        // hand and the already-word-synced returns above, before any
+        // audio is acquired: a job that exhausted the whole ladder
+        // recently is not run again yet, whichever trigger offered the
+        // track this time. The refusal is quiet and writes nothing; the
+        // record that closed the gate is the one the exhausting job
+        // left, and it ages out on its own.
+        if (!LyricsLookupPolicy.isAiRetryDue(
+                LyricsRepository.aiAttemptExhaustedAtMs(videoId, isrc),
+                System.currentTimeMillis(),
+            )
+        ) {
+            return
+        }
 
         val acquired = acquireAudio(context, videoId, localAudio, durationMs) ?: return
         try {
-            // Both attempts measure the one file acquired above — the
-            // second transcribes the same audio again under another
-            // model, it never fetches another copy of the track.
+            // Every attempt measures the one file acquired above — a
+            // later rung transcribes the same audio again under another
+            // spec, it never fetches another copy of the track.
             val songEndMs = durationMs.takeIf { it > 0 }
 
-            // First attempt: the primary model, told the language the
-            // lyrics themselves are in where that can be told at all —
-            // a transcription listening for the wrong language mishears
-            // in ways no alignment can line up afterwards.
-            val firstTokens = TranscriptionClient.transcribe(
-                audio = acquired.file,
-                mimeType = acquired.mimeType,
-                apiKey = apiKey,
-                model = TranscriptionClient.DEFAULT_MODEL,
-                language = LyricLanguageDetector.detect(result.lines),
-            )
-            val first = firstTokens
-                ?.takeIf { it.isNotEmpty() }
-                ?.let { AiLyricAligner.alignDetailed(result.lines, it, songEndMs) }
+            // Built once, before the ladder starts: the prompt from the
+            // settled lines themselves, and the language those lines are
+            // in where that can be told at all — a transcription
+            // listening for the wrong language mishears in ways no
+            // alignment can line up afterwards, which is why the ladder
+            // also carries rungs that drop the hint rather than trusting
+            // it blindly. Each rung then only decides whether it sends
+            // what was built here.
+            val prompt = buildTranscriptionPrompt(result.lines)
+            val plan = aiAttemptPlan(LyricLanguageDetector.detect(result.lines))
 
-            // A complete first attempt settles the job; only an
-            // incomplete or absent one earns the second attempt a call.
-            var winning = pickAiAttempt(first, null)
-            if (winning == null) {
-                // Second attempt: the alternate model, and no language
-                // hint this time — where the hint was the problem, or
-                // the detector misread the lyrics, an unsteered listen
-                // is the different second opinion worth paying for.
-                val secondTokens = TranscriptionClient.transcribe(
+            val outcomes = mutableListOf<AiLyricAligner.AlignOutcome?>()
+            var winning: AiLyricAligner.AlignOutcome? = null
+            for (spec in plan) {
+                val tokens = TranscriptionClient.transcribe(
                     audio = acquired.file,
                     mimeType = acquired.mimeType,
                     apiKey = apiKey,
-                    model = TranscriptionClient.ALTERNATE_MODEL,
-                    language = null,
+                    model = spec.model,
+                    language = spec.language,
+                    prompt = if (spec.withPrompt) prompt else null,
                 )
-                val second = secondTokens
+                // A transcription that failed, or heard nothing, is an
+                // attempt that produced no outcome at all: it takes its
+                // place in the list as null — so the reporting below
+                // stays in ladder order — and the ladder climbs on.
+                val outcome = tokens
                     ?.takeIf { it.isNotEmpty() }
                     ?.let { AiLyricAligner.alignDetailed(result.lines, it, songEndMs) }
-                winning = pickAiAttempt(first, second)
-                if (winning == null) {
-                    // Neither attempt timed the whole song. Report the
-                    // closer of the two in the log, store neither: the
-                    // track stays line-synced, and a later offer — a
-                    // replay, a prefetch — retries from the top.
-                    bestAiAttempt(first, second)?.let { best ->
-                        Log.d(
-                            TAG,
-                            "AI word sync incomplete for $videoId: " +
-                                "${best.passedLeadLines}/${best.leadLineCount} lead lines passed",
-                        )
-                    }
-                    return
+                outcomes += outcome
+                // The ladder stops at the first attempt that times the
+                // whole song; the rungs after it are never paid for.
+                winning = pickAiAttempt(outcomes)
+                if (winning != null) break
+            }
+            if (winning == null) {
+                // No rung timed the whole song. Report the best of them
+                // in the log and store none of them: the track stays
+                // line-synced. Unlike every early return above, this one
+                // is a genuine exhaustion — audio was acquired and every
+                // attempt ran — so it is remembered, and the retry gate
+                // holds every trigger off this track for a day.
+                bestAiAttempt(outcomes)?.let { best ->
+                    Log.d(
+                        TAG,
+                        "AI word sync incomplete for $videoId: " +
+                            "${best.passedLeadLines}/${best.leadLineCount} lead lines passed",
+                    )
                 }
+                LyricsRepository.noteAiAttemptExhausted(videoId, isrc)
+                return
             }
 
             val aligned = winning?.lines ?: return
             val aiResult = LyricsRepository.Result(result.source, aligned)
             if (!LyricsRepository.storeAiResult(videoId, isrc, aiResult)) return
+            // The result as stored, read off the cache the store just
+            // wrote; the constructed one only if that read somehow
+            // fails, since it is the same lines and timing. The stored
+            // form is what is persisted to the download and handed back:
+            // both readers should see exactly what the cache holds.
+            val stored = LyricsRepository.readCache(videoId, isrc) ?: aiResult
+            persistUpgradeToDownload(context, videoId, stored)
             if (onAligned != null) {
-                // Hand back the result as stored, read off the cache the
-                // store just wrote; the constructed one only if that read
-                // somehow fails, since it is the same lines and timing.
-                val stored = LyricsRepository.readCache(videoId, isrc) ?: aiResult
                 withContext(Dispatchers.Main) { onAligned(stored) }
             }
         } finally {
             // A temp file exists only for this job. The track's own files —
             // a local file, a download — are never deleted here.
             if (acquired.owned) acquired.file.delete()
+        }
+    }
+
+    /**
+     * Writes a stored AI result back into the track's own download, so
+     * the upgrade lives in the file the listener keeps rather than only
+     * in the lyrics cache — a cache the system may clear, and which a
+     * copied file leaves behind entirely.
+     *
+     * Best-effort by construction, and wrapped so it can never fail the
+     * job that calls it: the store to the cache has already landed by
+     * the time this runs, so the worst any failure here costs is the
+     * write-back itself, which a later measurement can redo. The whole
+     * body sits in a [runCatching] whose only trace is a log line.
+     *
+     * Where the upgrade lands depends on what the download is:
+     *
+     *  - Not a download at all — [Downloads.verifiedSavedUri] has no
+     *    live record for the track: there is nothing to persist to, and
+     *    the cache alone holds the upgrade.
+     *  - An offline package: a `file://` uri naming a `.m3u8` playlist.
+     *    Its lyrics live in a sidecar, not in a tag, so the sidecar
+     *    beside the playlist is rewritten in exactly the form
+     *    [OfflineHls] wrote at download time — the enhanced form where
+     *    the stored lines produce one, the plain form otherwise.
+     *  - A taggable file: the extension is read off the uri's last path
+     *    segment, and where [MediaTagger.carriesTags] knows the
+     *    container, the stored lines are embedded through
+     *    [MediaTagger.embed] under the download's own recorded Song
+     *    metadata, with its artwork fetched the way a download fetches
+     *    it. The one refusal is a FLAC with no artwork to write: the
+     *    FLAC tagger replaces the picture block as it rewrites, so
+     *    embedding without a cover in hand would trade the download's
+     *    cover for its words — and the cache keeps the upgrade either
+     *    way, so nothing is lost by leaving that file alone.
+     *
+     * Writing tags into a file tagged at download time is safe for a
+     * reason worth stating: a line-only download carries no word-lyrics
+     * field at all — [toEnhancedLrc] writes nothing when nothing on the
+     * lines is word-synced — and every reader of the tag prefers that
+     * field over the plain one. So the embed below does not disturb
+     * what is already there; it adds the upgrade in the one field the
+     * player actually looks at first, which is where it will be found.
+     */
+    private suspend fun persistUpgradeToDownload(
+        context: Context,
+        videoId: String,
+        stored: LyricsRepository.Result,
+    ) {
+        runCatching {
+            val uriString = Downloads.verifiedSavedUri(videoId) ?: return@runCatching
+            val plain = stored.lines.toLrc()
+            val enhanced = stored.lines.toEnhancedLrc().takeIf { it.isNotBlank() }
+
+            val parsed = Uri.parse(uriString)
+            val path = parsed.path
+            if (parsed.scheme == "file" && path != null &&
+                path.endsWith(".m3u8", ignoreCase = true)
+            ) {
+                val parent = File(path).parentFile ?: return@runCatching
+                File(parent, "lyrics.lrc").writeText(enhanced ?: plain)
+                return@runCatching
+            }
+
+            val extension = uriString
+                .substringBefore('?')
+                .substringAfterLast('/')
+                .substringAfterLast('.', "")
+                .lowercase()
+            if (extension.isBlank() || !MediaTagger.carriesTags(extension)) {
+                return@runCatching
+            }
+            val song = Downloads.savedSong(context, videoId) ?: return@runCatching
+            val artwork = MediaTagger.artworkFor(context, song)
+            // The FLAC rule, from the doc above: no artwork in hand
+            // means no write, never a cover traded for words.
+            if (extension == "flac" && artwork == null) return@runCatching
+            MediaTagger.embed(
+                context = context,
+                uri = Uri.parse(uriString),
+                track = song,
+                extension = extension,
+                lyrics = LyricsTag.Embeddable(plain = plain, enhanced = enhanced),
+                artwork = artwork,
+            )
+        }.onFailure {
+            Log.d(TAG, "AI word sync upgrade not written to download for $videoId: ${it.message}")
         }
     }
 
