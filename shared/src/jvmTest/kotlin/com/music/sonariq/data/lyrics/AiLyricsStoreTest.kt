@@ -162,6 +162,33 @@ class AiLyricsStoreTest {
     }
 
     @Test
+    fun aStaleAiEntryNoLongerBlocksAFreshMeasurement() = runBlocking {
+        val root = tempRoot()
+        // Seeded in the v1 shape, with no alignment version in the payload
+        // at all: a measurement from before the current alignment, which a
+        // current-version store would normally be refused over — an entry
+        // that already carries AI-measured timings is left alone.
+        seedCacheEntry(root, "video-remeasure", LyricTiming.WORD_SYNCED_AI_MEASURED, aiLines)
+
+        // But the stale entry is retired on read — stripped back to the
+        // line sync it was derived from — so what a later lookup (and the
+        // store's own guard) sees is not a measurement at all.
+        val stale = LyricsRepository.readCache("video-remeasure", null)
+        checkNotNull(stale)
+        assertEquals(LyricTiming.LINE_SYNCED, stale.timing)
+        assertTrue(stale.lines.all { it.words.isEmpty() && !it.wordsAiMeasured })
+
+        // The fresh measurement is therefore accepted, and reads back as
+        // the current version's measurement, words intact.
+        assertTrue(LyricsRepository.storeAiResult("video-remeasure", null, aiResult()))
+
+        val stored = LyricsRepository.readCache("video-remeasure", null)
+        checkNotNull(stored)
+        assertEquals(LyricTiming.WORD_SYNCED_AI_MEASURED, stored.timing)
+        assertEquals(aiLines, stored.lines)
+    }
+
+    @Test
     fun aStoredAiEntryStaysProvisionalSoTheProviderHuntContinues() = runBlocking {
         val root = tempRoot()
         seedCacheEntry(root, "video-provisional", LyricTiming.LINE_SYNCED, lineOnlyLines)

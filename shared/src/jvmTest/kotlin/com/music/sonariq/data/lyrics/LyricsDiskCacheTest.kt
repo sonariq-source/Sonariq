@@ -180,13 +180,23 @@ class LyricsDiskCacheTest {
         }
     }
 
-    /** A v1-shaped payload: no `provisional` / `storedAtMs` fields, as 2.24 wrote it. */
+    /**
+     * A v1-shaped payload: no `provisional` / `storedAtMs` fields, as 2.24
+     * wrote it. [aiAlignmentVersion] is likewise omitted unless a test asks
+     * for it, exactly as every payload written before the field existed
+     * omits it — those payloads decode with version 0.
+     */
     private fun cachePayload(
         source: LyricsSource,
         timing: LyricTiming,
         lines: List<LyricLine>,
+        aiAlignmentVersion: Int? = null,
     ): String = buildString {
-        append("""{"version":1,"source":"${source.name}","timing":"${timing.name}","lines":""")
+        append("""{"version":1,"source":"${source.name}","timing":"${timing.name}"""")
+        if (aiAlignmentVersion != null) {
+            append(""","aiAlignmentVersion":$aiAlignmentVersion""")
+        }
+        append(""","lines":""")
         append(json.encodeToString(lines))
         append('}')
     }
@@ -251,10 +261,17 @@ class LyricsDiskCacheTest {
                 wordsAiMeasured = true,
             ),
         )
+        // Stamped with the current alignment version: this is a measurement
+        // the current aligner still stands behind.
         writeCacheEntry(
             root,
             "video-ai",
-            cachePayload(LyricsSource.LRCLIB, LyricTiming.WORD_SYNCED_AI_MEASURED, lines),
+            cachePayload(
+                LyricsSource.LRCLIB,
+                LyricTiming.WORD_SYNCED_AI_MEASURED,
+                lines,
+                aiAlignmentVersion = AiLyricAligner.ALIGNMENT_VERSION,
+            ),
         )
 
         LyricsRepository.cacheDir = root
@@ -269,6 +286,92 @@ class LyricsDiskCacheTest {
         // But AI-measured is provisional: a later lookup still re-hunts
         // for provider timings, so this never counts as final.
         assertFalse(LyricsRepository.hasFinalLyrics("video-ai"))
+    }
+
+    @Test
+    fun staleAiMeasuredEntryWithoutVersionIsStrippedOnRead() = runBlocking {
+        val root = Files.createTempDirectory("lyrics-cache-test").toFile()
+        // An entry from before the alignment version was stamped: the
+        // payload carries no aiAlignmentVersion at all, so it decodes as
+        // version 0 — a measurement the current alignment has moved past.
+        // Its background line carries a measurement of its own.
+        val lines = listOf(
+            LyricLine(
+                timeMs = 4_000,
+                text = "verse line",
+                words = listOf(
+                    LyricWord(4_000, 4_400, "verse"),
+                    LyricWord(4_500, 4_900, "line"),
+                ),
+                sungUntilMs = 8_000,
+                background = LyricLine(
+                    timeMs = 4_500,
+                    text = "(ooh)",
+                    words = listOf(LyricWord(4_500, 5_200, "(ooh)")),
+                    wordsAiMeasured = true,
+                ),
+                wordsAiMeasured = true,
+            ),
+        )
+        writeCacheEntry(
+            root,
+            "video-ai-stale",
+            cachePayload(LyricsSource.LRCLIB, LyricTiming.WORD_SYNCED_AI_MEASURED, lines),
+        )
+
+        LyricsRepository.cacheDir = root
+        val hit = LyricsRepository.readCache("video-ai-stale", null)
+
+        checkNotNull(hit)
+        val line = hit.lines.single()
+        // The superseded measurement is gone, on the lead line and its
+        // background alike, and the flags that claimed it went with it.
+        assertTrue(line.words.isEmpty())
+        assertFalse(line.wordsAiMeasured)
+        val background = checkNotNull(line.background)
+        assertTrue(background.words.isEmpty())
+        assertFalse(background.wordsAiMeasured)
+        // What is left is the honest line sync the measurement was derived
+        // from, so the track is offered for re-measurement.
+        assertEquals(LyricTiming.LINE_SYNCED, hit.timing)
+        assertFalse(LyricsRepository.hasFinalLyrics("video-ai-stale"))
+    }
+
+    @Test
+    fun staleAiMeasuredEntryStampedVersionZeroIsStrippedOnRead() = runBlocking {
+        val root = Files.createTempDirectory("lyrics-cache-test").toFile()
+        // The same retirement, with the version present and explicitly 0:
+        // anything below the current alignment version is superseded.
+        val lines = listOf(
+            LyricLine(
+                timeMs = 4_000,
+                text = "verse line",
+                words = listOf(
+                    LyricWord(4_000, 4_400, "verse"),
+                    LyricWord(4_500, 4_900, "line"),
+                ),
+                sungUntilMs = 8_000,
+                wordsAiMeasured = true,
+            ),
+        )
+        writeCacheEntry(
+            root,
+            "video-ai-v0",
+            cachePayload(
+                LyricsSource.LRCLIB,
+                LyricTiming.WORD_SYNCED_AI_MEASURED,
+                lines,
+                aiAlignmentVersion = 0,
+            ),
+        )
+
+        LyricsRepository.cacheDir = root
+        val hit = LyricsRepository.readCache("video-ai-v0", null)
+
+        checkNotNull(hit)
+        assertTrue(hit.lines.single().words.isEmpty())
+        assertFalse(hit.lines.single().wordsAiMeasured)
+        assertEquals(LyricTiming.LINE_SYNCED, hit.timing)
     }
 
     @Test

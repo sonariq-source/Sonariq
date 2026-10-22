@@ -23,25 +23,48 @@ class AiLyricAlignerTest {
     private fun token(text: String, startMs: Long, endMs: Long) =
         TranscribedWord(text, startMs, endMs)
 
+    // -- Version ------------------------------------------------------------
+
+    @Test
+    fun alignmentVersionIsTwo() {
+        assertEquals(2, AiLyricAligner.ALIGNMENT_VERSION)
+    }
+
     // -- Normalisation -----------------------------------------------------
 
     @Test
     fun normalisationDropsCasePunctuationAndExtraSpace() {
-        assertEquals("hello", normalizeToken("Hello,"))
+        // "hello" loses its doubled letter to the collapse both sides get.
+        assertEquals("helo", normalizeToken("Hello,"))
         assertEquals("world", normalizeToken("  WORLD!  "))
-        assertEquals("too many spaces", normalizeToken("too   many    spaces"))
-        // A hyphen is punctuation: the word compares whole, as one token.
-        assertEquals("wellknown", normalizeToken("well-known"))
+        assertEquals("to many spaces", normalizeToken("too   many    spaces"))
         assertEquals("123", normalizeToken("(123)"))
     }
 
     @Test
-    fun normalisationKeepsApostrophesInsideWordsOnly() {
-        assertEquals("don't", normalizeToken("don't"))
-        assertEquals("don't", normalizeToken("DON’T"))
-        // Hanging off an edge, the mark is decoration and goes.
+    fun normalisationSplitsHyphenatedWordsIntoUnits() {
+        // A hyphen is a separator: two sung units, not one merged word.
+        // The first unit's own doubled letter collapses like any other.
+        assertEquals("wel known", normalizeToken("well-known"))
+        assertEquals("ah ah", normalizeToken("ah-ah"))
+    }
+
+    @Test
+    fun normalisationDropsApostrophesEntirely() {
+        assertEquals("dont", normalizeToken("don't"))
+        assertEquals("dont", normalizeToken("DON’T"))
+        // Hanging off an edge or inside, the mark goes either way.
         assertEquals("tis", normalizeToken("'tis"))
-        assertEquals("rock n roll", normalizeToken("rock 'n' roll"))
+        assertEquals("di", normalizeToken("'di"))
+        assertEquals("ngayoy", normalizeToken("ngayo'y"))
+        assertEquals("rock n rol", normalizeToken("rock 'n' roll"))
+    }
+
+    @Test
+    fun normalisationCollapsesRepeatedLetters() {
+        assertEquals("oh", normalizeToken("ooh"))
+        assertEquals("ngayon", normalizeToken("ngayoon"))
+        assertEquals("helo", normalizeToken("hello"))
     }
 
     @Test
@@ -51,13 +74,13 @@ class AiLyricAlignerTest {
         assertEquals("", normalizeToken("   "))
         assertEquals("", normalizeToken(""))
         // The engine's own handle on the same function agrees.
-        assertEquals("hello", AiLyricAligner.normalizeToken("Hello!"))
+        assertEquals("helo", AiLyricAligner.normalizeToken("Hello!"))
     }
 
     // -- Exact alignment ---------------------------------------------------
 
     @Test
-    fun exactAlignmentTransfersTokenTimes() {
+    fun exactAlignmentTransfersTokenStartsAndHoldsEnds() {
         val lines = listOf(
             line(1_000, "hello brave world", sungUntilMs = 4_000),
             line(5_000, "sing it loud", sungUntilMs = 8_000),
@@ -71,22 +94,23 @@ class AiLyricAlignerTest {
             token("loud", 5_900, 6_800),
         )
         val out = checkNotNull(AiLyricAligner.align(lines, tokens))
-        // Each word's time is its token's, exactly — the token stamps are
-        // deliberately offset from the line stamps, so nothing here could
-        // have been derived from the lines themselves.
+        // Starts are the tokens' measured starts, offset from the line
+        // stamps so nothing here could be derived from the lines. Ends
+        // are NOT the tokens' ends: each word holds to the next word's
+        // start, and the last word of a line holds to the line's end.
         assertEquals(
             listOf(
-                LyricWord(1_123, 1_456, "hello"),
-                LyricWord(1_600, 2_000, "brave"),
-                LyricWord(2_100, 2_900, "world"),
+                LyricWord(1_123, 1_600, "hello"),
+                LyricWord(1_600, 2_100, "brave"),
+                LyricWord(2_100, 4_000, "world"),
             ),
             out[0].words,
         )
         assertEquals(
             listOf(
-                LyricWord(5_100, 5_500, "sing"),
-                LyricWord(5_600, 5_800, "it"),
-                LyricWord(5_900, 6_800, "loud"),
+                LyricWord(5_100, 5_600, "sing"),
+                LyricWord(5_600, 5_900, "it"),
+                LyricWord(5_900, 8_000, "loud"),
             ),
             out[1].words,
         )
@@ -103,16 +127,16 @@ class AiLyricAlignerTest {
         )
         val tokens = listOf(
             // One letter wrong in a six-letter word: a mishearing, matched.
-            token("goldin", 100, 500),
-            token("hour", 600, 900),
-            token("light", 1_000, 1_400),
-            token("second", 2_000, 2_400),
-            token("line", 2_500, 2_800),
-            token("here", 2_900, 3_300),
+            token("goldin", 1_100, 1_500),
+            token("hour", 1_600, 2_000),
+            token("light", 2_100, 2_600),
+            token("second", 5_100, 5_500),
+            token("line", 5_600, 5_900),
+            token("here", 6_000, 6_400),
         )
         val out = checkNotNull(AiLyricAligner.align(lines, tokens))
         // The lyric keeps its own spelling; only the timing is borrowed.
-        assertEquals(LyricWord(100, 500, "golden"), out[0].words[0])
+        assertEquals(LyricWord(1_100, 1_600, "golden"), out[0].words[0])
         assertEquals(3, out[0].words.size)
     }
 
@@ -123,25 +147,25 @@ class AiLyricAlignerTest {
             line(5_000, "stay with me tonight"),
         )
         val tokens = listOf(
-            token("we", 100, 200),
+            token("we", 1_100, 1_300),
             // One letter from "go", but at two letters that is a different
             // word, not a mishearing: "go" must stay unmatched.
-            token("to", 300, 400),
-            token("on", 500, 600),
-            token("now", 700, 1_000),
-            token("stay", 2_000, 2_300),
-            token("with", 2_400, 2_700),
-            token("me", 2_800, 2_900),
-            token("tonight", 3_000, 3_600),
+            token("to", 1_400, 1_600),
+            token("on", 1_700, 1_900),
+            token("now", 2_000, 2_400),
+            token("stay", 5_100, 5_400),
+            token("with", 5_500, 5_800),
+            token("me", 5_900, 6_100),
+            token("tonight", 6_200, 6_800),
         )
         val out = checkNotNull(AiLyricAligner.align(lines, tokens))
         // "go" has no timing of its own: it rides on "we", the anchor
         // before it, and no emitted word carries the "to" token's stamp.
         assertEquals(
             listOf(
-                LyricWord(100, 200, "we go"),
-                LyricWord(500, 600, "on"),
-                LyricWord(700, 1_000, "now"),
+                LyricWord(1_100, 1_700, "we go"),
+                LyricWord(1_700, 2_000, "on"),
+                LyricWord(2_000, 5_000, "now"),
             ),
             out[0].words,
         )
@@ -156,21 +180,21 @@ class AiLyricAlignerTest {
             line(5_000, "second verse line"),
         )
         val tokens = listOf(
-            token("hello", 1_000, 1_400),
+            token("hello", 1_100, 1_500),
             // No token for "brave": it was not heard, so it gets no timing
             // of its own and merges back into "hello".
-            token("new", 2_000, 2_300),
-            token("world", 2_400, 3_000),
-            token("second", 4_000, 4_400),
-            token("verse", 4_500, 4_900),
-            token("line", 5_000, 5_400),
+            token("new", 2_100, 2_400),
+            token("world", 2_500, 3_100),
+            token("second", 5_100, 5_500),
+            token("verse", 5_600, 6_000),
+            token("line", 6_100, 6_500),
         )
         val out = checkNotNull(AiLyricAligner.align(lines, tokens))
         assertEquals(
             listOf(
-                LyricWord(1_000, 1_400, "hello brave"),
-                LyricWord(2_000, 2_300, "new"),
-                LyricWord(2_400, 3_000, "world"),
+                LyricWord(1_100, 2_100, "hello brave"),
+                LyricWord(2_100, 2_500, "new"),
+                LyricWord(2_500, 5_000, "world"),
             ),
             out[0].words,
         )
@@ -185,122 +209,119 @@ class AiLyricAlignerTest {
     fun leadingUnmatchedWordsMergeForwardIntoFirstMatch() {
         val lines = listOf(
             line(1_000, "oh oh golden hour light"),
-            line(5_000, "plain second line"),
+            line(5_000, "sing it loud now"),
         )
         val tokens = listOf(
-            token("golden", 1_000, 1_500),
-            token("hour", 1_600, 2_000),
-            token("light", 2_100, 2_600),
-            token("plain", 4_000, 4_300),
-            token("second", 4_400, 4_800),
-            token("line", 4_900, 5_300),
+            token("golden", 1_100, 1_600),
+            token("hour", 1_700, 2_100),
+            token("light", 2_200, 2_700),
+            token("sing", 5_100, 5_400),
+            token("it", 5_500, 5_700),
+            token("loud", 5_800, 6_200),
+            token("now", 6_300, 6_600),
         )
         val out = checkNotNull(AiLyricAligner.align(lines, tokens))
         // Both leading "oh"s have no anchor before them, so they extend
         // the first match's span backwards — its text, its timing.
-        assertEquals(LyricWord(1_000, 1_500, "oh oh golden"), out[0].words.first())
+        assertEquals(LyricWord(1_100, 1_700, "oh oh golden"), out[0].words.first())
         assertEquals(3, out[0].words.size)
     }
 
-    // -- Line acceptance ---------------------------------------------------
+    // -- Per-line acceptance -------------------------------------------------
 
     @Test
-    fun lineBelowSixtyPercentStaysUnchanged() {
-        val failing = line(5_000, "alpha beta gamma delta")
+    fun shortLinesAndTheFiftyPercentBoundaryPass() {
         val lines = listOf(
-            line(1_000, "first line here"),
-            failing,
-            line(9_000, "last line now"),
+            // Two words, one anchor: exactly half, and a short line needs
+            // only the one anchor.
+            line(1_000, "moon river"),
+            // Four words, two anchors: exactly half, and a longer line
+            // needs its two anchors — both bars met on the boundary.
+            line(5_000, "alpha bravo charlie delta"),
+            // Three words, two anchors: past half on a single-anchor bar.
+            line(9_000, "one two three"),
+        )
+        val tokens = listOf(
+            token("moon", 1_100, 1_500),
+            token("alpha", 5_100, 5_500),
+            token("bravo", 5_600, 5_900),
+            token("one", 9_100, 9_400),
+            token("two", 9_500, 9_800),
+        )
+        val outcome = AiLyricAligner.alignDetailed(lines, tokens)
+        assertEquals(3, outcome.passedLeadLines)
+        assertEquals(3, outcome.leadLineCount)
+        val out = checkNotNull(outcome.lines)
+        // The unanchored half of each line merged into its anchors.
+        assertEquals(listOf(LyricWord(1_100, 5_000, "moon river")), out[0].words)
+        assertEquals(
+            listOf(
+                LyricWord(5_100, 5_600, "alpha"),
+                LyricWord(5_600, 9_000, "bravo charlie delta"),
+            ),
+            out[1].words,
+        )
+    }
+
+    @Test
+    fun fiveWordLineFailsWithASingleAnchor() {
+        val lines = listOf(
+            line(1_000, "first line here now"),
+            line(5_000, "alpha bravo charlie delta echo"),
         )
         val tokens = listOf(
             token("first", 1_100, 1_400),
             token("line", 1_500, 1_800),
             token("here", 1_900, 2_300),
-            // Only "alpha" of the middle line is heard: 1 of 4 is below
-            // the 60% bar, so the line keeps its honest line sync.
-            token("alpha", 5_100, 5_400),
-            token("zzz", 5_500, 5_800),
-            token("qqq", 5_900, 6_200),
-            token("last", 9_100, 9_400),
-            token("line", 9_500, 9_800),
-            token("now", 9_900, 10_300),
+            token("now", 2_400, 2_700),
+            // One anchor of five words: under half, and under the two
+            // anchors a line this long needs. The line fails.
+            token("alpha", 5_100, 5_500),
         )
-        val out = checkNotNull(AiLyricAligner.align(lines, tokens))
-        assertEquals(failing, out[1])
-        assertTrue(out[1].words.isEmpty())
-        assertFalse(out[1].wordsAiMeasured)
-        assertTrue(out[0].words.isNotEmpty())
-        assertTrue(out[2].words.isNotEmpty())
+        val outcome = AiLyricAligner.alignDetailed(lines, tokens)
+        assertNull(outcome.lines)
+        assertEquals(1, outcome.passedLeadLines)
+        assertEquals(2, outcome.leadLineCount)
+        assertFalse(outcome.calibrationDiscarded)
     }
 
     @Test
-    fun lineWithSingleAnchorStaysUnchanged() {
+    fun threeWordLineFailsWithASingleAnchor() {
+        // A short line's anchor bar is one, but the half-the-words bar
+        // still applies: one anchor of three words is a third, not half.
+        val lines = listOf(line(1_000, "alpha bravo charlie"))
+        val tokens = listOf(token("alpha", 1_100, 1_500))
+        val outcome = AiLyricAligner.alignDetailed(lines, tokens)
+        assertNull(outcome.lines)
+        assertEquals(0, outcome.passedLeadLines)
+        assertEquals(1, outcome.leadLineCount)
+    }
+
+    @Test
+    fun singleWordLinePassesOnItsOneAnchor() {
         val solo = line(1_000, "hello")
         val lines = listOf(
             solo,
-            line(5_000, "second line here"),
-            line(9_000, "third line now"),
-        )
-        val tokens = listOf(
-            token("hello", 1_100, 1_500),
-            token("second", 5_100, 5_400),
-            token("line", 5_500, 5_800),
-            token("here", 5_900, 6_300),
-            token("third", 9_100, 9_400),
-            token("line", 9_500, 9_800),
-            token("now", 9_900, 10_300),
-        )
-        val out = checkNotNull(AiLyricAligner.align(lines, tokens))
-        // The one-word line matched its only word — 100% of it — but a
-        // single anchor is not enough to sing a line by.
-        assertEquals(solo, out[0])
-        assertTrue(out[0].words.isEmpty())
-    }
-
-    // -- Song acceptance ---------------------------------------------------
-
-    @Test
-    fun songAtOrBelowMajorityReturnsNull() {
-        val lines = listOf(
-            line(1_000, "hello brave world"),
-            line(5_000, "alpha beta gamma"),
-        )
-        val tokens = listOf(
-            token("hello", 1_100, 1_400),
-            token("brave", 1_500, 1_900),
-            token("world", 2_000, 2_600),
-            token("omega", 5_100, 5_500),
-        )
-        // One of two lines passing is exactly half, not more than half:
-        // the whole attempt is discarded, passing line and all.
-        assertNull(AiLyricAligner.align(lines, tokens))
-    }
-
-    @Test
-    fun songAboveMajorityReturnsLines() {
-        val lines = listOf(
-            line(1_000, "hello brave world"),
             line(5_000, "sing it loud"),
         )
         val tokens = listOf(
-            token("hello", 1_100, 1_400),
-            token("brave", 1_500, 1_900),
-            token("world", 2_000, 2_600),
+            token("hello", 1_100, 1_500),
             token("sing", 5_100, 5_400),
             token("it", 5_500, 5_700),
             token("loud", 5_800, 6_500),
         )
         val out = checkNotNull(AiLyricAligner.align(lines, tokens))
-        assertEquals(lines.size, out.size)
-        assertTrue(out.all { it.wordsAiMeasured && it.words.isNotEmpty() })
+        // One word, one anchor: half and the short-line bar both met.
+        assertEquals(listOf(LyricWord(1_100, 5_000, "hello")), out[0].words)
+        assertTrue(out[0].wordsAiMeasured)
     }
 
+    // -- Every line or discard ------------------------------------------------
+
     @Test
-    fun gapLinesPassThroughAndDoNotCountInTheRatio() {
-        val gap = LyricLine(timeMs = 3_000, text = "")
+    fun oneFailingLineDiscardsTheWholeSong() {
         val lines = listOf(
             line(1_000, "first line here"),
-            gap,
             line(5_000, "alpha beta gamma delta"),
             line(9_000, "last line now"),
         )
@@ -308,24 +329,334 @@ class AiLyricAlignerTest {
             token("first", 1_100, 1_400),
             token("line", 1_500, 1_800),
             token("here", 1_900, 2_300),
+            // Only "alpha" of the middle line is heard: the line fails,
+            // and a song is every line word-synced or not measured at all.
             token("alpha", 5_100, 5_400),
+            token("zzz", 5_500, 5_800),
+            token("qqq", 5_900, 6_200),
             token("last", 9_100, 9_400),
             token("line", 9_500, 9_800),
             token("now", 9_900, 10_300),
         )
-        // Two of the three sung lines pass. Counted with the gap that
-        // would be two of four — not a majority — so a result at all
-        // proves the gap stayed out of the ratio.
-        val out = checkNotNull(AiLyricAligner.align(lines, tokens))
-        assertEquals(4, out.size)
+        val outcome = AiLyricAligner.alignDetailed(lines, tokens)
+        assertNull(outcome.lines)
+        // The report still says how close the song came.
+        assertEquals(2, outcome.passedLeadLines)
+        assertEquals(3, outcome.leadLineCount)
+        assertNull(AiLyricAligner.align(lines, tokens))
+    }
+
+    @Test
+    fun gapLinesPassThroughAndDoNotCount() {
+        val gap = LyricLine(timeMs = 3_000, text = "")
+        val lines = listOf(
+            line(1_000, "first line here"),
+            gap,
+            line(5_000, "last line now"),
+        )
+        val tokens = listOf(
+            token("first", 1_100, 1_400),
+            token("line", 1_500, 1_800),
+            token("here", 1_900, 2_300),
+            token("last", 5_100, 5_400),
+            token("line", 5_500, 5_800),
+            token("now", 5_900, 6_300),
+        )
+        val outcome = AiLyricAligner.alignDetailed(lines, tokens)
+        assertEquals(2, outcome.leadLineCount)
+        assertEquals(2, outcome.passedLeadLines)
+        val out = checkNotNull(outcome.lines)
+        assertEquals(3, out.size)
         assertEquals(gap, out[1])
+    }
+
+    // -- Line windows -----------------------------------------------------------
+
+    @Test
+    fun repeatedChorusWordsTakeTokensFromTheirOwnWindow() {
+        val chorus = "sing the chorus line"
+        val lines = listOf(
+            line(1_000, chorus),
+            line(6_000, "we go on"),
+            line(11_000, chorus),
+            line(16_000, "we go on"),
+        )
+        val tokens = listOf(
+            token("sing", 1_100, 1_400),
+            token("the", 1_500, 1_700),
+            token("chorus", 1_800, 2_300),
+            token("line", 2_400, 2_800),
+            token("we", 6_100, 6_300),
+            token("go", 6_400, 6_600),
+            token("on", 6_700, 7_000),
+            token("sing", 11_100, 11_400),
+            token("the", 11_500, 11_700),
+            token("chorus", 11_800, 12_300),
+            token("line", 12_400, 12_800),
+            token("we", 16_100, 16_300),
+            token("go", 16_400, 16_600),
+            token("on", 16_700, 17_000),
+        )
+        val out = checkNotNull(AiLyricAligner.align(lines, tokens))
+        // Identical words, two windows: each chorus is timed by the
+        // tokens sung inside its own window, never the other chorus's.
+        assertEquals(listOf(1_100L, 1_500L, 1_800L, 2_400L), out[0].words.map { it.startMs })
+        assertEquals(listOf(11_100L, 11_500L, 11_800L, 12_400L), out[2].words.map { it.startMs })
+    }
+
+    @Test
+    fun tokenOutsideEveryWindowIsUnused() {
+        val lines = listOf(
+            line(5_000, "hello brave world"),
+            line(10_000, "sing it loud", sungUntilMs = 13_000),
+        )
+        val tokens = listOf(
+            // Before the first window opens and after the last one shuts:
+            // heard, but not any line's to borrow.
+            token("ghost", 100, 400),
+            token("hello", 5_100, 5_500),
+            token("brave", 5_600, 6_000),
+            token("world", 6_100, 6_600),
+            token("sing", 10_100, 10_500),
+            token("it", 10_600, 10_900),
+            token("loud", 11_000, 11_800),
+            token("ghost", 60_000, 60_400),
+        )
+        val out = checkNotNull(AiLyricAligner.align(lines, tokens))
+        val starts = out.flatMap { it.words }.map { it.startMs }
+        assertEquals(listOf(5_100L, 5_600L, 6_100L, 10_100L, 10_600L, 11_000L), starts)
+    }
+
+    @Test
+    fun tokenConsumedByOneLineCannotTimeTheNext() {
+        val lines = listOf(
+            line(1_000, "go home"),
+            line(5_000, "home again soon"),
+        )
+        val tokens = listOf(
+            token("go", 1_100, 1_300),
+            // The one "home": its midpoint sits inside both lines'
+            // widened windows, but the first line is processed first and
+            // consumes it.
+            token("home", 4_800, 5_200),
+            token("again", 5_700, 6_100),
+            token("soon", 6_200, 6_600),
+        )
+        val out = checkNotNull(AiLyricAligner.align(lines, tokens))
+        assertEquals(4_800L, out[0].words[1].startMs)
+        // The second line's "home" has no token left: it merges forward
+        // into "again", and no word of the line starts at 4800.
+        assertEquals(LyricWord(5_700, 6_200, "home again"), out[1].words.first())
+        assertTrue(out[1].words.none { it.startMs == 4_800L })
+    }
+
+    // -- Calibration -------------------------------------------------------------
+
+    @Test
+    fun uniformOffsetIsCalibratedOut() {
+        // Every token sits a steady two seconds after the place its
+        // word's character position in the line predicts — a different
+        // edit's padding. Calibration should measure those two seconds
+        // and take them back out, so the words land in their lines.
+        val lines = listOf(
+            line(10_000, "alpha bravo charlie delta", sungUntilMs = 19_000),
+            line(20_000, "echo foxtrot golf hotel", sungUntilMs = 30_000),
+        )
+        val tokens = listOf(
+            token("alpha", 12_000, 12_400),
+            token("bravo", 14_400, 14_800),
+            token("charlie", 16_800, 17_400),
+            token("delta", 20_000, 20_600),
+            token("echo", 22_200, 22_600),
+            token("foxtrot", 24_200, 24_600),
+            token("golf", 27_700, 28_100),
+            token("hotel", 29_800, 30_400),
+        )
+        val outcome = AiLyricAligner.alignDetailed(lines, tokens)
+        assertFalse(outcome.calibrationDiscarded)
+        assertEquals(2_000L, outcome.offsetMs)
+        val out = checkNotNull(outcome.lines)
+        assertEquals(
+            listOf(
+                LyricWord(10_000, 12_400, "alpha"),
+                LyricWord(12_400, 14_800, "bravo"),
+                LyricWord(14_800, 18_000, "charlie"),
+                LyricWord(18_000, 19_000, "delta"),
+            ),
+            out[0].words,
+        )
+        assertEquals(
+            listOf(20_200L, 22_200L, 25_700L, 27_800L),
+            out[1].words.map { it.startMs },
+        )
+        assertEquals(30_000L, out[1].words.last().endMs)
+    }
+
+    @Test
+    fun scatteredResidualsDiscardCalibration() {
+        // The long words' tokens are scattered seconds either side of
+        // where their lines predict them: no one offset explains this
+        // transcription, so the attempt is discarded whole.
+        val lines = listOf(
+            line(10_000, "alpha bravo charlie delta"),
+            line(20_000, "foxtrot golf hotel india", sungUntilMs = 30_000),
+        )
+        val tokens = listOf(
+            token("foxtrot", 15_000, 15_400),
+            token("alpha", 10_000, 10_400),
+            token("charlie", 12_300, 12_700),
+            token("bravo", 14_900, 15_300),
+            token("delta", 23_000, 23_400),
+            token("hotel", 26_400, 26_800),
+            token("india", 28_400, 28_800),
+        )
+        val outcome = AiLyricAligner.alignDetailed(lines, tokens)
+        assertTrue(outcome.calibrationDiscarded)
+        assertNull(outcome.lines)
+        assertEquals(0, outcome.passedLeadLines)
+        assertEquals(2, outcome.leadLineCount)
+        assertNull(AiLyricAligner.align(lines, tokens))
+    }
+
+    @Test
+    fun tooFewAnchorsMeansNoCalibrationAndNoDiscard() {
+        // Three long-word anchors, wildly scattered — but three is below
+        // the four-anchor bar, so nothing is shifted and nothing is
+        // discarded on their say-so.
+        val lines = listOf(
+            line(10_000, "alpha bravo charlie", sungUntilMs = 20_000),
+        )
+        val tokens = listOf(
+            token("alpha", 10_000, 10_400),
+            token("bravo", 17_400, 17_800),
+            token("charlie", 9_000, 9_400),
+        )
+        val outcome = AiLyricAligner.alignDetailed(lines, tokens)
+        assertFalse(outcome.calibrationDiscarded)
+        assertEquals(0L, outcome.offsetMs)
+        // The line still aligns on the anchors inside its own window.
+        checkNotNull(outcome.lines)
+    }
+
+    // -- Word ends hold -------------------------------------------------------------
+
+    @Test
+    fun wordEndsHoldToNextStartAndLastWordToLineEnd() {
+        val lines = listOf(
+            // The stated end runs past the next line's stamp: the window
+            // caps it, so the last word ends at the window's end.
+            line(1_000, "hello brave world", sungUntilMs = 9_000),
+            line(5_000, "sing it loud", sungUntilMs = 8_000),
+        )
+        val tokens = listOf(
+            token("hello", 1_123, 1_456),
+            token("brave", 1_600, 2_000),
+            token("world", 2_100, 2_300),
+            token("sing", 5_100, 5_500),
+            token("it", 5_600, 5_800),
+            token("loud", 5_900, 6_800),
+        )
+        val tokenEnds = tokens.map { it.endMs }.toSet()
+        val out = checkNotNull(AiLyricAligner.align(lines, tokens))
+        for (words in out.map { it.words }) {
+            // Every interior end is exactly the next word's start...
+            for (index in 0 until words.lastIndex) {
+                assertEquals(words[index + 1].startMs, words[index].endMs)
+            }
+            // ...and no emitted end is any token's recognition end.
+            assertTrue(words.none { it.endMs in tokenEnds })
+            assertTrue(words.all { it.endMs > it.startMs })
+        }
+        // The last words end at their lines' display ends.
+        assertEquals(5_000L, out[0].words.last().endMs)
+        assertEquals(8_000L, out[1].words.last().endMs)
+    }
+
+    // -- Tagalog shapes ---------------------------------------------------------------
+
+    @Test
+    fun tagalogApostrophesAlign() {
+        val lines = listOf(
+            line(1_000, "'di kita iiwan ngayon"),
+            line(5_000, "ngayo'y akin ka"),
+        )
+        val tokens = listOf(
+            // The transcription writes neither apostrophe; the lyric
+            // writes both. Dropped marks make them the same words.
+            token("di", 1_100, 1_300),
+            token("kita", 1_400, 1_800),
+            token("iiwan", 1_900, 2_400),
+            token("ngayon", 2_500, 3_100),
+            token("ngayoy", 5_100, 5_600),
+            token("akin", 5_700, 6_100),
+            token("ka", 6_200, 6_400),
+        )
+        val out = checkNotNull(AiLyricAligner.align(lines, tokens))
+        assertEquals(LyricWord(1_100, 1_400, "'di"), out[0].words.first())
+        assertEquals(LyricWord(5_100, 5_700, "ngayo'y"), out[1].words.first())
+    }
+
+    @Test
+    fun doubledLettersAlignAcrossSpellings() {
+        val lines = listOf(
+            line(1_000, "ngayoon ooh mahal"),
+            line(5_000, "sing it loud"),
+        )
+        val tokens = listOf(
+            // Held vowels written short by the transcription, long by
+            // the lyric: the collapse on both sides meets in the middle.
+            token("ngayon", 1_100, 1_700),
+            token("oh", 1_800, 2_100),
+            token("mahal", 2_200, 2_800),
+            token("sing", 5_100, 5_400),
+            token("it", 5_500, 5_700),
+            token("loud", 5_800, 6_400),
+        )
+        val out = checkNotNull(AiLyricAligner.align(lines, tokens))
+        assertEquals(
+            listOf(
+                LyricWord(1_100, 1_800, "ngayoon"),
+                LyricWord(1_800, 2_200, "ooh"),
+                LyricWord(2_200, 5_000, "mahal"),
+            ),
+            out[0].words,
+        )
+    }
+
+    @Test
+    fun hyphenatedVocalisationAlignsPerUnit() {
+        val lines = listOf(
+            line(1_000, "ah-ah ah-ah tayo"),
+            line(5_000, "sing it loud"),
+        )
+        val tokens = listOf(
+            token("ah", 1_100, 1_300),
+            token("ah", 1_400, 1_600),
+            token("ah", 1_700, 1_900),
+            token("ah", 2_000, 2_200),
+            token("tayo", 2_300, 2_800),
+            token("sing", 5_100, 5_400),
+            token("it", 5_500, 5_700),
+            token("loud", 5_800, 6_500),
+        )
+        val out = checkNotNull(AiLyricAligner.align(lines, tokens))
+        // Each written word counts once and emits once, timed from its
+        // earliest matched unit — even though it took two tokens to sing.
+        assertEquals(
+            listOf(
+                LyricWord(1_100, 1_700, "ah-ah"),
+                LyricWord(1_700, 2_300, "ah-ah"),
+                LyricWord(2_300, 5_000, "tayo"),
+            ),
+            out[0].words,
+        )
     }
 
     // -- Background lines ----------------------------------------------------
 
     @Test
-    fun backgroundEchoGetsWordsFromWindowTokens() {
-        val background = line(12_000, "it loud", sungUntilMs = 13_500)
+    fun backgroundEchoGetsWordsFromItsOwnUnconsumedTokens() {
+        val background = line(12_000, "echo echo", sungUntilMs = 13_500)
         val parent = line(
             10_000,
             "sing it loud",
@@ -333,27 +664,28 @@ class AiLyricAlignerTest {
             background = background,
         )
         val tokens = listOf(
-            // An early "loud", well before the echo's window: the window
-            // keeps it out of the echo's reach.
-            token("loud", 9_000, 9_500),
             token("sing", 10_100, 10_500),
             token("it", 10_600, 10_900),
             token("loud", 11_000, 11_800),
+            // The echo's own tokens, sung after the lead's: not consumed
+            // by the lead, so the echo may draw on them.
+            token("echo", 12_100, 12_500),
+            token("echo", 12_800, 13_200),
         )
         val out = checkNotNull(AiLyricAligner.align(listOf(parent), tokens))
         assertEquals(
             listOf(
-                LyricWord(10_100, 10_500, "sing"),
-                LyricWord(10_600, 10_900, "it"),
-                LyricWord(11_000, 11_800, "loud"),
+                LyricWord(10_100, 10_600, "sing"),
+                LyricWord(10_600, 11_000, "it"),
+                LyricWord(11_000, 14_000, "loud"),
             ),
             out[0].words,
         )
         val alignedBackground = checkNotNull(out[0].background)
         assertEquals(
             listOf(
-                LyricWord(10_600, 10_900, "it"),
-                LyricWord(11_000, 11_800, "loud"),
+                LyricWord(12_100, 12_800, "echo"),
+                LyricWord(12_800, 13_500, "echo"),
             ),
             alignedBackground.words,
         )
@@ -403,16 +735,16 @@ class AiLyricAlignerTest {
             token("brave", 2_100, 2_000),
             token("brave", 2_200, 2_600),
             token("world", 2_700, 3_200),
-            token("second", 5_000, 5_400),
-            token("line", 5_500, 5_800),
-            token("here", 5_900, 6_300),
+            token("second", 5_100, 5_500),
+            token("line", 5_600, 5_900),
+            token("here", 6_000, 6_400),
         )
         val out = checkNotNull(AiLyricAligner.align(lines, tokens))
         assertEquals(
             listOf(
-                LyricWord(1_600, 2_000, "hello"),
-                LyricWord(2_200, 2_600, "brave"),
-                LyricWord(2_700, 3_200, "world"),
+                LyricWord(1_600, 2_200, "hello"),
+                LyricWord(2_200, 2_700, "brave"),
+                LyricWord(2_700, 5_000, "world"),
             ),
             out[0].words,
         )
@@ -428,5 +760,9 @@ class AiLyricAlignerTest {
         // Nothing but gaps: no sung lines, nothing to measure onto.
         val gaps = listOf(LyricLine(1_000, ""), LyricLine(2_000, "   "))
         assertNull(AiLyricAligner.align(gaps, tokens))
+        val outcome = AiLyricAligner.alignDetailed(gaps, tokens)
+        assertEquals(0, outcome.leadLineCount)
+        assertEquals(0, outcome.passedLeadLines)
+        assertFalse(outcome.calibrationDiscarded)
     }
 }

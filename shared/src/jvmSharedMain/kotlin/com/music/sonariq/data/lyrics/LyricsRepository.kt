@@ -835,6 +835,24 @@ object LyricsRepository {
         val provisional: Boolean = true,
         /** When this entry was written, in epoch milliseconds; 0 if unknown. */
         val storedAtMs: Long = 0L,
+        /**
+         * Which version of the AI alignment produced this entry's
+         * AI-measured word timings — [AiLyricAligner.ALIGNMENT_VERSION] at
+         * the time it was written, or 0 for an entry that carries no
+         * AI-measured timings at all.
+         *
+         * Defaulted to 0 so every payload written before the field existed
+         * still decodes, and every such payload's AI-measured timings (all
+         * of them measured by the alignment as it stood in the release
+         * before this field) read as version 0 — older than any current
+         * [AiLyricAligner.ALIGNMENT_VERSION], so [readCache] retires them
+         * on the way out rather than letting them be shown again.
+         * [CACHE_VERSION] is deliberately not bumped for this: the field
+         * default is what makes the old entries readable at all, and
+         * bumping the version would discard the honest line sync those
+         * entries fall back to along with the timings being retired.
+         */
+        val aiAlignmentVersion: Int = 0,
     )
 
     /**
@@ -856,14 +874,20 @@ object LyricsRepository {
      * Whatever a previous lookup cached for this track, or null.
      *
      * A hit is read only after [cacheKey] matches, so a wrong song never
-     * reads another's lyrics. The stored lines are sanitised on the way out
-     * — estimated word timings stripped by [withoutEstimatedWords] — and
-     * where stripping changed anything the timing is recomputed from the
-     * sanitised lines rather than trusted from the file, so a legacy entry
-     * written while estimated timings still circulated comes back as the
-     * honest line sync it always was, never as word sync. An entry nothing
-     * was stripped from reads back with the timing it was stored with.
-     * Nothing is invented. Never throws.
+     * reads another's lyrics. The stored lines are sanitised on the way out,
+     * in two passes: AI-measured word timings stamped by an alignment older
+     * than the current [AiLyricAligner.ALIGNMENT_VERSION] are stripped first
+     * by [withoutAiMeasuredWords], then estimated word timings are stripped
+     * by [withoutEstimatedWords]. Where either pass changed anything the
+     * timing is recomputed from the sanitised lines rather than trusted
+     * from the file, so a legacy entry written while estimated timings
+     * still circulated — or an entry carrying a superseded AI measurement —
+     * comes back as the honest line sync it always was, never as word
+     * sync, and the track is offered for re-measurement under the current
+     * alignment. An entry stamped with the current alignment version, and
+     * an entry nothing was stripped from, read back exactly as stored,
+     * with the timing they were stored with. Nothing is invented. Never
+     * throws.
      */
     suspend fun readCache(videoId: String, isrc: String?): Result? =
         withContext(Dispatchers.IO) {
@@ -879,13 +903,31 @@ object LyricsRepository {
                     // Old format, or a source the enum no longer knows.
                     if (cached.version != CACHE_VERSION) return@runCatching null
                     file.setLastModified(System.currentTimeMillis())
-                    val lines = cached.lines.withoutEstimatedWords()
+                    // A measurement stamped by an older alignment than the
+                    // current one is retired before anything else is made
+                    // of these lines: stripped back to the line sync it was
+                    // derived from, it is never shown again, and because
+                    // what is left is only provisional the track is raced
+                    // and offered for re-measurement as usual. Entries
+                    // stamped current pass through untouched — the strip
+                    // itself is a no-op on lines with no AI-measured words
+                    // in them, nested background lines included.
+                    val unmeasured = if (
+                        cached.aiAlignmentVersion < AiLyricAligner.ALIGNMENT_VERSION
+                    ) {
+                        cached.lines.withoutAiMeasuredWords()
+                    } else {
+                        cached.lines
+                    }
+                    val lines = unmeasured.withoutEstimatedWords()
                     Result(
                         source = LyricsSource.valueOf(cached.source),
                         lines = lines,
-                        // Recomputed only where stripping changed the
-                        // lines: a stored WORD_SYNCED_ESTIMATED must not
-                        // survive its words being taken out.
+                        // Recomputed only where either strip changed the
+                        // lines: a stored WORD_SYNCED_ESTIMATED — or a
+                        // stored WORD_SYNCED_AI_MEASURED whose measurement
+                        // was just retired — must not survive its words
+                        // being taken out.
                         timing = if (lines != cached.lines) {
                             lines.lyricTiming()
                         } else {
@@ -977,6 +1019,18 @@ object LyricsRepository {
                         lines = result.lines,
                         provisional = LyricsLookupPolicy.isProvisional(result),
                         storedAtMs = System.currentTimeMillis(),
+                        // Stamp which alignment measured this entry, where
+                        // it carries a measurement at all, so a later
+                        // alignment version can tell its own work from a
+                        // superseded one on read. A result timed any other
+                        // way carries no measurement and is stamped 0.
+                        aiAlignmentVersion = if (
+                            result.timing == LyricTiming.WORD_SYNCED_AI_MEASURED
+                        ) {
+                            AiLyricAligner.ALIGNMENT_VERSION
+                        } else {
+                            0
+                        },
                     )
                     GZIPOutputStream(FileOutputStream(temporary)).bufferedWriter().use {
                         it.write(json.encodeToString(payload))

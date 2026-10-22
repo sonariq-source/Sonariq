@@ -1,6 +1,7 @@
 package com.music.sonariq.download
 
 import android.content.Context
+import android.media.MediaMetadataRetriever
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
@@ -8,6 +9,7 @@ import com.music.sonariq.BuildConfig
 import com.music.sonariq.data.DebugLog as Log
 import com.music.sonariq.data.innertube.StreamResolver
 import com.music.sonariq.data.lyrics.AiLyricAligner
+import com.music.sonariq.data.lyrics.LyricLanguageDetector
 import com.music.sonariq.data.lyrics.LyricTiming
 import com.music.sonariq.data.lyrics.LyricsRepository
 import com.music.sonariq.data.lyrics.TranscriptionClient
@@ -51,6 +53,53 @@ internal fun LyricsRepository.Result.isAiWordSyncCandidate(): Boolean =
         timing != LyricTiming.WORD_SYNCED_AI_MEASURED
 
 /**
+ * Which of a job's two alignment attempts, if either, earned storing.
+ *
+ * An attempt is complete only when its outcome carries lines — which
+ * [AiLyricAligner.alignDetailed] grants solely when *every* non-gap lead
+ * line earned measured words, never for a partial song. So a complete
+ * first attempt wins outright, a complete second attempt wins over an
+ * incomplete first, and two incomplete attempts store nothing at all:
+ * the track keeps its honest line sync whole rather than a patchwork of
+ * word-synced and line-synced lines, and a later offer tries again.
+ *
+ * Either attempt may be null — a transcription that failed or heard
+ * nothing produces no outcome to judge. Pure, so the decision is
+ * testable without a device or a network.
+ */
+internal fun pickAiAttempt(
+    first: AiLyricAligner.AlignOutcome?,
+    second: AiLyricAligner.AlignOutcome?,
+): AiLyricAligner.AlignOutcome? = when {
+    first?.lines != null -> first
+    second?.lines != null -> second
+    else -> null
+}
+
+/**
+ * The better of a job's two attempts, whether or not either earned
+ * storing — the attempt a log line should describe when [pickAiAttempt]
+ * stored nothing.
+ *
+ * Complete beats incomplete, because a complete attempt timed the whole
+ * song. Between two incomplete attempts, the one that passed more lead
+ * lines got closer; a tie keeps the first, which is also the attempt the
+ * primary model and the detected language produced. "Better" here is a
+ * report, never a licence to store: an incomplete best is still not
+ * stored, which is [pickAiAttempt]'s separate call.
+ */
+internal fun bestAiAttempt(
+    first: AiLyricAligner.AlignOutcome?,
+    second: AiLyricAligner.AlignOutcome?,
+): AiLyricAligner.AlignOutcome? {
+    if (first == null) return second
+    if (second == null) return first
+    if (first.lines != null) return first
+    if (second.lines != null) return second
+    return if (first.passedLeadLines >= second.passedLeadLines) first else second
+}
+
+/**
  * Background word sync for tracks no lyrics provider could word-sync.
  *
  * When a track's settled lyrics have lines but no word timings, a job here
@@ -61,10 +110,24 @@ internal fun LyricsRepository.Result.isAiWordSyncCandidate(): Boolean =
  * result and keeps it provisional — the ordinary lookup keeps hunting for
  * provider timings and replaces these when it finds them.
  *
- * The audio is only ever the track's file: a local file handed in by the
- * caller, the track's own download, or the track's stream fetched to a
- * temp file for this one job and deleted after it. Nothing is recorded —
- * no microphone, no capture of what the device is playing — and no
+ * One job measures twice before it gives up. The first attempt asks the
+ * primary transcription model for the audio, with the lyrics' own
+ * language as a hint where [LyricLanguageDetector] can name one, and
+ * aligns per line against the provider line timings. Only a complete
+ * result — every non-gap lead line earning measured words — is stored.
+ * Anything less starts a second attempt over the same audio with the
+ * alternate model and no language hint; if that too comes back
+ * incomplete, nothing is stored at all. A half-timed song is worse than
+ * an honestly line-synced one, so the job ends quietly and a later offer
+ * retries, exactly as a failed job always has.
+ *
+ * The audio is only ever the track's file, and it has to be the *same*
+ * audio the player would play: the stream the resolver settles on is the
+ * reference, and a local file or a download stands in for fetching it
+ * only when its own duration matches the track's within a couple of
+ * seconds. A different edit of the same song would time the words of one
+ * recording against the lines of another. Nothing is recorded — no
+ * microphone, no capture of what the device is playing — and no
  * permission is asked for, because none of that is happening.
  *
  * Dormant without a key: the transcription credential is the owner's one
@@ -96,6 +159,18 @@ object AiWordSync {
      * a partial song, which is worse than none.
      */
     private const val MAX_AUDIO_BYTES = 30L * 1024 * 1024
+
+    /**
+     * How far a local file's own duration may sit from the track's
+     * duration and still count as the same audio — see [acquireAudio].
+     *
+     * Two seconds absorbs the rounding and the padding different
+     * containers put around the same recording, and is far too narrow
+     * to absorb a different edit: a radio cut, an extended mix or a
+     * sped-up copy shifts the length by more than this, and timing
+     * against any of those would put every word in the wrong place.
+     */
+    private const val DURATION_MATCH_TOLERANCE_MS = 2_000L
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -129,8 +204,11 @@ object AiWordSync {
      * connection, checked at offer time.
      *
      * [localAudio] is the track's own file where the caller already knows
-     * it (the player, for a local track); the job prefers it over the
-     * downloads record and the stream, in that order.
+     * it (the player, for a local track). It is a candidate ahead of the
+     * downloads record, but candidacy is not trust: like any file on the
+     * device, it is only used when its duration matches the track's, so
+     * the audio measured is the audio the stream would have carried —
+     * see [acquireAudio].
      *
      * [onAligned] is called only when a result was actually stored, with
      * the result as stored, and always on the main dispatcher — the one
@@ -219,12 +297,64 @@ object AiWordSync {
             return
         }
 
-        val acquired = acquireAudio(context, videoId, localAudio) ?: return
+        val acquired = acquireAudio(context, videoId, localAudio, durationMs) ?: return
         try {
-            val tokens = TranscriptionClient.transcribe(acquired.file, acquired.mimeType, apiKey)
-                ?: return
-            if (tokens.isEmpty()) return
-            val aligned = AiLyricAligner.align(result.lines, tokens) ?: return
+            // Both attempts measure the one file acquired above — the
+            // second transcribes the same audio again under another
+            // model, it never fetches another copy of the track.
+            val songEndMs = durationMs.takeIf { it > 0 }
+
+            // First attempt: the primary model, told the language the
+            // lyrics themselves are in where that can be told at all —
+            // a transcription listening for the wrong language mishears
+            // in ways no alignment can line up afterwards.
+            val firstTokens = TranscriptionClient.transcribe(
+                audio = acquired.file,
+                mimeType = acquired.mimeType,
+                apiKey = apiKey,
+                model = TranscriptionClient.DEFAULT_MODEL,
+                language = LyricLanguageDetector.detect(result.lines),
+            )
+            val first = firstTokens
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { AiLyricAligner.alignDetailed(result.lines, it, songEndMs) }
+
+            // A complete first attempt settles the job; only an
+            // incomplete or absent one earns the second attempt a call.
+            var winning = pickAiAttempt(first, null)
+            if (winning == null) {
+                // Second attempt: the alternate model, and no language
+                // hint this time — where the hint was the problem, or
+                // the detector misread the lyrics, an unsteered listen
+                // is the different second opinion worth paying for.
+                val secondTokens = TranscriptionClient.transcribe(
+                    audio = acquired.file,
+                    mimeType = acquired.mimeType,
+                    apiKey = apiKey,
+                    model = TranscriptionClient.ALTERNATE_MODEL,
+                    language = null,
+                )
+                val second = secondTokens
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { AiLyricAligner.alignDetailed(result.lines, it, songEndMs) }
+                winning = pickAiAttempt(first, second)
+                if (winning == null) {
+                    // Neither attempt timed the whole song. Report the
+                    // closer of the two in the log, store neither: the
+                    // track stays line-synced, and a later offer — a
+                    // replay, a prefetch — retries from the top.
+                    bestAiAttempt(first, second)?.let { best ->
+                        Log.d(
+                            TAG,
+                            "AI word sync incomplete for $videoId: " +
+                                "${best.passedLeadLines}/${best.leadLineCount} lead lines passed",
+                        )
+                    }
+                    return
+                }
+            }
+
+            val aligned = winning?.lines ?: return
             val aiResult = LyricsRepository.Result(result.source, aligned)
             if (!LyricsRepository.storeAiResult(videoId, isrc, aiResult)) return
             if (onAligned != null) {
@@ -250,59 +380,85 @@ object AiWordSync {
     )
 
     /**
-     * The track's audio, from the nearest source outwards:
+     * The track's audio, under a same-audio guarantee: the words are
+     * timed against the recording the player plays, never against a
+     * different edit of the same song that happens to be on the device.
      *
-     *  1. [localAudio], where the caller already knows the file.
-     *  2. The track's download, from the [Downloads] record — a `file://`
-     *     record is used in place; a `content://` one (a Music-folder
-     *     export) is copied to a temp file, since the transcription client
-     *     posts a [File].
-     *  3. The track's stream, resolved the way a download resolves it —
-     *     [StreamResolver.resolveForDownload] runs the same client walk as
-     *     playback — and fetched with [Downloader.fetch], whose ranged
-     *     requests and client-matched headers are what the stream's host
-     *     answers to. Fetched to a temp file under the app cache.
+     * The stream is the reference, so it is settled first:
+     *
+     *  1. The track's stream is resolved the way a download resolves it —
+     *     [StreamResolver.resolveForDownload] runs the same client walk
+     *     as playback. Whatever is handed back here is what would be
+     *     fetched, and its existence is what every file below is judged
+     *     against.
+     *  2. A file the app already has — [localAudio] where the caller
+     *     knows it, else the track's download from the [Downloads]
+     *     record — may stand in for fetching that stream, but only when
+     *     the file's own probed duration matches the track's
+     *     [durationMs] within [DURATION_MATCH_TOLERANCE_MS]. That match
+     *     is the evidence the file is the same recording; without it the
+     *     file is passed over, however convenient it would have been.
+     *     Where [durationMs] is not known (not positive), there is
+     *     nothing to match against, so a file is accepted only when the
+     *     stream could not be resolved at all — when a stream exists,
+     *     fetching the known-right audio beats trusting an unchecked
+     *     file. A `content://` download (a Music-folder export) is
+     *     probed through its uri in place and copied to a temp file only
+     *     once it has been chosen, since the transcription client posts
+     *     a [File].
+     *  3. Otherwise the resolved stream is fetched with
+     *     [Downloader.fetch], whose ranged requests and client-matched
+     *     headers are what the stream's host answers to, to a temp file
+     *     under the app cache.
+     *
+     * If the stream cannot be resolved, a file whose probed duration
+     * matches — or any file, where the track's duration is unknown —
+     * is still used, per the same rule in step 2; with neither a stream
+     * nor an acceptable file, there is no audio this job may honestly
+     * measure, and the answer is null.
      *
      * Every fetched or copied byte stream is held to [MAX_AUDIO_BYTES].
-     * Null when none of the three can produce a file.
      */
     private suspend fun acquireAudio(
         context: Context,
         videoId: String,
         localAudio: File?,
+        durationMs: Long,
     ): AcquiredAudio? {
-        localAudio
-            ?.takeIf { it.isFile && it.length() in 1..MAX_AUDIO_BYTES }
-            ?.let { return AcquiredAudio(it, mimeTypeFor(it.name), owned = false) }
+        val stream = runCatching {
+            StreamResolver.resolveForDownload(videoId, Int.MAX_VALUE, requireM4a = false)
+        }.getOrNull()
+        val streamResolved = stream != null
+
+        localAudio?.let { candidate ->
+            fileCandidate(candidate, durationMs, streamResolved)?.let { return it }
+        }
 
         Downloads.verifiedSavedUri(videoId)?.let { recorded ->
             val uri = Uri.parse(recorded)
             if (uri.scheme == "file") {
                 uri.path?.let { path ->
-                    val file = File(path)
-                    if (file.isFile && file.length() in 1..MAX_AUDIO_BYTES) {
-                        return AcquiredAudio(file, mimeTypeFor(file.name), owned = false)
-                    }
+                    fileCandidate(File(path), durationMs, streamResolved)?.let { return it }
                 }
             }
         }
         Downloads.savedUri(context, videoId)?.let { uri ->
             when (uri.scheme) {
                 "file" -> uri.path?.let { path ->
-                    val file = File(path)
-                    if (file.isFile && file.length() in 1..MAX_AUDIO_BYTES) {
-                        return AcquiredAudio(file, mimeTypeFor(file.name), owned = false)
-                    }
+                    fileCandidate(File(path), durationMs, streamResolved)?.let { return it }
                 }
-                "content" -> copyContentToTemp(context, uri)?.let { temp ->
-                    return AcquiredAudio(temp, mimeTypeFor(temp.name), owned = true)
+                "content" -> {
+                    val probed = probeDurationMs(context, uri)
+                    if (durationAcceptable(probed, durationMs, streamResolved)) {
+                        copyContentToTemp(context, uri)?.let { temp ->
+                            return AcquiredAudio(temp, mimeTypeFor(temp.name), owned = true)
+                        }
+                    }
                 }
             }
         }
 
-        val stream = runCatching {
-            StreamResolver.resolveForDownload(videoId, Int.MAX_VALUE, requireM4a = false)
-        }.getOrNull() ?: return null
+        if (stream == null) return null
         val temp = tempAudioFile(context, "." + stream.downloadExtension)
         val written = runCatching {
             temp.outputStream().use { sink ->
@@ -329,6 +485,89 @@ object AiWordSync {
         }
         return AcquiredAudio(temp, stream.downloadMimeType, owned = true)
     }
+
+    /**
+     * [file] as this job's audio, or null when it may not stand in for
+     * the stream: not a file at all, empty, past [MAX_AUDIO_BYTES], or
+     * failing the duration test in [durationAcceptable]. A file that
+     * passes is used in place and never owned — the job deletes only
+     * what it fetched or copied itself.
+     */
+    private fun fileCandidate(
+        file: File,
+        referenceMs: Long,
+        streamResolved: Boolean,
+    ): AcquiredAudio? {
+        if (!file.isFile || file.length() !in 1..MAX_AUDIO_BYTES) return null
+        if (!durationAcceptable(probeDurationMs(file), referenceMs, streamResolved)) return null
+        return AcquiredAudio(file, mimeTypeFor(file.name), owned = false)
+    }
+
+    /**
+     * Whether a file probed at [probedMs] may be measured in place of
+     * fetching the resolved stream — the same-audio test at the heart of
+     * [acquireAudio], kept apart so each of its cases reads plainly:
+     *
+     *  - The track's duration is known: the probe must land within
+     *    [DURATION_MATCH_TOLERANCE_MS] of it. A probe that produced no
+     *    duration proves nothing, so it fails — an unverifiable file is
+     *    not the same audio merely because it is the only one around.
+     *  - The track's duration is not known: there is nothing to match
+     *    against, so the file is accepted only where no stream could be
+     *    resolved. Where a stream exists it is fetched instead, because
+     *    it is known to be this track's audio and the file is not.
+     */
+    private fun durationAcceptable(
+        probedMs: Long?,
+        referenceMs: Long,
+        streamResolved: Boolean,
+    ): Boolean =
+        if (referenceMs > 0) {
+            probedMs != null &&
+                kotlin.math.abs(probedMs - referenceMs) <= DURATION_MATCH_TOLERANCE_MS
+        } else {
+            !streamResolved
+        }
+
+    /**
+     * [file]'s duration in milliseconds, read from its own container
+     * metadata, or null where that cannot be read.
+     *
+     * Failure-proof by construction: an unreadable file, a container
+     * with no duration in it, or a retriever that throws all answer
+     * null — a duration unknown, which [durationAcceptable] then treats
+     * by its own rule — never an exception into the job. The retriever
+     * is released whatever happens.
+     */
+    private fun probeDurationMs(file: File): Long? = runCatching {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(file.absolutePath)
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull()
+                ?.takeIf { it > 0 }
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }.getOrNull()
+
+    /**
+     * As [probeDurationMs] for a `content://` download: the uri is
+     * probed in place, through the content resolver, so choosing whether
+     * the file may be used costs no copy — the copy in
+     * [copyContentToTemp] happens only for a file already chosen.
+     */
+    private fun probeDurationMs(context: Context, uri: Uri): Long? = runCatching {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(context, uri)
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull()
+                ?.takeIf { it > 0 }
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }.getOrNull()
 
     /** [uri]'s bytes in a temp file, or null — past the cap, unreadable, or empty. */
     private suspend fun copyContentToTemp(context: Context, uri: Uri): File? =

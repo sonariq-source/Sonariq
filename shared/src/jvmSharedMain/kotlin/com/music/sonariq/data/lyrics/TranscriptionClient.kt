@@ -33,6 +33,22 @@ import kotlin.math.roundToLong
  * gets null back without a request being made — the feature is dormant,
  * exactly as though it did not exist.
  *
+ * The model asked for by default is [DEFAULT_MODEL], the endpoint's most
+ * accurate transcription model; accuracy is what the alignment is built
+ * on, and a transcription is paid for once and then cached, so it is not
+ * the place to trade quality for speed. [ALTERNATE_MODEL] is the faster
+ * model, and exists for the caller's retry: when a first attempt comes
+ * back with too little the aligner can use, the caller asks again with
+ * the alternate model rather than this client second-guessing the result
+ * it was handed.
+ *
+ * A caller that knows the track's language may pass it as a hint
+ * ([transcribe]'s `language`); a caller that does not passes nothing and
+ * sends no language part at all, leaving the far side to detect the
+ * language from the audio itself. A wrong hint is worse than none, so the
+ * choice is the caller's, made from whatever the track's own metadata
+ * actually says.
+ *
  * Analysis reads the track's audio file only. There is no microphone and
  * no capture of anything the device plays: the bytes sent are the bytes of
  * a file the app already has or has just fetched for this track.
@@ -48,7 +64,16 @@ object TranscriptionClient {
     const val DEFAULT_ENDPOINT = "https://api.groq.com/openai/v1/audio/transcriptions"
 
     /** The transcription model asked for, named by the endpoint's catalogue. */
-    const val DEFAULT_MODEL = "whisper-large-v3-turbo"
+    const val DEFAULT_MODEL = "whisper-large-v3"
+
+    /**
+     * The faster transcription model, named by the endpoint's catalogue.
+     *
+     * Never the default: it exists so a caller whose first attempt came
+     * back unusable can retry once against a different model — a second
+     * opinion — by passing this as [transcribe]'s `model`.
+     */
+    const val ALTERNATE_MODEL = "whisper-large-v3-turbo"
 
     /**
      * How long one transcription may take, end to end.
@@ -78,6 +103,11 @@ object TranscriptionClient {
      * [endpointUrl] exists so tests can point the client at a local server;
      * every real caller takes the default.
      *
+     * [language] is an optional hint naming the language the track is sung
+     * in, in the endpoint's own codes. A non-blank one is sent as its own
+     * form part; null (or blank) sends no language part at all, so the far
+     * side detects the language from the audio rather than being told.
+     *
      * The blocking OkHttp call runs on [Dispatchers.IO]; the multipart
      * build only stats the file. Never logs [apiKey] — or the audio.
      */
@@ -87,6 +117,7 @@ object TranscriptionClient {
         apiKey: String,
         endpointUrl: String = DEFAULT_ENDPOINT,
         model: String = DEFAULT_MODEL,
+        language: String? = null,
     ): List<TranscribedWord>? {
         if (apiKey.isBlank() || !audio.isFile || audio.length() == 0L) return null
         return withContext(Dispatchers.IO) {
@@ -99,6 +130,14 @@ object TranscriptionClient {
                         audio.asRequestBody(mimeType.toMediaTypeOrNull()),
                     )
                     .addFormDataPart("model", model)
+                    .apply {
+                        // The language hint, only where the caller actually
+                        // has one: with no part sent, the far side detects
+                        // the language itself instead of trusting a guess.
+                        if (!language.isNullOrBlank()) {
+                            addFormDataPart("language", language)
+                        }
+                    }
                     .addFormDataPart("response_format", "verbose_json")
                     // Asked for twice, once per granularity: the words are
                     // what the aligner consumes, and the segments keep the

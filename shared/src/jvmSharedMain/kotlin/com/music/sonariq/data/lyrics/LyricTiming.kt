@@ -94,3 +94,44 @@ fun List<LyricLine>.withoutEstimatedWords(): List<LyricLine> {
     if (none { it.hasEstimatedWords() }) return this
     return map { it.stripped() }
 }
+
+/**
+ * These lines with every AI-measured word timing taken back out.
+ *
+ * The counterpart of [withoutEstimatedWords] for the other kind of word
+ * timing that is not a provider's: any line whose
+ * [LyricLine.wordsAiMeasured] is set — including a nested background line,
+ * which carries its own words and its own flag — is copied with its words
+ * emptied and the flag cleared, so what remains is the honest line sync
+ * the measurement was derived from. Lines with provider word timings, and
+ * lines with no words at all, are untouched, and a list with nothing
+ * AI-measured in it is returned as-is.
+ *
+ * This exists to retire measurements made by an older alignment version:
+ * [LyricsRepository] strips them on the way out of the disk cache when
+ * the entry was stamped by a version [AiLyricAligner] has since moved
+ * past, so a superseded measurement is never shown again and the track
+ * is offered for a fresh measurement instead. No timings are created
+ * here: this only removes ones a newer aligner no longer stands behind.
+ */
+fun List<LyricLine>.withoutAiMeasuredWords(): List<LyricLine> {
+    fun LyricLine.hasAiMeasuredWords(): Boolean =
+        wordsAiMeasured || background?.hasAiMeasuredWords() == true
+
+    fun LyricLine.stripped(): LyricLine {
+        val strippedBackground = background?.stripped()
+        val own = if (wordsAiMeasured) {
+            copy(words = emptyList(), wordsAiMeasured = false)
+        } else {
+            this
+        }
+        return if (strippedBackground === background) {
+            own
+        } else {
+            own.copy(background = strippedBackground)
+        }
+    }
+
+    if (none { it.hasAiMeasuredWords() }) return this
+    return map { it.stripped() }
+}

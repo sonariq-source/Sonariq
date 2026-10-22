@@ -10,6 +10,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -17,7 +18,8 @@ import kotlin.test.assertTrue
  * [TranscriptionClient] against a local server: the words it parses out of
  * a `verbose_json` answer, the null it answers with for every failure, and
  * the shape of the one request it makes — a multipart POST carrying only
- * the audio, the model and the format fields, under the caller's key.
+ * the audio, the model and the format fields, plus a language part where
+ * the caller passed a language hint, under the caller's key.
  */
 class TranscriptionClientTest {
 
@@ -98,6 +100,89 @@ class TranscriptionClientTest {
         assertEquals(2, body.split("""name="timestamp_granularities[]"""").size - 1)
         assertTrue(body.contains("word"))
         assertTrue(body.contains("segment"))
+    }
+
+    @Test
+    fun theDefaultModelIsTheAccurateOneAndTheAlternateIsTheFasterOne() {
+        // The default asks for the endpoint's most accurate model; the
+        // faster one is kept as the caller's retry, never the default.
+        assertEquals("whisper-large-v3", TranscriptionClient.DEFAULT_MODEL)
+        assertEquals("whisper-large-v3-turbo", TranscriptionClient.ALTERNATE_MODEL)
+    }
+
+    @Test
+    fun aLanguageHintIsSentAsItsOwnFormPart() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"words":[{"word":"hi","start":0.0,"end":0.2}]}"""))
+
+        TranscriptionClient.transcribe(
+            audio = audio,
+            mimeType = "audio/mp4",
+            apiKey = "test-key",
+            endpointUrl = endpoint(),
+            language = "tl",
+        )
+
+        val request = server.takeRequest(5, TimeUnit.SECONDS)
+        checkNotNull(request)
+        val body = request.body.readUtf8()
+        // Exactly one language part, carrying the hint the caller passed.
+        assertEquals(1, body.split("""name="language"""").size - 1)
+        assertTrue(body.contains("\r\ntl\r\n"), "the language part carries the hint")
+    }
+
+    @Test
+    fun noLanguageHintSendsNoLanguagePart() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"words":[{"word":"hi","start":0.0,"end":0.2}]}"""))
+
+        TranscriptionClient.transcribe(
+            audio = audio,
+            mimeType = "audio/mp4",
+            apiKey = "test-key",
+            endpointUrl = endpoint(),
+        )
+
+        val request = server.takeRequest(5, TimeUnit.SECONDS)
+        checkNotNull(request)
+        val body = request.body.readUtf8()
+        // No hint, no part: the far side detects the language itself.
+        assertFalse(body.contains("""name="language""""))
+    }
+
+    @Test
+    fun aBlankLanguageHintSendsNoLanguagePart() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"words":[{"word":"hi","start":0.0,"end":0.2}]}"""))
+
+        TranscriptionClient.transcribe(
+            audio = audio,
+            mimeType = "audio/mp4",
+            apiKey = "test-key",
+            endpointUrl = endpoint(),
+            language = "  ",
+        )
+
+        val request = server.takeRequest(5, TimeUnit.SECONDS)
+        checkNotNull(request)
+        val body = request.body.readUtf8()
+        assertFalse(body.contains("""name="language""""))
+    }
+
+    @Test
+    fun theAlternateModelIsUsedWhenPassed() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"words":[{"word":"hi","start":0.0,"end":0.2}]}"""))
+
+        TranscriptionClient.transcribe(
+            audio = audio,
+            mimeType = "audio/mp4",
+            apiKey = "test-key",
+            endpointUrl = endpoint(),
+            model = TranscriptionClient.ALTERNATE_MODEL,
+        )
+
+        val request = server.takeRequest(5, TimeUnit.SECONDS)
+        checkNotNull(request)
+        val body = request.body.readUtf8()
+        assertTrue(body.contains("""name="model""""))
+        assertTrue(body.contains(TranscriptionClient.ALTERNATE_MODEL))
     }
 
     @Test
