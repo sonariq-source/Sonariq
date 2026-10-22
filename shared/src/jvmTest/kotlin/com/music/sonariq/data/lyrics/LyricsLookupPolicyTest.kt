@@ -13,6 +13,15 @@ class LyricsLookupPolicyTest {
         wordSynced: Boolean = timing == LyricTiming.WORD_SYNCED,
     ): LyricsRepository.Result {
         val lines = when {
+            timing == LyricTiming.WORD_SYNCED_AI_MEASURED -> listOf(
+                LyricLine(
+                    timeMs = 5_000,
+                    text = "verse",
+                    words = listOf(LyricWord(5_000, 5_600, "verse")),
+                    sungUntilMs = 8_000,
+                    wordsAiMeasured = true,
+                ),
+            )
             wordSynced -> listOf(
                 LyricLine(
                     timeMs = 5_000,
@@ -40,7 +49,8 @@ class LyricsLookupPolicyTest {
         withSyllables: Boolean = false,
     ): LyricsRepository.Result {
         val lines = when (timing) {
-            LyricTiming.WORD_SYNCED, LyricTiming.WORD_SYNCED_ESTIMATED -> listOf(
+            LyricTiming.WORD_SYNCED, LyricTiming.WORD_SYNCED_ESTIMATED,
+            LyricTiming.WORD_SYNCED_AI_MEASURED -> listOf(
                 LyricLine(
                     timeMs = 5_000,
                     text = "verse",
@@ -61,6 +71,7 @@ class LyricsLookupPolicyTest {
                     ),
                     sungUntilMs = 8_000,
                     wordsEstimated = timing == LyricTiming.WORD_SYNCED_ESTIMATED,
+                    wordsAiMeasured = timing == LyricTiming.WORD_SYNCED_AI_MEASURED,
                 ),
             )
             LyricTiming.LINE_SYNCED -> listOf(
@@ -146,7 +157,7 @@ class LyricsLookupPolicyTest {
         assertEquals(1, LyricsLookupPolicy.tierOf(ttmlWord))
         assertEquals(2, LyricsLookupPolicy.tierOf(otherSyllable))
         assertEquals(3, LyricsLookupPolicy.tierOf(otherWord))
-        assertEquals(4, LyricsLookupPolicy.tierOf(line))
+        assertEquals(5, LyricsLookupPolicy.tierOf(line))
         assertTrue(
             LyricsLookupPolicy.tierOf(ttmlSyllable) < LyricsLookupPolicy.tierOf(ttmlWord),
         )
@@ -169,14 +180,67 @@ class LyricsLookupPolicyTest {
         val plain = sourcedResult(LyricsSource.GENIUS, LyricTiming.PLAIN)
         val line = sourcedResult(LyricsSource.LRCLIB, LyricTiming.LINE_SYNCED)
 
-        assertEquals(4, LyricsLookupPolicy.tierOf(estimated))
-        assertEquals(4, LyricsLookupPolicy.tierOf(plain))
+        assertEquals(5, LyricsLookupPolicy.tierOf(estimated))
+        assertEquals(5, LyricsLookupPolicy.tierOf(plain))
+        assertEquals(5, LyricsLookupPolicy.tierOf(line))
         assertTrue(LyricsLookupPolicy.isProvisional(estimated))
         assertFalse(LyricsLookupPolicy.isFinal(estimated))
         assertTrue(LyricsLookupPolicy.isProvisional(line))
         assertTrue(LyricsLookupPolicy.isProvisional(plain))
         assertFalse(LyricsLookupPolicy.isFinal(line))
         assertFalse(LyricsLookupPolicy.isFinal(plain))
+    }
+
+    @Test
+    fun tierPlacesAiMeasuredBetweenProviderWordSyncAndLineSync() {
+        val ai = sourcedResult(
+            LyricsSource.LRCLIB, LyricTiming.WORD_SYNCED_AI_MEASURED,
+        )
+        val otherWord = sourcedResult(LyricsSource.LYRICS_PLUS, LyricTiming.WORD_SYNCED)
+        val line = sourcedResult(LyricsSource.LRCLIB, LyricTiming.LINE_SYNCED)
+
+        // Tier 4 of its own: above line sync, below every provider tier.
+        assertEquals(4, LyricsLookupPolicy.tierOf(ai))
+        assertTrue(LyricsLookupPolicy.tierOf(otherWord) < LyricsLookupPolicy.tierOf(ai))
+        assertTrue(LyricsLookupPolicy.tierOf(ai) < LyricsLookupPolicy.tierOf(line))
+        // Real measurements worth showing — but provisional, so the hunt
+        // for provider timings continues past them.
+        assertTrue(LyricsLookupPolicy.isProvisional(ai))
+        assertFalse(LyricsLookupPolicy.isFinal(ai))
+    }
+
+    @Test
+    fun lyricTimingClassifiesAiMeasuredLines() {
+        val aiLines = listOf(
+            LyricLine(
+                timeMs = 5_000,
+                text = "verse",
+                words = listOf(LyricWord(5_000, 5_600, "verse")),
+                wordsAiMeasured = true,
+            ),
+        )
+        assertEquals(LyricTiming.WORD_SYNCED_AI_MEASURED, aiLines.lyricTiming())
+
+        // One provider-measured line outranks the AI-measured ones.
+        val mixed = aiLines + LyricLine(
+            timeMs = 9_000,
+            text = "chorus",
+            words = listOf(LyricWord(9_000, 9_600, "chorus")),
+        )
+        assertEquals(LyricTiming.WORD_SYNCED, mixed.lyricTiming())
+
+        // A line flagged both estimated and AI-measured reports estimated:
+        // the AI tier is only for words that are nothing but measured.
+        val both = listOf(
+            LyricLine(
+                timeMs = 5_000,
+                text = "verse",
+                words = listOf(LyricWord(5_000, 5_600, "verse")),
+                wordsEstimated = true,
+                wordsAiMeasured = true,
+            ),
+        )
+        assertEquals(LyricTiming.WORD_SYNCED_ESTIMATED, both.lyricTiming())
     }
 
     @Test
@@ -203,11 +267,22 @@ class LyricsLookupPolicyTest {
     @Test
     fun timingRankTreatsEstimatedAsLineLevel() {
         // Estimated word timings are not real word sync: they rank with line
-        // sync, below true word sync and above plain text.
+        // sync, below true word sync and above plain text. AI-measured
+        // timings rank between the two: real measurements, but not a
+        // provider's.
         assertEquals(3, LyricsLookupPolicy.timingRank(LyricTiming.WORD_SYNCED))
+        assertEquals(2, LyricsLookupPolicy.timingRank(LyricTiming.WORD_SYNCED_AI_MEASURED))
         assertEquals(1, LyricsLookupPolicy.timingRank(LyricTiming.WORD_SYNCED_ESTIMATED))
         assertEquals(1, LyricsLookupPolicy.timingRank(LyricTiming.LINE_SYNCED))
         assertEquals(0, LyricsLookupPolicy.timingRank(LyricTiming.PLAIN))
+        assertTrue(
+            LyricsLookupPolicy.timingRank(LyricTiming.WORD_SYNCED) >
+                LyricsLookupPolicy.timingRank(LyricTiming.WORD_SYNCED_AI_MEASURED),
+        )
+        assertTrue(
+            LyricsLookupPolicy.timingRank(LyricTiming.WORD_SYNCED_AI_MEASURED) >
+                LyricsLookupPolicy.timingRank(LyricTiming.LINE_SYNCED),
+        )
         assertEquals(
             LyricsLookupPolicy.timingRank(LyricTiming.LINE_SYNCED),
             LyricsLookupPolicy.timingRank(LyricTiming.WORD_SYNCED_ESTIMATED),
@@ -249,6 +324,30 @@ class LyricsLookupPolicyTest {
         assertFalse(LyricsLookupPolicy.isUpgrade(ttmlWord, otherWord))
         // An other-source word result upgrades to a TTML syllable one.
         assertTrue(LyricsLookupPolicy.isUpgrade(otherWord, ttmlSyllable))
+    }
+
+    @Test
+    fun aiResultUpgradesLineButYieldsToProviderWordSync() {
+        val line = sourcedResult(LyricsSource.LRCLIB, LyricTiming.LINE_SYNCED)
+        val estimated = sourcedResult(
+            LyricsSource.LYRICS_PLUS, LyricTiming.WORD_SYNCED_ESTIMATED,
+        )
+        val ai = sourcedResult(
+            LyricsSource.LRCLIB, LyricTiming.WORD_SYNCED_AI_MEASURED,
+        )
+        val providerWord = sourcedResult(LyricsSource.LYRICS_PLUS, LyricTiming.WORD_SYNCED)
+        val otherLine = sourcedResult(LyricsSource.LRCLIB, LyricTiming.LINE_SYNCED)
+
+        // An AI-measured result upgrades a line-synced (or estimated) one.
+        assertTrue(LyricsLookupPolicy.isUpgrade(line, ai))
+        assertTrue(LyricsLookupPolicy.isUpgrade(estimated, ai))
+        // A provider word-synced result upgrades an AI-measured one: the
+        // AI timings were only ever keeping the seat warm.
+        assertTrue(LyricsLookupPolicy.isUpgrade(ai, providerWord))
+        // And nothing weaker takes the seat back.
+        assertFalse(LyricsLookupPolicy.isUpgrade(ai, otherLine))
+        assertFalse(LyricsLookupPolicy.isUpgrade(ai, estimated))
+        assertFalse(LyricsLookupPolicy.isUpgrade(ai, ai))
     }
 
     @Test
@@ -302,8 +401,26 @@ class LyricsLookupPolicyTest {
     }
 
     @Test
+    fun deadlineWinnerPrefersAiResultOverLineResult() {
+        val line = sourcedResult(LyricsSource.LRCLIB, LyricTiming.LINE_SYNCED)
+        val ai = sourcedResult(
+            LyricsSource.LRCLIB, LyricTiming.WORD_SYNCED_AI_MEASURED,
+        )
+        val picked = LyricsLookupPolicy.pickDeadlineWinner(
+            completedInOrder = listOf(line, ai),
+            prioritizeSyllableSync = true,
+        )
+        assertEquals(ai, picked)
+        // It surfaces for instant display — but stays provisional, so the
+        // race for provider timings continues past the deadline.
+        val winner = checkNotNull(picked)
+        assertTrue(LyricsLookupPolicy.isProvisional(winner))
+        assertFalse(LyricsLookupPolicy.isFinal(winner))
+    }
+
+    @Test
     fun deadlineWinnerKeepsPriorityOrderWithinTierWhenNotPrioritizing() {
-        // Plain and line-synced results share tier 4, so within the tier the
+        // Plain and line-synced results share tier 5, so within the tier the
         // priority (completion) order decides — there is no timed shortcut.
         val plain = result(LyricTiming.PLAIN)
         val line = result(LyricTiming.LINE_SYNCED)

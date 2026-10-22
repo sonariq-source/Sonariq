@@ -1,6 +1,7 @@
 package com.music.sonariq.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.music.sonariq.R
@@ -60,6 +61,7 @@ import com.music.sonariq.data.model.EntityType
 import com.music.sonariq.data.settings.SearchHistory
 import com.music.sonariq.download.Downloads
 import com.music.sonariq.download.SmartDownloads
+import com.music.sonariq.download.isAiWordSyncCandidate
 import android.util.LruCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -93,6 +95,7 @@ import com.music.sonariq.playback.AudioCache
 import com.music.sonariq.playback.StreamChoice
 import com.music.sonariq.ui.screens.CACHE_FOLDER_BROWSE_ID
 import com.music.sonariq.ui.screens.matchesSearch
+import java.io.File
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -431,6 +434,38 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _lyrics.value = validated?.lines
             _lyricsSource.value = validated?.source
             _lyricsChecked.value = true
+            // The final result is in and it is only line-synced: offer the
+            // track for AI word sync, which measures word timings from the
+            // track's own audio in the background. Only here, on the final
+            // result — the deadline path above surfaces an interim answer
+            // the race may still upgrade, and queueing a measurement off it
+            // would spend a transcription on lyrics about to be replaced.
+            // A result that is already word-synced, by a provider or by an
+            // earlier measurement, is never offered. When a measurement
+            // lands it is applied exactly the way the deadline callback
+            // applies an early result, under the same generation guard.
+            if (validated != null && validated.isAiWordSyncCandidate()) {
+                val localFile = localUri
+                    ?.takeIf { it.startsWith("file://") }
+                    ?.let { Uri.parse(it).path?.let(::File) }
+                    ?.takeIf { it.isFile }
+                com.music.sonariq.download.AiWordSync.maybeAlign(
+                    videoId = videoId,
+                    title = title,
+                    artist = artist,
+                    durationMs = durationMs,
+                    localAudio = localFile,
+                    immediate = true,
+                    onAligned = { aligned ->
+                        if (generation == lyricsGeneration) {
+                            val revalidated = validatedLyrics(aligned)
+                            _lyrics.value = revalidated?.lines
+                            _lyricsSource.value = revalidated?.source
+                            _lyricsChecked.value = true
+                        }
+                    },
+                )
+            }
         }
     }
 

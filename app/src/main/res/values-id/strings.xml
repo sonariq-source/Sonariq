@@ -428,6 +428,10 @@
     <string name="preview">Pratinjau</string>
     <string name="prioritize_syllable_lyrics">Prioritaskan lirik per suku kata</string>
     <string name="prioritize_syllable_lyrics_subtitle">Terus mencari melebihi kecocokan tersinkron per baris untuk mendapatkan lirik kata demi kata</string>
+    <string name="ai_word_sync">Sinkronisasi kata AI</string>
+    <string name="ai_word_sync_summary">Ukur waktu kata dari audio lagu itu sendiri saat tidak ada sumber yang memilikinya</string>
+    <string name="ai_wifi_only">Hanya Wi-Fi</string>
+    <string name="ai_wifi_only_summary">Ukur waktu di latar belakang hanya di jaringan tanpa batas data</string>
     <string name="quality_hourly">%1$s · %2$s</string>
     <string name="quality_per_track">%1$s · %2$s per trek</string>
     <string name="queued">Dalam antrean</string>

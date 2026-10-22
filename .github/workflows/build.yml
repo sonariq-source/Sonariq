@@ -11,6 +11,10 @@ on:
 jobs:
   build-debug:
     runs-on: ubuntu-latest
+    # Build-time only: app/build.gradle.kts reads this into a BuildConfig
+    # field for AI word sync. The value lives solely in the repo secret.
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
 
     steps:
     - name: Checkout Repository

@@ -11,6 +11,18 @@ enum class LyricTiming {
     WORD_SYNCED,
 
     /**
+     * Word timings exist and were really measured — but measured from the
+     * track's own audio by the AI alignment fallback (see [AiLyricAligner])
+     * rather than supplied by a provider. They are measurements, not
+     * interpolations, so the line lights up word by word exactly like
+     * [WORD_SYNCED]; they rank below it because a provider's own timings
+     * are the authority for its catalogue entry, and a result carrying
+     * them stays provisional so the hunt for provider timings goes on and
+     * replaces them when it lands.
+     */
+    WORD_SYNCED_AI_MEASURED,
+
+    /**
      * Word timings exist, but they were interpolated from line windows
      * rather than measured by a provider. The interpolator is gone; this
      * value now exists only so legacy cached or downloaded data carrying
@@ -26,12 +38,25 @@ enum class LyricTiming {
  * Which bucket these lines fall into — the same predicates
  * [LyricsRepository.lyrics] already uses to pick its winner.
  *
- * Measured word timings outrank interpolated ones: a result earns WORD_SYNCED
- * on any single genuinely measured word, and only a result with *nothing*
- * measured settles for WORD_SYNCED_ESTIMATED.
+ * Provider word timings outrank AI-measured ones, and both outrank
+ * interpolated ones: a result earns WORD_SYNCED on any single
+ * provider-measured word; failing that, WORD_SYNCED_AI_MEASURED on any
+ * single word the AI alignment fallback measured from the track's own
+ * audio; and only a result with *nothing* measured settles for
+ * WORD_SYNCED_ESTIMATED. AI-measured timings are real measurements from
+ * the track's audio, ranked below provider timings and kept provisional
+ * (see [LyricsLookupPolicy.tierOf]).
+ *
+ * Only the top-level lines' own flags are read — a background line's words
+ * never lift the result on their own, exactly as before.
  */
 fun List<LyricLine>.lyricTiming(): LyricTiming {
-    if (any { it.isWordSynced && !it.wordsEstimated }) return LyricTiming.WORD_SYNCED
+    if (any { it.isWordSynced && !it.wordsEstimated && !it.wordsAiMeasured }) {
+        return LyricTiming.WORD_SYNCED
+    }
+    if (any { it.isWordSynced && it.wordsAiMeasured && !it.wordsEstimated }) {
+        return LyricTiming.WORD_SYNCED_AI_MEASURED
+    }
     if (any { it.isWordSynced }) return LyricTiming.WORD_SYNCED_ESTIMATED
     if (any { it.timeMs > 0 }) return LyricTiming.LINE_SYNCED
     return LyricTiming.PLAIN

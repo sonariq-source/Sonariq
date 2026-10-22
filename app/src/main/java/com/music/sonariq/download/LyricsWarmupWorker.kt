@@ -128,7 +128,7 @@ class LyricsWarmupWorker(
                 launch {
                     semaphore.withPermit {
                         try {
-                            withTimeoutOrNull(ITEM_TIMEOUT_MS) {
+                            val result = withTimeoutOrNull(ITEM_TIMEOUT_MS) {
                                 LyricsRepository.lyrics(
                                     videoId = candidate.videoId,
                                     title = candidate.title,
@@ -139,7 +139,24 @@ class LyricsWarmupWorker(
                                     order = order,
                                     prioritizeSyllableSync = prioritize,
                                 )
-                            }?.let { warmedCount.incrementAndGet() }
+                            }
+                            if (result != null) {
+                                warmedCount.incrementAndGet()
+                                // A warmed result that is only line-synced
+                                // is offered for AI word sync, as a
+                                // background job: fire-and-forget, with the
+                                // dedupe and Wi-Fi-only gates inside
+                                // AiWordSync deciding whether it runs.
+                                if (result.isAiWordSyncCandidate()) {
+                                    AiWordSync.maybeAlign(
+                                        videoId = candidate.videoId,
+                                        title = candidate.title,
+                                        artist = candidate.artist,
+                                        durationMs = candidate.durationMs,
+                                        immediate = false,
+                                    )
+                                }
+                            }
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {

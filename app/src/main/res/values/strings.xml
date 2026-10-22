@@ -670,6 +670,10 @@
     <string name="preview">Preview</string>
     <string name="prioritize_syllable_lyrics">Prioritize syllable lyrics</string>
     <string name="prioritize_syllable_lyrics_subtitle">Keep searching past a line-synced match for word-by-word lyrics</string>
+    <string name="ai_word_sync">AI word sync</string>
+    <string name="ai_word_sync_summary">Measure word timings from the track’s own audio when no source has them</string>
+    <string name="ai_wifi_only">Wi-Fi only</string>
+    <string name="ai_wifi_only_summary">Measure timings in the background only on unmetered networks</string>
     <string name="quality_hourly">%1$s · %2$s</string>
     <string name="quality_per_track">%1$s · %2$s per track</string>
     <string name="queued">Queued</string>

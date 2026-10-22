@@ -68,7 +68,7 @@ object LyricsListPrefetch {
                 launch {
                     semaphore.withPermit {
                         try {
-                            withTimeoutOrNull(ITEM_TIMEOUT_MS) {
+                            val result = withTimeoutOrNull(ITEM_TIMEOUT_MS) {
                                 LyricsRepository.lyrics(
                                     videoId = candidate.videoId,
                                     title = candidate.title,
@@ -78,6 +78,22 @@ object LyricsListPrefetch {
                                     sources = sources,
                                     order = order,
                                     prioritizeSyllableSync = prioritize,
+                                )
+                            }
+                            // A line-only result is offered for AI word
+                            // sync, as a background job: fire-and-forget,
+                            // with the dedupe and Wi-Fi-only gates inside
+                            // AiWordSync deciding whether it runs. The job
+                            // outlives this prefetch's scope on purpose —
+                            // leaving the screen should not cancel a
+                            // measurement already under way.
+                            if (result != null && result.isAiWordSyncCandidate()) {
+                                AiWordSync.maybeAlign(
+                                    videoId = candidate.videoId,
+                                    title = candidate.title,
+                                    artist = candidate.artist,
+                                    durationMs = candidate.durationMs,
+                                    immediate = false,
                                 )
                             }
                         } catch (e: CancellationException) {

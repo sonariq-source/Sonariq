@@ -90,6 +90,34 @@ class LyricsDiskCacheTest {
 
         val plain = listOf(LyricLine(0, "one"), LyricLine(0, "two"))
         assertEquals(LyricTiming.PLAIN, plain.lyricTiming())
+
+        val aiMeasured = listOf(
+            LyricLine(
+                5_000,
+                "timed",
+                words = listOf(LyricWord(5_000, 5_600, "timed")),
+                wordsAiMeasured = true,
+            ),
+        )
+        assertEquals(LyricTiming.WORD_SYNCED_AI_MEASURED, aiMeasured.lyricTiming())
+    }
+
+    @Test
+    fun lyricLineSerializationRoundTripKeepsAiMeasuredFlag() {
+        val line = LyricLine(
+            timeMs = 12_000,
+            text = "golden hour",
+            words = listOf(
+                LyricWord(startMs = 12_000, endMs = 12_800, text = "golden"),
+                LyricWord(startMs = 12_900, endMs = 14_500, text = "hour"),
+            ),
+            sungUntilMs = 15_000,
+            wordsAiMeasured = true,
+        )
+        val decoded = json.decodeFromString<LyricLine>(json.encodeToString(line))
+        assertEquals(line, decoded)
+        assertTrue(decoded.wordsAiMeasured)
+        assertEquals(LyricTiming.WORD_SYNCED_AI_MEASURED, listOf(decoded).lyricTiming())
     }
 
     @Test
@@ -206,6 +234,41 @@ class LyricsDiskCacheTest {
         checkNotNull(hit)
         assertEquals(lines, hit.lines)
         assertEquals(LyricTiming.LINE_SYNCED, hit.timing)
+    }
+
+    @Test
+    fun cachedAiMeasuredEntryKeepsTimingAndFlagButIsNotFinal() = runBlocking {
+        val root = Files.createTempDirectory("lyrics-cache-test").toFile()
+        val lines = listOf(
+            LyricLine(
+                timeMs = 4_000,
+                text = "verse line",
+                words = listOf(
+                    LyricWord(4_000, 4_400, "verse"),
+                    LyricWord(4_500, 4_900, "line"),
+                ),
+                sungUntilMs = 8_000,
+                wordsAiMeasured = true,
+            ),
+        )
+        writeCacheEntry(
+            root,
+            "video-ai",
+            cachePayload(LyricsSource.LRCLIB, LyricTiming.WORD_SYNCED_AI_MEASURED, lines),
+        )
+
+        LyricsRepository.cacheDir = root
+        val hit = LyricsRepository.readCache("video-ai", null)
+
+        checkNotNull(hit)
+        // The measured words and the flag that says where they came from
+        // survive the round trip — nothing is stripped, nothing promoted.
+        assertEquals(lines, hit.lines)
+        assertTrue(hit.lines.single().wordsAiMeasured)
+        assertEquals(LyricTiming.WORD_SYNCED_AI_MEASURED, hit.timing)
+        // But AI-measured is provisional: a later lookup still re-hunts
+        // for provider timings, so this never counts as final.
+        assertFalse(LyricsRepository.hasFinalLyrics("video-ai"))
     }
 
     @Test

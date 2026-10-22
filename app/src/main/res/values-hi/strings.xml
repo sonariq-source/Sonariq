@@ -442,6 +442,10 @@
     <string name="preview">प्रीव्यू</string>
     <string name="prioritize_syllable_lyrics">सिलेबल लिरिक्स को प्राथमिकता दें</string>
     <string name="prioritize_syllable_lyrics_subtitle">शब्द-दर-शब्द लिरिक्स के लिए लाइन-सिंक मैच के बाद भी खोजना जारी रखें</string>
+    <string name="ai_word_sync">AI वर्ड सिंक</string>
+    <string name="ai_word_sync_summary">जब किसी स्रोत के पास न हो, तो ट्रैक के अपने ऑडियो से शब्दों का समय मापें</string>
+    <string name="ai_wifi_only">केवल Wi-Fi</string>
+    <string name="ai_wifi_only_summary">पृष्ठभूमि में केवल बिना डेटा सीमा वाले नेटवर्क पर समय मापें</string>
     <string name="quality_hourly">%1$s · %2$s</string>
     <string name="quality_per_track">%1$s · प्रति ट्रैक %2$s</string>
     <string name="queued">कतार में</string>

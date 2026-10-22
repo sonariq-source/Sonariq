@@ -489,6 +489,10 @@
     <string name="preview">Anteprima</string>
     <string name="prioritize_syllable_lyrics">Dai priorità ai testi sillabici</string>
     <string name="prioritize_syllable_lyrics_subtitle">Continua a cercare oltre una corrispondenza sincronizzata per riga per trovare testi parola per parola</string>
+    <string name="ai_word_sync">Sincronizzazione parole AI</string>
+    <string name="ai_word_sync_summary">Misura i tempi delle parole dall’audio del brano quando nessuna fonte li ha</string>
+    <string name="ai_wifi_only">Solo Wi-Fi</string>
+    <string name="ai_wifi_only_summary">Misura i tempi in background solo su reti senza limiti di dati</string>
     <string name="quality_hourly">%1$s · %2$s</string>
     <string name="quality_per_track">%1$s · %2$s per brano</string>
     <string name="queued">In coda</string>

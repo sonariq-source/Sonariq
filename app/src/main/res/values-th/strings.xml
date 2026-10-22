@@ -456,6 +456,10 @@
     <string name="preview">ตัวอย่าง</string>
     <string name="prioritize_syllable_lyrics">จัดลำดับความสำคัญเนื้อเพลงแบบพยางค์</string>
     <string name="prioritize_syllable_lyrics_subtitle">ค้นหาต่อแม้เจอเนื้อเพลงแบบซิงค์รายบรรทัดแล้ว เพื่อหาแบบซิงค์ทีละคำ</string>
+    <string name="ai_word_sync">ซิงค์คำด้วย AI</string>
+    <string name="ai_word_sync_summary">วัดจังหวะคำจากเสียงของเพลงเองเมื่อไม่มีแหล่งใดมีข้อมูลนั้น</string>
+    <string name="ai_wifi_only">Wi-Fi เท่านั้น</string>
+    <string name="ai_wifi_only_summary">วัดจังหวะในพื้นหลังเฉพาะบนเครือข่ายที่ไม่จำกัดข้อมูลเท่านั้น</string>
     <string name="quality_hourly">%1$s · %2$s</string>
     <string name="quality_per_track">%1$s · %2$s ต่อแทร็ก</string>
     <string name="queued">อยู่ในคิว</string>

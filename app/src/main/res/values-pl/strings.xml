@@ -403,6 +403,10 @@
     <string name="preview">Podgląd</string>
     <string name="prioritize_syllable_lyrics">Preferuj teksty po sylabach</string>
     <string name="prioritize_syllable_lyrics_subtitle">Kontynuuj wyszukiwanie w poszukiwaniu tekstów słowo po słowie</string>
+    <string name="ai_word_sync">Synchronizacja słów AI</string>
+    <string name="ai_word_sync_summary">Mierz czas słów z własnego dźwięku utworu, gdy żadne źródło ich nie ma</string>
+    <string name="ai_wifi_only">Tylko Wi-Fi</string>
+    <string name="ai_wifi_only_summary">Mierz czasy w tle tylko w sieciach bez limitu danych</string>
     <string name="quality_hourly">%1$s · %2$s</string>
     <string name="quality_per_track">%1$s · %2$s na utwór</string>
     <string name="queued">W kolejce</string>

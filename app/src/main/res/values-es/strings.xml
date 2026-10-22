@@ -455,6 +455,10 @@
     <string name="preview">Vista previa</string>
     <string name="prioritize_syllable_lyrics">Priorizar letras por sílabas</string>
     <string name="prioritize_syllable_lyrics_subtitle">Sigue buscando letras palabra por palabra aunque ya haya una sincronizada por líneas</string>
+    <string name="ai_word_sync">Sincronización de palabras con IA</string>
+    <string name="ai_word_sync_summary">Mide los tiempos de cada palabra desde el audio de la propia pista cuando ninguna fuente los tiene</string>
+    <string name="ai_wifi_only">Solo Wi-Fi</string>
+    <string name="ai_wifi_only_summary">Mide los tiempos en segundo plano solo en redes sin límite de datos</string>
     <string name="quality_hourly">%1$s · %2$s</string>
     <string name="quality_per_track">%1$s · %2$s por canción</string>
     <string name="queued">En cola</string>

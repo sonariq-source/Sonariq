@@ -35,6 +35,21 @@ val lastfmSecret: String = (
     ).trim()
 
 /*
+ * Transcription key for AI word sync, supplied at build time only: the
+ * GROQ_API_KEY environment variable (CI sets it from the repo secret), or a
+ * Gradle property of the same name for a local build. Never committed — no
+ * real value belongs in this file, gradle.properties, or anywhere else in
+ * the tree. Empty is a supported state: a fresh checkout or fork builds and
+ * runs with the AI word-sync measurement dormant.
+ */
+val groqApiKey: String = (
+    System.getenv("GROQ_API_KEY")
+        ?: (findProperty("GROQ_API_KEY") as String?)
+        ?: localProps.getProperty("GROQ_API_KEY")
+        ?: ""
+    ).trim()
+
+/*
  * Where Listen Together's party server lives. Not a credential — it is a public
  * URL, and every device in a party has to be pointed at the same one — but it is
  * deployment-specific rather than a property of the source, which is what puts
@@ -80,14 +95,16 @@ android {
         // Haze falls back to a translucent scrim below that.
         minSdk = 26
         targetSdk = 36
-        versionCode = 52
-        versionName = "2.25"
+        versionCode = 53
+        versionName = "2.26"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Last.fm credentials are supplied locally and never committed.
         buildConfigField("String", "LASTFM_API_KEY", "\"${lastfmApiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField("String", "LASTFM_SECRET", "\"${lastfmSecret.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        // AI word-sync transcription key — build-time only, see [groqApiKey] above.
+        buildConfigField("String", "GROQ_API_KEY", "\"${groqApiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField(
             "String",
             "LISTEN_TOGETHER_SERVER",

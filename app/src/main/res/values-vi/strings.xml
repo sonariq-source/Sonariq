@@ -471,6 +471,10 @@
     <string name="preview">Xem trước</string>
     <string name="prioritize_syllable_lyrics">Ưu tiên lời đồng bộ từng từ</string>
     <string name="prioritize_syllable_lyrics_subtitle">Tiếp tục tìm kiếm thay vì dừng lại ở lời đồng bộ từng dòng để tìm lời bài hát đồng bộ từng từ</string>
+    <string name="ai_word_sync">Đồng bộ từ bằng AI</string>
+    <string name="ai_word_sync_summary">Đo thời gian từng từ từ âm thanh của chính bài hát khi không nguồn nào có</string>
+    <string name="ai_wifi_only">Chỉ Wi-Fi</string>
+    <string name="ai_wifi_only_summary">Chỉ đo thời gian trong nền trên các mạng không giới hạn dữ liệu</string>
     <string name="quality_hourly">%1$s · %2$s</string>
     <string name="quality_per_track">%1$s · %2$s mỗi bài</string>
     <string name="queued">Đã thêm vào hàng đợi</string>

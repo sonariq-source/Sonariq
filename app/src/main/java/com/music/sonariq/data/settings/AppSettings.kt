@@ -850,6 +850,22 @@ object AppSettings {
      */
     val prioritizeSyllableSync = MutableStateFlow(true)
 
+    /**
+     * AI word sync: when no lyrics source has real word timings for a track,
+     * the app may measure them from the track's own audio via a transcription
+     * service. On by default; no key or endpoint is configured in the app —
+     * the credential is supplied at build time (BuildConfig.GROQ_API_KEY),
+     * so in Settings this is just a switch.
+     */
+    val aiWordSyncEnabled = MutableStateFlow(true)
+
+    /**
+     * Whether AI word-sync measurement may only run in the background on
+     * unmetered networks. On by default, like the other background jobs
+     * that spend data on the user's behalf.
+     */
+    val aiWifiOnly = MutableStateFlow(true)
+
     /** User-issued credential required by api.paxsenix.org. */
     val paxSenixApiKey = MutableStateFlow("")
 
@@ -1267,6 +1283,8 @@ object AppSettings {
         lyricsSources.value = readLyricsSources()
         lyricsSourceOrder.value = readLyricsSourceOrder()
         prioritizeSyllableSync.value = prefs.getBoolean(KEY_PRIORITIZE_SYLLABLE_SYNC, true)
+        aiWordSyncEnabled.value = prefs.getBoolean(KEY_AI_WORD_SYNC_ENABLED, true)
+        aiWifiOnly.value = prefs.getBoolean(KEY_AI_WIFI_ONLY, true)
         paxSenixApiKey.value = prefs.getString(KEY_PAXSENIX_API_KEY, "").orEmpty()
         com.music.sonariq.data.lyrics.PaxSenix.setApiKey(paxSenixApiKey.value)
         audioCacheLimitBytes.value = clampCacheLimit(prefs.getLong(KEY_CACHE_LIMIT, DEFAULT_CACHE_LIMIT_BYTES))
@@ -2090,6 +2108,16 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_PRIORITIZE_SYLLABLE_SYNC, value).apply()
     }
 
+    fun setAiWordSyncEnabled(value: Boolean) {
+        aiWordSyncEnabled.value = value
+        prefs.edit().putBoolean(KEY_AI_WORD_SYNC_ENABLED, value).apply()
+    }
+
+    fun setAiWifiOnly(value: Boolean) {
+        aiWifiOnly.value = value
+        prefs.edit().putBoolean(KEY_AI_WIFI_ONLY, value).apply()
+    }
+
     fun setPaxSenixApiKey(value: String) {
         val normalized = com.music.sonariq.data.lyrics.normalizePaxSenixApiKey(value)
         paxSenixApiKey.value = normalized
@@ -2106,6 +2134,8 @@ object AppSettings {
         setLyricsSources(LyricsSource.offered.toSet())
         setLyricsSourceOrder(LyricsSource.offered)
         setPrioritizeSyllableSync(true)
+        setAiWordSyncEnabled(true)
+        setAiWifiOnly(true)
     }
 
     fun setAnimatedCanvas(value: Boolean) {
@@ -2921,6 +2951,8 @@ object AppSettings {
     private const val KEY_LYRICS_SOURCES_SEEN = "lyrics_sources_seen"
     private const val KEY_LYRICS_SOURCE_ORDER = "lyrics_source_order"
     private const val KEY_PRIORITIZE_SYLLABLE_SYNC = "prioritize_syllable_sync"
+    private const val KEY_AI_WORD_SYNC_ENABLED = "ai_word_sync_enabled"
+    private const val KEY_AI_WIFI_ONLY = "ai_wifi_only"
     private const val KEY_PAXSENIX_API_KEY = "paxsenix_api_key"
     private const val KEY_REPLAY_GENRES = "replay_genres"
     private const val KEY_FILTER_NON_MUSIC_AUDIO = "filter_non_music_audio"

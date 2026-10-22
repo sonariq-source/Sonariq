@@ -54,7 +54,7 @@ import java.util.zip.GZIPOutputStream
  * Answers are ranked by [LyricsLookupPolicy.tierOf]: a tier-0 answer (a TTML
  * source, word-synced, with syllables) wins outright, lesser real word sync
  * (tiers 1–3) is held as the best so far while better tiers are hunted, and
- * a merely line-timed answer (tier 4) is taken only as a fallback from the
+ * a merely line-timed answer (tier 5) is taken only as a fallback from the
  * highest-priority source that had it — better a whole line lighting up in
  * sync than the right animation on lyrics that don't exist.
  *
@@ -293,7 +293,7 @@ object LyricsRepository {
         }
 
         try {
-            // The tier-4 fallback: the provisional seed where there is one,
+            // The tier-5 fallback: the provisional seed where there is one,
             // otherwise the first merely line-synced (or plain, or stripped)
             // answer the race turns up. Kept so the panel is never empty
             // while the hunt for real word sync goes on.
@@ -463,7 +463,7 @@ object LyricsRepository {
                         }
                         continue
                     }
-                    // Tier 4: fallback only, as ever — the first one is kept,
+                    // Tier 5: fallback only, as ever — the first one is kept,
                     // except that one which upgrades the provisional seed (or,
                     // past the deadline, upgrades what was surfaced) replaces
                     // it, since the seed exists to be improved on.
@@ -497,7 +497,7 @@ object LyricsRepository {
                 return@coroutineScope deliver(best)
             }
             deadlineResult?.let { surfaced ->
-                // A tier-4 fallback that upgrades what was surfaced is the
+                // A tier-5 fallback that upgrades what was surfaced is the
                 // one late result allowed to replace it; otherwise the
                 // surfaced result stands. Where what was surfaced is the
                 // seed itself, it is returned as-is — never re-delivered.
@@ -826,7 +826,7 @@ object LyricsRepository {
         val timing: String,
         val lines: List<LyricLine>,
         /**
-         * Whether this entry was only provisional (tier 4) when written.
+         * Whether this entry was only provisional (tiers 4–5) when written.
          * Defaulted so payloads written before the field existed — which
          * includes every v1 entry carrying estimated word timings — still
          * decode; they read back as provisional, which their stripped
@@ -904,6 +904,62 @@ object LyricsRepository {
      */
     suspend fun hasFinalLyrics(videoId: String, isrc: String? = null): Boolean =
         readCache(videoId, isrc)?.let { LyricsLookupPolicy.isFinal(it) } == true
+
+    /**
+     * Stores an AI-measured result — word timings [AiLyricAligner] measured
+     * from the track's own audio — over whatever the cache holds for this
+     * track, returning whether it was stored.
+     *
+     * The rules are [LyricsLookupPolicy]'s tiers, applied as a guard rather
+     * than a ranking, because this path runs after the race is over and its
+     * whole risk is overwriting something better:
+     *
+     *  - The incoming result is sanitised exactly as the race's deliver
+     *    step sanitises a winner — estimated words stripped, timing
+     *    recomputed — and
+     *    only a result that still times as
+     *    [LyricTiming.WORD_SYNCED_AI_MEASURED] afterwards is an AI result
+     *    at all. Anything else is refused: this door is not a second way to
+     *    write line sync into the cache.
+     *  - A *final* cache entry (provider word sync, tiers 0–3) is never
+     *    overwritten. Provider timings are the authority; AI timings exist
+     *    only where no provider had any.
+     *  - An entry that already carries AI-measured timings is left alone:
+     *    a second measurement of the same track is the same answer at
+     *    another day's prices, and refusing it keeps a background retry
+     *    loop from re-measuring a track forever.
+     *  - Otherwise the AI result (tier 4) is stored only where it is
+     *    strictly better than what is cached — over a line-synced, plain
+     *    or estimated entry (tier 5), or over nothing at all.
+     *
+     * What is stored stays provisional by construction: tier 4 is not
+     * [LyricsLookupPolicy.isFinal], so [hasFinalLyrics] keeps answering
+     * false for it and every later lookup keeps hunting for provider word
+     * sync to replace it with.
+     *
+     * The check and the write are separate disk operations, each under the
+     * cache's own mutex, as everywhere else in this file — nothing here
+     * holds the lock across a read and a write. What serialises AI stores
+     * for one track in practice is the caller's own in-flight dedupe; two
+     * stores racing anyway can only write AI results over each other or
+     * over a provisional entry, never over a final one that was already on
+     * disk when each of them checked.
+     */
+    suspend fun storeAiResult(videoId: String, isrc: String?, result: Result): Boolean {
+        val lines = result.lines.withoutEstimatedWords()
+        val timed = result.copy(lines = lines, timing = lines.lyricTiming())
+        if (timed.timing != LyricTiming.WORD_SYNCED_AI_MEASURED) return false
+        val existing = readCache(videoId, isrc)
+        if (existing != null) {
+            if (LyricsLookupPolicy.isFinal(existing)) return false
+            if (existing.timing == LyricTiming.WORD_SYNCED_AI_MEASURED) return false
+            if (LyricsLookupPolicy.tierOf(timed) >= LyricsLookupPolicy.tierOf(existing)) {
+                return false
+            }
+        }
+        writeCache(videoId, isrc, timed)
+        return true
+    }
 
     private suspend fun writeCache(videoId: String, isrc: String?, result: Result) =
         withContext(Dispatchers.IO) {

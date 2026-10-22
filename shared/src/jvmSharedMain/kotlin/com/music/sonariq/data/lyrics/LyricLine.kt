@@ -166,6 +166,18 @@ data class LyricLine(
      * Writers (file tags) leave them out.
      */
     val wordsEstimated: Boolean = false,
+    /**
+     * True when [words] were measured from the track's own audio by the AI
+     * alignment fallback rather than supplied by a provider — see
+     * [LyricTiming.WORD_SYNCED_AI_MEASURED] and [AiLyricAligner]. These are
+     * real measurements, not interpolations, so unlike [wordsEstimated] they
+     * are shown as word sync; but a provider's own timings still outrank
+     * them, so a result carrying them stays provisional and keeps being
+     * re-hunted. Writers (file tags) leave them out, like estimated ones:
+     * timings read back off a file present as provider timings and would
+     * settle the hunt this flag exists to keep open.
+     */
+    val wordsAiMeasured: Boolean = false,
 ) {
     val isGap: Boolean get() = text.isEmpty()
 

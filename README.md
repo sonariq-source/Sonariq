@@ -81,6 +81,7 @@
 - **Lyrics translation overlay** — automatic translated subtitle lines in Now Playing (an explicit romanise tap wins over the overlay).
 - **Lock-screen lyrics** — the current line shows right on your lock screen.
 - **Instant lyrics** — your whole queue, home shelves and playlist pages are prefetched before you press play, and your liked songs and favourites are warmed up in the background; lookups surface the best match within seconds, so lyrics are simply there when the song starts.
+- **AI word sync** — if no timed source has a song, Sonariq can measure the word timings from the track's own audio, so every song can word sync.
 - **Reference-style presentation** — the sung word lights up and holds on the beat, lines fade with distance from the active one, auto-scroll glides smoothly, tap any line to seek, and animated dots count down the instrumental breaks.
 
 ### Smart autoplay & AI radio

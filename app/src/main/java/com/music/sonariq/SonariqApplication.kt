@@ -113,6 +113,9 @@ class SonariqApplication : Application(), SingletonImageLoader.Factory {
         // The daily lyrics warmup, armed only while the prefetch switch is on.
         com.music.sonariq.download.LyricsWarmup.init(this)
         com.music.sonariq.download.LyricsWarmup.applySchedule()
+        // AI word sync's context, held the same way: its triggers include
+        // callers with no context of their own to pass.
+        com.music.sonariq.download.AiWordSync.init(this)
         // Massive update integrations: persisted state each subsystem owns,
         // read once before anything else needs it; the download schedulers
         // only arm when their switch is on.

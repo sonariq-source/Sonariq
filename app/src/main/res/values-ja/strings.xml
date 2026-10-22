@@ -428,6 +428,10 @@
     <string name="preview">プレビュー</string>
     <string name="prioritize_syllable_lyrics">音節単位の歌詞を優先</string>
     <string name="prioritize_syllable_lyrics_subtitle">行単位で一致しても、単語ごとの歌詞を求めて検索を続けます</string>
+    <string name="ai_word_sync">AI単語同期</string>
+    <string name="ai_word_sync_summary">どのソースにもない場合、楽曲自体の音声から単語のタイミングを測定します</string>
+    <string name="ai_wifi_only">Wi-Fiのみ</string>
+    <string name="ai_wifi_only_summary">バックグラウンドでは、データ上限のないネットワークでのみタイミングを測定します</string>
     <string name="quality_hourly">%1$s · %2$s</string>
     <string name="quality_per_track">%1$s · 1トラックあたり%2$s</string>
     <string name="queued">待機中</string>

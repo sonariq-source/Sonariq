@@ -136,12 +136,16 @@ private fun LyricLine.enhancedBody(): String {
  * line that is missing everything before the bracket.
  *
  * Estimated words are left out on purpose: a tag is read as measured timing,
- * and these are not.
+ * and these are not. AI-measured words are left out for the mirror-image
+ * reason: they *are* measured, but a tag is read back as a provider's own
+ * timings — final ones — and AI-measured timings are provisional by design,
+ * kept only until a provider's timings replace them. Writing them into a
+ * file would settle a hunt that is supposed to stay open.
  */
 private fun LyricLine.timedRuns(): List<LyricWord> {
-    if (words.isEmpty() || wordsEstimated) return emptyList()
+    if (words.isEmpty() || wordsEstimated || wordsAiMeasured) return emptyList()
     val answer = background?.let { bg ->
-        if (bg.wordsEstimated) emptyList()
+        if (bg.wordsEstimated || bg.wordsAiMeasured) emptyList()
         else bg.words.ifEmpty {
             if (bg.text.isBlank()) emptyList() else listOf(LyricWord(bg.timeMs, bg.endMs, bg.text))
         }

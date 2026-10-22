@@ -63,15 +63,22 @@ object LyricsLookupPolicy {
      *  - 1: a [TTML_SOURCES] result with true word sync.
      *  - 2: any other source's true word sync, with syllable timings.
      *  - 3: any other source's true word sync.
-     *  - 4: everything else — line sync, plain text, and
+     *  - 4: [LyricTiming.WORD_SYNCED_AI_MEASURED] — word timings measured
+     *    from the track's own audio by the AI alignment fallback. Real
+     *    measurements, so they sit above line sync, but no provider
+     *    supplied them, so they sit below every provider tier.
+     *  - 5: everything else — line sync, plain text, and
      *    [LyricTiming.WORD_SYNCED_ESTIMATED], which is not real word sync
      *    and so earns no tier of its own.
      *
-     * Only tiers 0–3 are final (see [isFinal]): a tier-4 result is worth
-     * showing, but the lookup keeps hunting for a real word-synced one.
+     * Only tiers 0–3 are final (see [isFinal]): a tier-4 or tier-5 result
+     * is worth showing, but the lookup keeps hunting for a real
+     * word-synced one — which is what lets provider timings replace
+     * AI-measured ones whenever they turn up.
      */
     fun tierOf(result: LyricsRepository.Result): Int {
-        if (result.timing != LyricTiming.WORD_SYNCED) return 4
+        if (result.timing == LyricTiming.WORD_SYNCED_AI_MEASURED) return 4
+        if (result.timing != LyricTiming.WORD_SYNCED) return 5
         val fromTtml = result.source in TTML_SOURCES
         val syllables = hasSyllables(result)
         return when {
@@ -85,18 +92,23 @@ object LyricsLookupPolicy {
     /** True when [result] is real word sync — tiers 0–3 of [tierOf]. */
     fun isFinal(result: LyricsRepository.Result): Boolean = tierOf(result) <= 3
 
-    /** True when [result] is only line sync, plain, or estimated — tier 4. */
+    /**
+     * True when [result] is AI-measured word sync, line sync, plain, or
+     * estimated — tiers 4–5 of [tierOf].
+     */
     fun isProvisional(result: LyricsRepository.Result): Boolean = !isFinal(result)
 
     /**
      * Strength of a result's timing bucket alone, for telling two results
-     * in the same [tierOf] tier apart. True word timings outrank line sync,
-     * which outranks plain text. Estimated word timings rank no higher than
-     * the line sync they were derived from: they are that line sync, with
-     * a guess laid over it, not a timing of their own.
+     * in the same [tierOf] tier apart. Provider word timings outrank
+     * AI-measured ones, which outrank line sync, which outranks plain
+     * text. Estimated word timings rank no higher than the line sync they
+     * were derived from: they are that line sync, with a guess laid over
+     * it, not a timing of their own.
      */
     fun timingRank(timing: LyricTiming): Int = when (timing) {
         LyricTiming.WORD_SYNCED -> 3
+        LyricTiming.WORD_SYNCED_AI_MEASURED -> 2
         LyricTiming.LINE_SYNCED -> 1
         LyricTiming.WORD_SYNCED_ESTIMATED -> 1
         LyricTiming.PLAIN -> 0
@@ -127,14 +139,15 @@ object LyricsLookupPolicy {
      * tier wins, and priority order breaks ties within a tier — in both
      * prioritization modes, since the tiers already encode what
      * prioritization is for, and within a shared tier (plain and
-     * line-synced results are both tier 4) there is no further shortcut:
+     * line-synced results are both tier 5) there is no further shortcut:
      * the higher-priority result is the winner. [fallback] competes as a
      * candidate ahead of the completed results, so it is itself beaten
      * only by a strictly better tier and otherwise stands — that is what
      * keeps a merely provisional fallback (or a provisional cache seed,
      * passed in as the fallback) on screen until something genuinely
-     * better has completed. A tier-4 winner may still surface this way —
-     * it is worth reading, it just is not final. Null results (misses) are
+     * better has completed. A tier-4 or tier-5 winner may still surface
+     * this way — it is worth reading, it just is not final. Null results
+     * (misses) are
      * skipped, and a result that has not completed yet is simply absent
      * from [completedInOrder] — never guessed at.
      *

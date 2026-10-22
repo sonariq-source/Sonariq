@@ -298,6 +298,8 @@ fun SettingsScreen(
     val lockscreenLyrics by AppSettings.lockscreenLyrics.collectAsStateWithLifecycle()
     val translationLanguage by AppSettings.translationLanguage.collectAsStateWithLifecycle()
     val lyricsTranslationOverlay by AppSettings.lyricsTranslationOverlay.collectAsStateWithLifecycle()
+    val aiWordSyncEnabled by AppSettings.aiWordSyncEnabled.collectAsStateWithLifecycle()
+    val aiWifiOnly by AppSettings.aiWifiOnly.collectAsStateWithLifecycle()
     val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
     val accent by AppSettings.accentColor.collectAsStateWithLifecycle()
     val customAccentArgb by AppSettings.customAccentArgb.collectAsStateWithLifecycle()
@@ -1984,6 +1986,46 @@ fun SettingsScreen(
                         },
                         onClick = { AppSettings.setLyricsTranslationOverlay(!lyricsTranslationOverlay) },
                     )
+                }
+                val aiWordSyncTitle = stringResource(R.string.ai_word_sync)
+                row(aiWordSyncTitle, "lyrics", "ai", "word", "sync") {
+                    SettingsRow(
+                        icon = Icons.Rounded.AutoAwesome,
+                        title = aiWordSyncTitle,
+                        subtitle = stringResource(R.string.ai_word_sync_summary),
+                        trailing = {
+                            Switch(
+                                checked = aiWordSyncEnabled,
+                                onCheckedChange = AppSettings::setAiWordSyncEnabled,
+                                colors = SwitchDefaults.colors(
+                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            )
+                        },
+                        onClick = { AppSettings.setAiWordSyncEnabled(!aiWordSyncEnabled) },
+                    )
+                }
+                if (aiWordSyncEnabled) {
+                    val aiWifiOnlyTitle = stringResource(R.string.ai_wifi_only)
+                    row(aiWifiOnlyTitle, "lyrics", "ai", "wifi", "wi-fi") {
+                        SettingsRow(
+                            icon = Icons.Rounded.Wifi,
+                            title = aiWifiOnlyTitle,
+                            subtitle = stringResource(R.string.ai_wifi_only_summary),
+                            trailing = {
+                                Switch(
+                                    checked = aiWifiOnly,
+                                    onCheckedChange = AppSettings::setAiWifiOnly,
+                                    colors = SwitchDefaults.colors(
+                                        checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                        checkedBorderColor = MaterialTheme.colorScheme.primary,
+                                    ),
+                                )
+                            },
+                            onClick = { AppSettings.setAiWifiOnly(!aiWifiOnly) },
+                        )
+                    }
                 }
             }
             // Home sections that learn: the feed order follows what gets
