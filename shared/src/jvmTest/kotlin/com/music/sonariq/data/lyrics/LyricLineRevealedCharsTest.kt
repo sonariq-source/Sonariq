@@ -55,6 +55,35 @@ class LyricLineRevealedCharsTest {
     }
 
     @Test
+    fun `syllable timings pace the reveal within a word`() {
+        // "enough" split the way a TTML provider splits it: "e" sung over
+        // 31839-31996, "nough" held over 31996-32529. The reveal must follow
+        // the syllables, not a linear wipe across the whole word.
+        val l = LyricLine(
+            timeMs = 31_839,
+            text = "enough",
+            words = listOf(
+                LyricWord(
+                    31_839, 32_529, "enough",
+                    listOf(
+                        LyricSyllable(31_839, 31_996, 0, 1),
+                        LyricSyllable(31_996, 32_529, 1, 6),
+                    ),
+                ),
+            ),
+        )
+        // Mid first syllable: half of "e" is sung. A whole-word linear wipe
+        // would already claim ~0.68 chars here, so this pins the syllable pace.
+        assertEquals(0.5f, l.revealedChars(31_917), 0.01f)
+        // Exactly on the syllable boundary: exactly "e" revealed.
+        assertEquals(1f, l.revealedChars(31_996))
+        // Mid second syllable: "e" plus half of "nough".
+        assertEquals(3.5f, l.revealedChars(32_262), 0.01f)
+        // The sweep crosses one span per syllable.
+        assertEquals(listOf(0..0, 1..5), l.sweepSpans)
+    }
+
+    @Test
     fun `line without words lights whole at its stamp`() {
         val l = LyricLine(timeMs = 1000L, text = "plain line")
         assertEquals(0f, l.revealedChars(999L))

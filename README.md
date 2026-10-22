@@ -73,7 +73,7 @@
 - **Data saver** — streaming quality cap plus WiFi-only mode.
 
 ### Synced lyrics
-- **Word-synced lyrics** — true word timings with clean highlighting.
+- **Word-synced lyrics** — real per-word and per-syllable timings, never estimated or interpolated. TTML timings are hunted first for every track; if a song only has line timings at first, Sonariq keeps looking in the background and upgrades it the moment real word timings are found.
 - **Fully automatic** — every provider is raced in parallel; the best sync wins with zero setup.
 - **Smart timing** — cross-checks providers so the first line never jumps the gun on instrumental intros.
 - **Clean UI** — no provider badges, no sync estimates. Just the words.

@@ -94,7 +94,7 @@ enum class LyricsSource(
     YOUTUBE_TRANSCRIPT(
         label = "YouTube captions",
         detail = "Timed captions matched to the exact playing video",
-        wordSynced = false,
+        wordSynced = true,
     ),
     YOUTUBE_MUSIC(
         label = "YouTube Music",
@@ -109,8 +109,8 @@ enum class LyricsSource(
     ),
     KUGOU(
         label = "KuGou",
-        detail = "Whole lines, strong outside the English catalogue",
-        wordSynced = false,
+        detail = "KRC word timings with whole-line fallback, strong outside the English catalogue",
+        wordSynced = true,
     ),
     LRCLIB(
         label = "LRCLIB",
@@ -119,8 +119,8 @@ enum class LyricsSource(
     ),
     MUSIXMATCH(
         label = "Musixmatch",
-        detail = "Whole lines, from the biggest lyrics database there is",
-        wordSynced = false,
+        detail = "Rich-sync word timings with whole-line fallback, from the biggest lyrics database there is",
+        wordSynced = true,
     ),
     GENIUS(
         label = "Genius",

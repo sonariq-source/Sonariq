@@ -347,10 +347,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         album: String? = null,
         localUri: String? = null,
     ) {
-        // Fully automatic: every provider is always asked, in the built-in best
-        // order, word-sync preferred. No provider settings — it just works.
+        // The same chain as playback and prefetch: the user's enabled
+        // sources, in their order, with their word-sync preference.
         val sources = if (AppSettings.syncedLyrics.value) {
-            LyricsSource.entries.toSet()
+            AppSettings.lyricsSources.value
         } else {
             emptySet()
         }
@@ -406,7 +406,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
             val found = LyricsRepository.lyrics(
                 videoId, title, artist, durationMs, album, sources,
-                LyricsSource.entries, true,
+                AppSettings.lyricsSourceOrder.value,
+                AppSettings.prioritizeSyllableSync.value,
                 onSourceStarted = { source -> providerStarted(generation, source) },
                 onSourceResult = { source, result ->
                     providerFinished(generation, source, result)

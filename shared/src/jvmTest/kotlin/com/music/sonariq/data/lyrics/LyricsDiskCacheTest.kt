@@ -142,6 +142,142 @@ class LyricsDiskCacheTest {
         assertFalse(LyricsRepository.isKnownMiss("video-other", null))
     }
 
+    /** Writes a cache entry as a raw payload, exactly as [readCacheReadsWhatWasWritten] does. */
+    private fun writeCacheEntry(root: File, videoId: String, payload: String) {
+        val key = LyricsRepository.cacheKey(videoId, null)!!
+        val directory = File(root, "lyrics_v1")
+        check(directory.mkdirs())
+        GZIPOutputStream(File(directory, "$key.json.gz").outputStream()).bufferedWriter().use {
+            it.write(payload)
+        }
+    }
+
+    /** A v1-shaped payload: no `provisional` / `storedAtMs` fields, as 2.24 wrote it. */
+    private fun cachePayload(
+        source: LyricsSource,
+        timing: LyricTiming,
+        lines: List<LyricLine>,
+    ): String = buildString {
+        append("""{"version":1,"source":"${source.name}","timing":"${timing.name}","lines":""")
+        append(json.encodeToString(lines))
+        append('}')
+    }
+
+    @Test
+    fun cachedWordSyncedEntryCountsAsFinal() = runBlocking {
+        val root = Files.createTempDirectory("lyrics-cache-test").toFile()
+        val lines = listOf(
+            LyricLine(
+                timeMs = 4_000,
+                text = "verse",
+                words = listOf(LyricWord(4_000, 4_600, "verse")),
+                sungUntilMs = 8_000,
+            ),
+        )
+        writeCacheEntry(
+            root,
+            "video-final",
+            cachePayload(LyricsSource.LRCLIB, LyricTiming.WORD_SYNCED, lines),
+        )
+
+        LyricsRepository.cacheDir = root
+        assertTrue(LyricsRepository.hasFinalLyrics("video-final"))
+        assertTrue(LyricsRepository.hasFinalLyrics("video-final", null))
+        assertFalse(LyricsRepository.hasFinalLyrics("video-absent"))
+    }
+
+    @Test
+    fun cachedLineSyncedEntryIsProvisionalButStillReadable() = runBlocking {
+        val root = Files.createTempDirectory("lyrics-cache-test").toFile()
+        val lines = listOf(
+            LyricLine(timeMs = 4_000, text = "verse", sungUntilMs = 8_000),
+        )
+        writeCacheEntry(
+            root,
+            "video-provisional",
+            cachePayload(LyricsSource.LRCLIB, LyricTiming.LINE_SYNCED, lines),
+        )
+
+        LyricsRepository.cacheDir = root
+        // Not final: a later lookup may re-hunt for real word sync.
+        assertFalse(LyricsRepository.hasFinalLyrics("video-provisional"))
+        // But the cached lines still read back for instant display.
+        val hit = LyricsRepository.readCache("video-provisional", null)
+        checkNotNull(hit)
+        assertEquals(lines, hit.lines)
+        assertEquals(LyricTiming.LINE_SYNCED, hit.timing)
+    }
+
+    @Test
+    fun legacyEstimatedEntryIsSanitisedOnRead() = runBlocking {
+        val root = Files.createTempDirectory("lyrics-cache-test").toFile()
+        // A legacy entry written before estimated words were dropped: the
+        // lines carry interpolated words and say so.
+        val lines = listOf(
+            LyricLine(
+                timeMs = 4_000,
+                text = "verse",
+                words = listOf(LyricWord(4_000, 4_600, "verse")),
+                sungUntilMs = 8_000,
+                background = LyricLine(
+                    timeMs = 4_500,
+                    text = "(ooh)",
+                    words = listOf(LyricWord(4_500, 5_200, "(ooh)")),
+                    wordsEstimated = true,
+                ),
+                wordsEstimated = true,
+            ),
+        )
+        writeCacheEntry(
+            root,
+            "video-legacy",
+            cachePayload(LyricsSource.LRCLIB, LyricTiming.WORD_SYNCED_ESTIMATED, lines),
+        )
+
+        LyricsRepository.cacheDir = root
+        val hit = LyricsRepository.readCache("video-legacy", null)
+
+        checkNotNull(hit)
+        val line = hit.lines.single()
+        // The invented words are gone, on the lead line and its background.
+        assertTrue(line.words.isEmpty())
+        assertFalse(line.wordsEstimated)
+        val background = checkNotNull(line.background)
+        assertTrue(background.words.isEmpty())
+        assertFalse(background.wordsEstimated)
+        // And the timing is honestly recomputed as line sync, not word sync.
+        assertEquals(LyricTiming.LINE_SYNCED, hit.timing)
+        assertFalse(LyricsRepository.hasFinalLyrics("video-legacy"))
+    }
+
+    @Test
+    fun v1PayloadWithoutProvisionalFieldsStillDecodes() = runBlocking {
+        val root = Files.createTempDirectory("lyrics-cache-test").toFile()
+        val lines = listOf(
+            LyricLine(
+                timeMs = 4_000,
+                text = "verse",
+                words = listOf(LyricWord(4_000, 4_600, "verse")),
+                sungUntilMs = 8_000,
+            ),
+        )
+        // cachePayload carries only the v1 fields (version/source/timing/
+        // lines) — nothing named provisional or storedAtMs.
+        writeCacheEntry(
+            root,
+            "video-v1",
+            cachePayload(LyricsSource.LRC_RED, LyricTiming.WORD_SYNCED, lines),
+        )
+
+        LyricsRepository.cacheDir = root
+        val hit = LyricsRepository.readCache("video-v1", null)
+
+        checkNotNull(hit)
+        assertEquals(LyricsSource.LRC_RED, hit.source)
+        assertEquals(lines, hit.lines)
+        assertEquals(LyricTiming.WORD_SYNCED, hit.timing)
+    }
+
     @Test
     fun knownMissExpiresDiskEntryPastTtl() = runBlocking {
         val root = Files.createTempDirectory("lyrics-miss-test").toFile()

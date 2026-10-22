@@ -39,8 +39,8 @@ import java.util.zip.GZIPOutputStream
  *  - [SimpMusicLyrics] — keyed on the video id, so it can't fetch the wrong edit.
  *  - [Unison] — contributed rather than licensed; thin, and occasionally the
  *    only place a track exists.
- *  - [LrcLib], [Musixmatch], [KuGou] — line-synced only, but between them
- *    almost always up, and [KuGou] carries a lot that the others don't.
+ *  - [LrcLib], [Musixmatch], [KuGou] — between them almost always up, and
+ *    [KuGou] carries a lot that the others don't.
  *
  * Every enabled source is asked *at the same time*, but their answers are
  * taken in [order]: the loop awaits them one at a time in that sequence, so a
@@ -51,9 +51,12 @@ import java.util.zip.GZIPOutputStream
  * eight of them. Run together, a miss costs whatever the slowest one needed
  * to still be waited on took.
  *
- * A word-timed answer wins outright. Failing that, a line-timed one is taken
- * from the highest-priority source that had it — better a whole line lighting
- * up in sync than the right animation on lyrics that don't exist.
+ * Answers are ranked by [LyricsLookupPolicy.tierOf]: a tier-0 answer (a TTML
+ * source, word-synced, with syllables) wins outright, lesser real word sync
+ * (tiers 1–3) is held as the best so far while better tiers are hunted, and
+ * a merely line-timed answer (tier 4) is taken only as a fallback from the
+ * highest-priority source that had it — better a whole line lighting up in
+ * sync than the right animation on lyrics that don't exist.
  *
  * ### Matching on the recording
  *
@@ -79,9 +82,11 @@ import java.util.zip.GZIPOutputStream
  *
  * Winners are kept on disk keyed by video id (ISRC as the fallback), gzipped
  * beside the translation cache under [CACHE_DIRECTORY], so a track asked about
- * twice pays the providers once. A cache hit reads back byte-for-byte what the
- * providers returned, including which [LyricTiming] bucket it fell into — it
- * never invents lyrics. Where [cacheDir] is null, everything stays in memory.
+ * twice pays the providers once. A final cache hit settles a lookup outright;
+ * a provisional one only seeds it, and the providers are raced again for real
+ * word sync. Reads never invent lyrics — estimated word timings left over in
+ * an old entry are stripped, not trusted. Where [cacheDir] is null, everything
+ * stays in memory.
  */
 object LyricsRepository {
 
@@ -135,10 +140,11 @@ object LyricsRepository {
         deadlineMs: Long? = null,
         /**
          * Called at most once, when [deadlineMs] passes with a matched
-         * result already in hand. The lookup keeps racing afterwards: the
-         * returned value is the final winner, which may be a better
-         * (word-synced) upgrade over the deadline result. Only results that
-         * passed the race's own matching are ever reported here.
+         * result already in hand. The lookup keeps racing afterwards (unless
+         * the deadline result was tier 0, which settles it): the returned
+         * value is the final winner, which may be an upgrade
+         * ([LyricsLookupPolicy.isUpgrade]) over the deadline result. Only
+         * results that passed the race's own matching are ever reported here.
          */
         onDeadlineResult: ((Result) -> Unit)? = null,
     ): Result? {
@@ -236,8 +242,18 @@ object LyricsRepository {
         // out last time, and both beat asking again.
         val known = isrc?.takeIf { it.isNotBlank() } ?: isrcs[videoId]
         // Already asked about this one: the disk cache answers before any
-        // provider is even started, so a repeat lookup costs no round trips.
-        readCache(videoId, known)?.let { return@coroutineScope it }
+        // provider is even started, so a repeat lookup costs no round trips
+        // — but only a final entry (real word sync, tiers 0–3 of
+        // [LyricsLookupPolicy.tierOf]) settles the lookup outright. A
+        // provisional entry (line sync, plain, or stripped estimated words)
+        // is kept as the seed: it seeds the fallback below, so the player
+        // can surface it through the deadline path, while the race keeps
+        // hunting for a final result to replace it with.
+        var provisionalSeed: Result? = null
+        readCache(videoId, known)?.let { cached ->
+            if (LyricsLookupPolicy.isFinal(cached)) return@coroutineScope cached
+            provisionalSeed = cached
+        }
         val hit = if (known == null) {
             identify(videoId, searchTitle, searchArtist, durationMs, album, sequence)
         } else {
@@ -277,14 +293,22 @@ object LyricsRepository {
         }
 
         try {
-            var lineSynced: Result? = null
+            // The tier-4 fallback: the provisional seed where there is one,
+            // otherwise the first merely line-synced (or plain, or stripped)
+            // answer the race turns up. Kept so the panel is never empty
+            // while the hunt for real word sync goes on.
+            var lineSynced: Result? = provisionalSeed
+            // The best final (tiers 1–3) answer so far. Tier 0 returns the
+            // moment it lands, so it is never stored here.
+            var bestFinal: Result? = null
             // Writes a winner through to the disk cache before handing it up,
             // so the next lookup for this track skips the providers entirely.
-            // the owner: no interpolated word timings — if the winner has real
-            // word sync it stays word-synced; if it's line-synced it stays
-            // line-synced. Fake word timings are worse than honest lines.
+            // Estimated word timings are stripped first and the timing is
+            // recomputed from what is left: if the winner has real word sync
+            // it stays word-synced; if it is line-synced it stays line-synced.
+            // Fake word timings are worse than honest lines.
             suspend fun deliver(result: Result): Result {
-                val lines = result.lines
+                val lines = result.lines.withoutEstimatedWords()
                 val timed = result.copy(lines = lines, timing = lines.lyricTiming())
                 writeCache(videoId, recording, timed)
                 return timed
@@ -295,10 +319,10 @@ object LyricsRepository {
             // its deadline with it. When the deadline passes, the best
             // result that has *already* matched is surfaced through
             // [emitDeadline] instead of the panel waiting on the slowest
-            // straggler; the race then keeps going, and only a better-timed
-            // (word-synced) result can replace what was surfaced — the
-            // upgrade path below. Pure background lookups never have a
-            // deadline requested, so for them the waits below are the
+            // straggler; the race then keeps going, and only an upgrade
+            // ([LyricsLookupPolicy.isUpgrade]) over what was surfaced can
+            // replace it — the upgrade path below. Pure background lookups
+            // never have a deadline requested, so for them the waits below are the
             // original unbounded ones, in short slices so a deadline
             // requested mid-wait is still honoured.
             var deadlineResult: Result? = null
@@ -324,19 +348,37 @@ object LyricsRepository {
                     prioritizeSyllableSync = prioritizeSyllableSync,
                     fallback = lineSynced,
                 ) ?: return
-                val delivered = deliver(best)
+                // Surfacing the provisional seed itself writes nothing: the
+                // seed is already the cache entry, and returning it later
+                // must not refresh it — only a genuinely better race result
+                // is delivered (and so written) over it.
+                val delivered = if (best === provisionalSeed) best else deliver(best)
                 deadlineResult = delivered
                 emitDeadline(delivered)
-                // A word-synced deadline result is the best this race can
-                // ever produce; the caller's return value is already decided.
-                if (delivered.lines.any { it.isWordSynced }) {
+                // A tier-0 deadline result (a TTML source, word-synced,
+                // with syllables) is the best this race can ever produce;
+                // the caller's return value is already decided. Any other
+                // tier leaves the race running for an upgrade.
+                if (LyricsLookupPolicy.tierOf(delivered) == 0) {
                     throw DeadlineSettled(delivered)
                 }
             }
             try {
                 for ((source, job) in racing) {
-                    // If we already found a line-synced or better result, skip Genius completely
-                    if ((lineSynced != null || deadlineResult != null) &&
+                    // Once a final result is in hand, a source that cannot
+                    // return word timings can never upgrade it, so there is
+                    // nothing to wait on: skip awaiting it (its job, already
+                    // started, is cancelled with the other losers below).
+                    // The race keeps hunting only while word-capable sources
+                    // remain unresolved.
+                    if (bestFinal != null && !source.wordSynced) {
+                        continue
+                    }
+                    // If we already found a line-synced or better result, skip Genius completely.
+                    // Genius is started lazily, so skipping it here is also
+                    // what keeps it from ever being started once a final
+                    // result (or any result at all) exists.
+                    if ((lineSynced != null || deadlineResult != null || bestFinal != null) &&
                         source == LyricsSource.GENIUS
                     ) {
                         continue
@@ -348,7 +390,8 @@ object LyricsRepository {
                         while (true) {
                             if (deadlineFired) {
                                 // Past the deadline: keep collecting, but
-                                // only a word-synced upgrade is acted on.
+                                // only an upgrade over what was surfaced is
+                                // acted on.
                                 return runCatching { job.await() }.getOrNull()
                             }
                             val deadlineAt = deadlineAtNanos()
@@ -382,29 +425,104 @@ object LyricsRepository {
                     }
                     val found = awaitJob()
                     if (found == null) continue
-                    if (found.lines.any { it.isWordSynced }) {
+                    val tier = LyricsLookupPolicy.tierOf(found)
+                    if (tier == 0) {
+                        // The best tier there is: nothing still racing can
+                        // beat it, so the lookup is decided.
                         return@coroutineScope deliver(found)
                     }
-                    if (deadlineResult != null) {
-                        // Something is already on screen; a merely
-                        // line-synced latecomer is not an upgrade.
-                        if (lineSynced == null) lineSynced = found
+                    if (tier <= 3) {
+                        // A final result. Without syllable prioritization the
+                        // first timed answer was always taken as-is, and a
+                        // word-synced one was taken outright — keep that
+                        // early return. Otherwise hold it as the best so far
+                        // (an upgrade only when strictly better than the best
+                        // held, and, where the deadline already surfaced
+                        // something, only when it upgrades that too) and keep
+                        // hunting for a better tier while word-capable
+                        // sources remain.
+                        if (!prioritizeSyllableSync) {
+                            // Past the deadline, that early return is an
+                            // upgrade claim over what was surfaced, so it is
+                            // held to the same isUpgrade test as everything
+                            // else; before it, it is unconditional, as ever.
+                            val surfacedBefore = deadlineResult
+                            if (surfacedBefore == null ||
+                                LyricsLookupPolicy.isUpgrade(surfacedBefore, found)
+                            ) {
+                                return@coroutineScope deliver(found)
+                            }
+                            continue
+                        }
+                        val surfaced = deadlineResult
+                        if ((surfaced == null ||
+                                LyricsLookupPolicy.isUpgrade(surfaced, found)) &&
+                            LyricsLookupPolicy.isUpgrade(bestFinal, found)
+                        ) {
+                            bestFinal = found
+                        }
                         continue
                     }
-                    if (!prioritizeSyllableSync && found.lines.any { it.timeMs > 0 }) {
+                    // Tier 4: fallback only, as ever — the first one is kept,
+                    // except that one which upgrades the provisional seed (or,
+                    // past the deadline, upgrades what was surfaced) replaces
+                    // it, since the seed exists to be improved on.
+                    if (!prioritizeSyllableSync && deadlineResult == null &&
+                        found.lines.any { it.timeMs > 0 }
+                    ) {
                         return@coroutineScope deliver(found)
                     }
-                    if (lineSynced == null) lineSynced = found
+                    when {
+                        lineSynced == null -> lineSynced = found
+                        lineSynced === provisionalSeed &&
+                            LyricsLookupPolicy.isUpgrade(lineSynced, found) ->
+                            lineSynced = found
+                        deadlineResult != null &&
+                            LyricsLookupPolicy.isUpgrade(deadlineResult, found) &&
+                            LyricsLookupPolicy.isUpgrade(lineSynced, found) ->
+                            lineSynced = found
+                    }
                 }
             } catch (settled: DeadlineSettled) {
                 return@coroutineScope settled.result
             }
-            lineSynced?.let { return@coroutineScope deliver(it) }
-            deadlineResult?.let { return@coroutineScope it }
+            bestFinal?.let { best ->
+                val surfaced = deadlineResult
+                // A held final result replaces what the deadline surfaced
+                // only as an upgrade over it; anything else leaves the
+                // surfaced (already delivered) result as the answer.
+                if (surfaced != null && !LyricsLookupPolicy.isUpgrade(surfaced, best)) {
+                    return@coroutineScope surfaced
+                }
+                return@coroutineScope deliver(best)
+            }
+            deadlineResult?.let { surfaced ->
+                // A tier-4 fallback that upgrades what was surfaced is the
+                // one late result allowed to replace it; otherwise the
+                // surfaced result stands. Where what was surfaced is the
+                // seed itself, it is returned as-is — never re-delivered.
+                val fallback = lineSynced
+                if (fallback != null && fallback !== provisionalSeed &&
+                    LyricsLookupPolicy.isUpgrade(surfaced, fallback)
+                ) {
+                    return@coroutineScope deliver(fallback)
+                }
+                return@coroutineScope surfaced
+            }
+            lineSynced?.let { fallback ->
+                // The provisional seed, unimproved on: hand it back exactly
+                // as it was read, without rewriting its cache entry (no
+                // stored-at refresh for a result the race did not better).
+                if (fallback === provisionalSeed) return@coroutineScope fallback
+                return@coroutineScope deliver(fallback)
+            }
             // Every provider was asked and none matched: a genuine miss,
             // remembered so reopening this track answers promptly instead
-            // of re-running the whole race. An empty source set is a
-            // settings state, not a miss, and is never remembered.
+            // of re-running the whole race. A provisional seed or any other
+            // result above has already returned by now, so reaching here
+            // means there was no result at all — a seed is never a miss.
+            // An empty source set is a settings state, not a miss, and is
+            // never remembered.
             if (sequence.isNotEmpty()) recordMiss(videoId, recording)
             null
         } finally {
@@ -530,7 +648,7 @@ object LyricsRepository {
     /** Slice for waits that have no deadline yet; see the race loop. */
     private const val DEADLINE_POLL_MS = 250L
 
-    /** Control flow for a deadline that surfaced a word-synced winner. */
+    /** Control flow for a deadline that surfaced a tier-0 winner. */
     private class DeadlineSettled(val result: Result) : Exception()
 
     /** One caller's provider-attempt callbacks, fanned out from a shared race. */
@@ -707,6 +825,16 @@ object LyricsRepository {
         val source: String,
         val timing: String,
         val lines: List<LyricLine>,
+        /**
+         * Whether this entry was only provisional (tier 4) when written.
+         * Defaulted so payloads written before the field existed — which
+         * includes every v1 entry carrying estimated word timings — still
+         * decode; they read back as provisional, which their stripped
+         * contents are. [CACHE_VERSION] is deliberately not bumped.
+         */
+        val provisional: Boolean = true,
+        /** When this entry was written, in epoch milliseconds; 0 if unknown. */
+        val storedAtMs: Long = 0L,
     )
 
     /**
@@ -727,9 +855,15 @@ object LyricsRepository {
     /**
      * Whatever a previous lookup cached for this track, or null.
      *
-     * A hit skips the providers entirely — the lines are byte-for-byte what
-     * they returned, nothing invented — and is read only after [cacheKey]
-     * matches, so a wrong song never reads another's lyrics. Never throws.
+     * A hit is read only after [cacheKey] matches, so a wrong song never
+     * reads another's lyrics. The stored lines are sanitised on the way out
+     * — estimated word timings stripped by [withoutEstimatedWords] — and
+     * where stripping changed anything the timing is recomputed from the
+     * sanitised lines rather than trusted from the file, so a legacy entry
+     * written while estimated timings still circulated comes back as the
+     * honest line sync it always was, never as word sync. An entry nothing
+     * was stripped from reads back with the timing it was stored with.
+     * Nothing is invented. Never throws.
      */
     suspend fun readCache(videoId: String, isrc: String?): Result? =
         withContext(Dispatchers.IO) {
@@ -745,14 +879,31 @@ object LyricsRepository {
                     // Old format, or a source the enum no longer knows.
                     if (cached.version != CACHE_VERSION) return@runCatching null
                     file.setLastModified(System.currentTimeMillis())
+                    val lines = cached.lines.withoutEstimatedWords()
                     Result(
                         source = LyricsSource.valueOf(cached.source),
-                        lines = cached.lines,
-                        timing = LyricTiming.valueOf(cached.timing),
+                        lines = lines,
+                        // Recomputed only where stripping changed the
+                        // lines: a stored WORD_SYNCED_ESTIMATED must not
+                        // survive its words being taken out.
+                        timing = if (lines != cached.lines) {
+                            lines.lyricTiming()
+                        } else {
+                            LyricTiming.valueOf(cached.timing)
+                        },
                     )
                 }.getOrNull()
             }
         }
+
+    /**
+     * Whether the disk cache already holds a *final* entry for this track —
+     * real word sync, tiers 0–3 of [LyricsLookupPolicy.tierOf]. A merely
+     * provisional cached entry (line sync, plain, or stripped estimated
+     * words) does not count: a lookup for it still has hunting to do.
+     */
+    suspend fun hasFinalLyrics(videoId: String, isrc: String? = null): Boolean =
+        readCache(videoId, isrc)?.let { LyricsLookupPolicy.isFinal(it) } == true
 
     private suspend fun writeCache(videoId: String, isrc: String?, result: Result) =
         withContext(Dispatchers.IO) {
@@ -768,6 +919,8 @@ object LyricsRepository {
                         source = result.source.name,
                         timing = result.timing.name,
                         lines = result.lines,
+                        provisional = LyricsLookupPolicy.isProvisional(result),
+                        storedAtMs = System.currentTimeMillis(),
                     )
                     GZIPOutputStream(FileOutputStream(temporary)).bufferedWriter().use {
                         it.write(json.encodeToString(payload))

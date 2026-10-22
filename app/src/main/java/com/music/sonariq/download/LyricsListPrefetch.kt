@@ -55,7 +55,7 @@ object LyricsListPrefetch {
         // The cache and miss checks are suspend and the planner's probe is
         // not, so they happen up front, as in the queue prefetch.
         val uncached = candidates.filter { candidate ->
-            LyricsRepository.readCache(candidate.videoId, null) == null &&
+            !LyricsRepository.hasFinalLyrics(candidate.videoId, null) &&
                 !LyricsRepository.isKnownMiss(candidate.videoId)
         }
         val plan = planListPrefetch(uncached) { false }

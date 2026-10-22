@@ -7230,14 +7230,14 @@ class PlaybackService : MediaLibraryService() {
                     )
                 }
                 if (upcoming.isEmpty()) return@launch
-                // [LyricsRepository.readCache] is suspend and the planner's
+                // [LyricsRepository.hasFinalLyrics] is suspend and the planner's
                 // isCached probe is not, so the cache check happens here, up
                 // front, and the planner sees only what still needs looking
                 // up. In-flight ids go the same way — a replanned pass never
                 // starts a second fetch for a track already being fetched.
                 val uncached = upcoming.filter { candidate ->
                     candidate.videoId !in lyricsPrefetchInFlight &&
-                        LyricsRepository.readCache(candidate.videoId, null) == null &&
+                        !LyricsRepository.hasFinalLyrics(candidate.videoId, null) &&
                         !LyricsRepository.isKnownMiss(candidate.videoId)
                 }
                 val plan = planPrefetch(uncached, currentIndex = -1, cap = LYRICS_PREFETCH_LOOKAHEAD) { false }

@@ -159,10 +159,11 @@ data class LyricLine(
     val timingSource: LyricLine? = null,
     /**
      * True when [words] were interpolated from the line's window rather than
-     * measured by a provider — see [withInterpolatedWordTimings]. The sweep
-     * treats them like any words, but nothing may present them as measured:
-     * the result's [LyricTiming] drops to WORD_SYNCED_ESTIMATED, the player
-     * says so, and writers (file tags) leave them out.
+     * measured by a provider — see [LyricTiming.WORD_SYNCED_ESTIMATED]. Only
+     * legacy cached or downloaded data carries this now: the interpolator is
+     * gone, and [LyricsRepository] strips such words on the way in (see
+     * [withoutEstimatedWords]) so nothing presents them as measured.
+     * Writers (file tags) leave them out.
      */
     val wordsEstimated: Boolean = false,
 ) {
