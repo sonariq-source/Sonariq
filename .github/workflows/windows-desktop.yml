@@ -83,8 +83,11 @@ jobs:
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item desktopApp/build/compose/binaries/main/msi/*.msi "dist/Sonariq-$v-windows-x64.msi"
           Copy-Item desktopApp/build/compose/binaries/main/exe/*.exe "dist/Sonariq-$v-windows-x64-setup.exe"
-          7z a -tzip -mx=5 "dist/Sonariq-$v-windows-x64-portable.zip" `
-            "desktopApp/build/compose/binaries/main/app/Sonariq/*" | Out-Null
+          # Zip from inside the app folder so the portable carries a clean
+          # top-level Sonariq folder, not the build tree's path.
+          Push-Location "desktopApp/build/compose/binaries/main/app"
+          7z a -tzip -mx=5 "$env:GITHUB_WORKSPACE/dist/Sonariq-$v-windows-x64-portable.zip" "Sonariq" | Out-Null
+          Pop-Location
           Get-ChildItem dist | Format-Table Name, Length
 
       - name: Upload Windows artifacts

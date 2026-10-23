@@ -182,7 +182,15 @@ Grab the latest signed APK from the [Releases](https://github.com/sonariq-source
 
 Prefer the cutting edge? Every push builds debug APKs automatically — find them under [Actions](https://github.com/sonariq-source/Sonariq/actions).
 
-For the Windows and Linux desktop app, see [DESKTOP.md](DESKTOP.md).
+### Windows
+
+Sonariq for Windows is the full desktop app — the same player, synced lyrics (including AI word sync), 7-band EQ, downloads, Listen Together and smart autoplay as the phone, laid out for a window with system media controls and a tray icon. Grab it from the [Sonariq for Windows release](https://github.com/sonariq-source/Sonariq/releases/tag/windows-2.28):
+
+- **Sonariq-2.28-windows-x64-setup.exe** — the installer. Installs for the current user, so it never asks for an administrator.
+- **Sonariq-2.28-windows-x64.msi** — the same app for anyone who deploys by MSI.
+- **Sonariq-2.28-windows-x64-portable.zip** — unzip anywhere and run Sonariq.exe. Writes nothing outside the folder.
+
+Every package carries its own Java runtime and codecs — nothing else has to be installed first. For the Linux desktop app and building the packages yourself, see [DESKTOP.md](DESKTOP.md).
 
 ### iOS (Beta)
 
