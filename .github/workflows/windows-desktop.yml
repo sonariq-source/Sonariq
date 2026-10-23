@@ -104,39 +104,50 @@ jobs:
           }
           "@
 
+          # The launcher hands off to a child process of the same name, so
+          # track every Sonariq process, not just the started pid, and accept
+          # the app's window under any of them (run 39957849535: the window
+          # was on screen while the launcher pid itself stayed idle).
           $deadline = (Get-Date).AddSeconds(150)
           $found = $null
           while ((Get-Date) -lt $deadline) {
             Start-Sleep -Seconds 5
-            $p.Refresh()
-            if ($p.HasExited) { break }
+            $appProcs = @(Get-Process -Name "Sonariq" -ErrorAction SilentlyContinue)
+            if ($appProcs.Count -eq 0) { break }
             $script:hit = $null
             [WinEnum]::EnumWindows({ param($h, $l)
               $wpid = 0
               [WinEnum]::GetWindowThreadProcessId($h, [ref]$wpid) | Out-Null
-              if ($wpid -eq $p.Id -and [WinEnum]::IsWindowVisible($h)) {
+              if ([WinEnum]::IsWindowVisible($h)) {
                 $sb = New-Object System.Text.StringBuilder 256
                 [WinEnum]::GetWindowText($h, $sb, 256) | Out-Null
-                $script:hit = "handle=$h title='$($sb.ToString())'"
+                if ($sb.ToString() -eq "Sonariq") {
+                  $script:hit = "pid=$wpid handle=$h title='Sonariq'"
+                }
               }
               return $true
             }, [IntPtr]::Zero) | Out-Null
             if ($script:hit) { $found = $script:hit; break }
-            if ($p.MainWindowHandle -ne [IntPtr]::Zero) {
-              $found = "main-window handle=$($p.MainWindowHandle) title='$($p.MainWindowTitle)'"
-              break
+            foreach ($ap in $appProcs) {
+              if ($ap.MainWindowHandle -ne [IntPtr]::Zero -and $ap.MainWindowTitle -eq "Sonariq") {
+                $found = "pid=$($ap.Id) main-window handle=$($ap.MainWindowHandle) title='Sonariq'"
+                break
+              }
             }
+            if ($found) { break }
           }
 
           $failed = $false
-          $p.Refresh()
-          if ($p.HasExited) {
+          $appProcs = @(Get-Process -Name "Sonariq" -ErrorAction SilentlyContinue)
+          if ($appProcs.Count -eq 0) {
             $failed = $true
-            $report.Add("FAIL: process exited early, exit code $($p.ExitCode)")
+            $report.Add("FAIL: no Sonariq process is running")
           } else {
-            $report.Add("process alive after wait, responding=$($p.Responding), cpu=$([math]::Round($p.TotalProcessorTime.TotalSeconds,1))s")
+            $cpuTotal = ($appProcs | ForEach-Object { $_.TotalProcessorTime.TotalSeconds } | Measure-Object -Sum).Sum
+            $pidList = ($appProcs | ForEach-Object { $_.Id }) -join ', '
+            $report.Add("Sonariq processes alive: $pidList, total cpu=$([math]::Round($cpuTotal,1))s")
           }
-          if ($found) { $report.Add("window: $found") } else { $failed = $true; $report.Add("FAIL: no window found for the process") }
+          if ($found) { $report.Add("window: $found") } else { $failed = $true; $report.Add("FAIL: no Sonariq window found") }
 
           $crash = Get-ChildItem $appDir -Filter "hs_err_pid*.log" -ErrorAction SilentlyContinue
           if ($crash) { $failed = $true; $report.Add("FAIL: JVM crash log present: $($crash.Name)") }
@@ -171,7 +182,7 @@ jobs:
           }
 
           $report | Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE "launch-report.txt")
-          if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+          Get-Process -Name "Sonariq" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
           if ($failed) { exit 1 }
 
       - name: Upload launch test evidence
