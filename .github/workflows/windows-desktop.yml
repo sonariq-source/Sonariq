@@ -76,6 +76,114 @@ jobs:
           # WinRT, so only MSVC can build it and only this job ever does.
           jar tf "$jar" | grep -q 'native/sonariq_smtc.dll'
 
+      # Proves the packaged app actually opens on a real Windows machine, not
+      # just that it compiles: starts the app image's Sonariq.exe, requires
+      # the process to stay alive with a real top-level window titled
+      # "Sonariq", fails on an early exit or a JVM crash log, and saves a
+      # screenshot plus a text report as the windows-launch-test artifact.
+      - name: Launch test - the packaged app opens its window
+        shell: pwsh
+        run: |
+          $report = New-Object System.Collections.Generic.List[string]
+          $appDir = Join-Path $env:GITHUB_WORKSPACE "desktopApp/build/compose/binaries/main/app/Sonariq"
+          $exe = Join-Path $appDir "Sonariq.exe"
+          $report.Add("exe: $exe")
+          $p = Start-Process -FilePath $exe -WorkingDirectory $appDir -PassThru
+          $report.Add("started pid: $($p.Id) at $(Get-Date -Format o)")
+
+          Add-Type @"
+          using System;
+          using System.Text;
+          using System.Runtime.InteropServices;
+          public static class WinEnum {
+            public delegate bool EnumProc(IntPtr h, IntPtr l);
+            [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb, IntPtr l);
+            [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+            [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+            [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+          }
+          "@
+
+          $deadline = (Get-Date).AddSeconds(150)
+          $found = $null
+          while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 5
+            $p.Refresh()
+            if ($p.HasExited) { break }
+            $script:hit = $null
+            [WinEnum]::EnumWindows({ param($h, $l)
+              $wpid = 0
+              [WinEnum]::GetWindowThreadProcessId($h, [ref]$wpid) | Out-Null
+              if ($wpid -eq $p.Id -and [WinEnum]::IsWindowVisible($h)) {
+                $sb = New-Object System.Text.StringBuilder 256
+                [WinEnum]::GetWindowText($h, $sb, 256) | Out-Null
+                $script:hit = "handle=$h title='$($sb.ToString())'"
+              }
+              return $true
+            }, [IntPtr]::Zero) | Out-Null
+            if ($script:hit) { $found = $script:hit; break }
+            if ($p.MainWindowHandle -ne [IntPtr]::Zero) {
+              $found = "main-window handle=$($p.MainWindowHandle) title='$($p.MainWindowTitle)'"
+              break
+            }
+          }
+
+          $failed = $false
+          $p.Refresh()
+          if ($p.HasExited) {
+            $failed = $true
+            $report.Add("FAIL: process exited early, exit code $($p.ExitCode)")
+          } else {
+            $report.Add("process alive after wait, responding=$($p.Responding), cpu=$([math]::Round($p.TotalProcessorTime.TotalSeconds,1))s")
+          }
+          if ($found) { $report.Add("window: $found") } else { $failed = $true; $report.Add("FAIL: no window found for the process") }
+
+          $crash = Get-ChildItem $appDir -Filter "hs_err_pid*.log" -ErrorAction SilentlyContinue
+          if ($crash) { $failed = $true; $report.Add("FAIL: JVM crash log present: $($crash.Name)") }
+
+          $dataDirs = @()
+          foreach ($root in @($env:APPDATA, $env:LOCALAPPDATA)) {
+            $dataDirs += Get-ChildItem $root -Directory -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -match "sonariq" } | ForEach-Object { $_.FullName }
+          }
+          $report.Add("app data dirs: $($dataDirs -join ', ')")
+
+          try {
+            Add-Type -AssemblyName System.Windows.Forms
+            Add-Type -AssemblyName System.Drawing
+            $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
+            $bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+            $gfx = [System.Drawing.Graphics]::FromImage($bmp)
+            $gfx.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+            $shot = Join-Path $env:GITHUB_WORKSPACE "launch-screenshot.png"
+            $bmp.Save($shot, [System.Drawing.Imaging.ImageFormat]::Png)
+            $small = New-Object System.Drawing.Bitmap 64, 64
+            $g2 = [System.Drawing.Graphics]::FromImage($small)
+            $g2.DrawImage($bmp, 0, 0, 64, 64)
+            $nonBlack = 0
+            for ($x = 0; $x -lt 64; $x++) { for ($y = 0; $y -lt 64; $y++) {
+              $c = $small.GetPixel($x, $y)
+              if (($c.R + $c.G + $c.B) -gt 24) { $nonBlack++ }
+            } }
+            $report.Add("screenshot: $shot, non-black sample pixels $nonBlack / 4096")
+          } catch {
+            $report.Add("screenshot failed: $($_.Exception.Message)")
+          }
+
+          $report | Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE "launch-report.txt")
+          if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+          if ($failed) { exit 1 }
+
+      - name: Upload launch test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-launch-test
+          path: |
+            launch-report.txt
+            launch-screenshot.png
+          if-no-files-found: ignore
+
       - name: Collect
         shell: pwsh
         run: |
