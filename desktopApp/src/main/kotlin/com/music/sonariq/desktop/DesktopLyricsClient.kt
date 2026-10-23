@@ -54,6 +54,16 @@ object DesktopLyricsClient {
     private val cache = ConcurrentHashMap<String, Cached>()
 
     /**
+     * Drops every cached answer for [videoId], so the next lookup reads
+     * the lyrics repository afresh. Called when an AI measurement lands:
+     * the stored result outranks the lines this cache is holding, and
+     * serving those for another twelve hours would hide the upgrade.
+     */
+    internal fun invalidate(videoId: String) {
+        cache.keys.removeAll { it.startsWith("$videoId|") }
+    }
+
+    /**
      * The track's lyrics from the configured providers — or, with [only], from that one provider,
      * which is how the player's provider picker asks for a specific source's answer.
      */
@@ -96,6 +106,12 @@ object DesktopLyricsClient {
             if (found == null) {
                 Result.failure(IllegalStateException("Lyrics unavailable"))
             } else {
+                // A settled result with no word timings is offered for AI
+                // measurement, as on the phone: fire-and-forget, and the
+                // gates inside decide whether anything actually runs. A
+                // single-provider answer (only != null) is the listener's
+                // own pick, not a settled result, so it is never offered.
+                if (only == null) DesktopAiWordSync.maybeAlign(song, durationMs, found)
                 Result.success(DesktopLyrics(found.source.label, found.lines))
             }
         }

@@ -1710,6 +1710,10 @@ fun SonariqDesktopApp() {
     // opens the player. Run from the player page instead, nothing was fetched until it was opened,
     // and a track half a minute in then showed a skeleton and arrived mid-song.
     var lyrics by remember { mutableStateOf<DesktopLyrics?>(null) }
+    // A landed AI word-sync measurement bumps this, and the lookup below
+    // is keyed on it: the song on screen is looked up once more and comes
+    // back word-synced from the repository cache.
+    val aiUpgradeTick by DesktopAiWordSync.upgrades.collectAsState()
     var lyricsLoading by remember { mutableStateOf(false) }
     var lyricsError by remember { mutableStateOf<String?>(null) }
     var canvas by remember { mutableStateOf<DesktopCanvasArtwork?>(null) }
@@ -1734,6 +1738,7 @@ fun SonariqDesktopApp() {
         prioritizeSyllables,
         lyricsOn,
         lyricsOrder,
+        aiUpgradeTick,
     ) {
         val current = selectedSong
         lyrics = null
