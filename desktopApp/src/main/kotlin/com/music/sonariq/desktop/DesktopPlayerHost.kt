@@ -193,7 +193,6 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
     override val audioQualityCellular = MutableStateFlow(AudioQuality.LOSSLESS)
     override val audioQualityWifi = MutableStateFlow(AudioQuality.LOSSLESS)
     override val canvasOverCellular = MutableStateFlow(true)
-    override val duetKaraoke = MutableStateFlow(persistence.boolean(KEY_DUET_KARAOKE, false))
     override val fullBleedArtwork = MutableStateFlow(false)
     override val hideSongStatus = MutableStateFlow(false)
     override val hideVolumeBar = MutableStateFlow(false)
@@ -296,7 +295,6 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
     private const val KEY_LYRICS_FONT_SIZE_SP = "lyrics_font_size_sp"
     private const val KEY_LYRICS_AUTO_SCROLL = "lyrics_auto_scroll"
     private const val KEY_LYRICS_KARAOKE = "lyrics_karaoke"
-    private const val KEY_DUET_KARAOKE = "duet_karaoke"
 }
 
 /** Which glyph a mixer gets, from the only thing Java Sound says about it: its name. */

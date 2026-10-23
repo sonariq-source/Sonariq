@@ -35,7 +35,6 @@ import com.music.sonariq.playback.QueueTimeline
 import com.music.sonariq.playback.QueueTimeline.asQueueEntry
 import com.music.sonariq.data.listentogether.partyQueueIndexOf
 import com.music.sonariq.data.listentogether.partyUpcomingAfter
-import com.music.sonariq.ui.LyricsProviderState
 import com.music.sonariq.ui.player.LyricsSidePanel
 import com.music.sonariq.ui.player.NowPlayingScreen
 import com.music.sonariq.ui.player.QueueSidePanel
@@ -1711,8 +1710,6 @@ fun SonariqDesktopApp() {
     // opens the player. Run from the player page instead, nothing was fetched until it was opened,
     // and a track half a minute in then showed a skeleton and arrived mid-song.
     var lyrics by remember { mutableStateOf<DesktopLyrics?>(null) }
-    // The provider picked for this track in the player's lyrics drawer, if any.
-    var lyricsOnly by remember(selectedSong?.videoId) { mutableStateOf<String?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
     var lyricsError by remember { mutableStateOf<String?>(null) }
     var canvas by remember { mutableStateOf<DesktopCanvasArtwork?>(null) }
@@ -1737,7 +1734,6 @@ fun SonariqDesktopApp() {
         prioritizeSyllables,
         lyricsOn,
         lyricsOrder,
-        lyricsOnly,
     ) {
         val current = selectedSong
         lyrics = null
@@ -1760,7 +1756,7 @@ fun SonariqDesktopApp() {
             return@LaunchedEffect
         }
         lyricsLoading = true
-        DesktopLyricsClient.lookup(current, length, only = lyricsOnly).fold(
+        DesktopLyricsClient.lookup(current, length).fold(
             onSuccess = { lyrics = it },
             onFailure = { lyricsError = it.message ?: "Lyrics unavailable" },
         )
@@ -2786,17 +2782,6 @@ fun SonariqDesktopApp() {
     val sharedLyrics = lyrics?.lines
     val sharedLyricsSource = remember(lyrics) { lyrics?.source?.let(::lyricsSourceNamed) }
     val sharedLyricsUnavailable = !lyricsLoading && sharedLyrics.isNullOrEmpty()
-    val providerStates = remember(lyricsOrder, lyricsOn, sharedLyricsSource, lyricsLoading) {
-        DesktopLyricsClient.enabledSources(lyricsOrder, lyricsOn)
-            .mapNotNull(::lyricsSourceNamed)
-            .associateWith { source ->
-                when {
-                    source == sharedLyricsSource -> LyricsProviderState.FOUND
-                    lyricsLoading -> LyricsProviderState.FETCHING
-                    else -> LyricsProviderState.NOT_FETCHED
-                }
-            }
-    }
 
     // The queue's edits, for the player's queue and the queue column alike.
     fun removeFromQueue(at: Int) {
@@ -2995,8 +2980,6 @@ fun SonariqDesktopApp() {
                                 position = playerPosition,
                                 lyrics = sharedLyrics,
                                 lyricsSource = sharedLyricsSource,
-                                lyricsProviderStates = providerStates,
-                                onSelectLyricsProvider = { source -> lyricsOnly = source.label },
                                 lyricsUnavailable = sharedLyricsUnavailable,
                                 onSeek = ::seekPlayer,
                                 modifier = Modifier.fillMaxSize(),
@@ -3130,8 +3113,6 @@ fun SonariqDesktopApp() {
                             },
                             lyrics = sharedLyrics,
                             lyricsSource = sharedLyricsSource,
-                            lyricsProviderStates = providerStates,
-                            onSelectLyricsProvider = { source -> lyricsOnly = source.label },
                             lyricsUnavailable = sharedLyricsUnavailable,
                             lyricsOffsetOpen = false,
                             onDismissLyricsOffset = {},
