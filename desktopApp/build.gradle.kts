@@ -49,6 +49,13 @@ val listenTogetherServer = localProperty("LISTEN_TOGETHER_SERVER")
 val lastfmApiKey = localProperty("LASTFM_API_KEY")
 val lastfmSecret = localProperty("LASTFM_SECRET")
 
+// Transcription key for AI word sync, supplied at build time only — the
+// GROQ_API_KEY environment variable (CI sets it from the repo secret) or a
+// local.properties line, exactly as on Android. Never committed. Blank is a
+// supported state: the AI measurement stays dormant, as on a phone build
+// without the key.
+val groqApiKey = localProperty("GROQ_API_KEY")
+
 plugins {
     id("org.jetbrains.kotlin.jvm")
     id("org.jetbrains.kotlin.plugin.serialization")
@@ -375,6 +382,7 @@ val windowsPortableAssemble by tasks.registering {
     val moduleIndex = desktopModuleIndexUrl
     val lastfmKey = lastfmApiKey
     val lastfmSharedSecret = lastfmSecret
+    val groqKey = groqApiKey
     val mainClass = composeMainClass
     // Declared, not implied.
     inputs.file(appJar)
@@ -382,6 +390,7 @@ val windowsPortableAssemble by tasks.registering {
     inputs.property("version", version)
     inputs.property("moduleIndex", moduleIndex)
     inputs.property("lastfm", lastfmKey.isNotBlank())
+    inputs.property("groq", groqKey.isNotBlank())
     inputs.property("mainClass", mainClass)
     outputs.dir(stage)
     doLast {
@@ -413,6 +422,9 @@ val windowsPortableAssemble by tasks.registering {
                 if (moduleIndex.isNotBlank()) append(" -Dsonariq.module.index=$moduleIndex")
                 if (lastfmKey.isNotBlank() && lastfmSharedSecret.isNotBlank()) {
                     append(" -Dsonariq.lastfm.key=$lastfmKey -Dsonariq.lastfm.secret=$lastfmSharedSecret")
+                }
+                if (groqKey.isNotBlank()) {
+                    append(" -Dsonariq.groq.key=$groqKey")
                 }
                 appendLine(" -cp \"%HERE%lib\\*\" $mainClass %*")
                 appendLine("endlocal")
@@ -481,6 +493,9 @@ compose.desktop {
         }
         if (lastfmApiKey.isNotBlank() && lastfmSecret.isNotBlank()) {
             jvmArgs("-Dsonariq.lastfm.key=$lastfmApiKey", "-Dsonariq.lastfm.secret=$lastfmSecret")
+        }
+        if (groqApiKey.isNotBlank()) {
+            jvmArgs("-Dsonariq.groq.key=$groqApiKey")
         }
         if (listenTogetherServer.isNotBlank()) {
             jvmArgs("-Dsonariq.listentogether.server=$listenTogetherServer")
