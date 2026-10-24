@@ -228,18 +228,42 @@ object AppUpdateChecker {
     private fun parseVersion(raw: String): ParsedVersion {
         val dash = raw.indexOf('-')
         val base = if (dash >= 0) raw.substring(0, dash) else raw
-        return ParsedVersion(base.split(".").map { it.toIntOrNull() ?: 0 }, dash >= 0)
+        val tokens = base.split(".")
+        // Legacy two-part names from before the three-part scheme packed two
+        // counters into the second part: "2.30" is what is now written
+        // "2.3.0", "2.29" is "2.2.9", "2.28" is "2.2.8". Split a two-digit
+        // second part back into its two digits so installs still on those
+        // builds compare correctly against three-part tags — read naively,
+        // [2, 30] would outrank [2, 3, 1] and 2.30 installs would never be
+        // offered the update. A one-digit second part ("2.9") was already a
+        // plain minor version and stays as it is.
+        val parts = if (
+            tokens.size == 2 &&
+            tokens[1].length == 2 &&
+            tokens[1].all { it.isDigit() }
+        ) {
+            listOf(
+                tokens[0].toIntOrNull() ?: 0,
+                tokens[1][0].digitToInt(),
+                tokens[1][1].digitToInt(),
+            )
+        } else {
+            tokens.map { it.toIntOrNull() ?: 0 }
+        }
+        return ParsedVersion(parts, dash >= 0)
     }
 
     /**
-     * Numeric, dot-separated comparison — "1.10" outranks "1.9" — with one
-     * extra rule: a "-betaN" build (see the debug build type's
+     * Numeric, dot-separated comparison — "1.10" outranks "1.9" — over the
+     * parts from [parseVersion] (which also unfolds legacy two-part names
+     * like "2.30" into their three-part meaning), with one extra rule: a
+     * "-betaN" build (see the debug build type's
      * `versionNameSuffix` in app/build.gradle.kts) is treated as older than a
      * plain release of the same numbers, since the beta by definition predates
      * the tag it was testing toward. Without this, a beta and the release it
      * matches compare equal and testers never get nudged onto the real build.
      */
-    private fun isNewer(latest: String, current: String): Boolean {
+    internal fun isNewer(latest: String, current: String): Boolean {
         val l = parseVersion(latest)
         val c = parseVersion(current)
         for (i in 0 until maxOf(l.parts.size, c.parts.size)) {
