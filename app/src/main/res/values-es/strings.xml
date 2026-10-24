@@ -1643,4 +1643,6 @@
         <item quantity="one">%1$d song</item>
         <item quantity="other">%1$d songs</item>
     </plurals>
+    <string name="settings_category_expand">Expand category</string>
+    <string name="settings_category_collapse">Collapse category</string>
 </resources>
