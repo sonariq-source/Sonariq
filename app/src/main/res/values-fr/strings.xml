@@ -443,8 +443,6 @@
     <string name="preview">Aperçu</string>
     <string name="prioritize_syllable_lyrics">Prioriser les paroles par syllabe</string>
     <string name="prioritize_syllable_lyrics_subtitle">Continue de chercher au-delà d\'une correspondance synchronisée par ligne pour des paroles mot à mot</string>
-    <string name="ai_word_sync">Synchro des mots par IA</string>
-    <string name="ai_word_sync_summary">Mesure le timing des mots à partir de l’audio du titre quand aucune source ne les fournit</string>
     <string name="ai_wifi_only">Wi-Fi uniquement</string>
     <string name="ai_wifi_only_summary">Mesure les timings en arrière-plan uniquement sur les réseaux sans limite de données</string>
     <string name="quality_hourly">%1$s · %2$s</string>
@@ -1076,7 +1074,6 @@
 
     <string name="source_unrecognised">Sonariq n\'a pas reconnu ce lien</string>
 
-    <string name="start_radio">Lancer la radio</string>
 
     <string name="subscribe">S\'abonner</string>
 

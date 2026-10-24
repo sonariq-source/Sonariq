@@ -32,7 +32,6 @@ import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbDownOffAlt
@@ -77,7 +76,6 @@ internal data class DesktopSongActions(
     val onAddToPlaylist: (Song) -> Unit,
     val onDownload: (Song) -> Unit,
     val onRemoveDownload: (Song) -> Unit,
-    val onStartRadio: (Song) -> Unit,
     val onPlayNext: (Song) -> Unit,
     val onAddToQueue: (Song) -> Unit,
     val onOpenAlbum: (String) -> Unit,
@@ -148,7 +146,6 @@ internal fun DesktopSongMenuFor(
         onAddToPlaylist = { actions.onAddToPlaylist(song); close() },
         onDownload = { actions.onDownload(song); close() },
         onRemoveDownload = { actions.onRemoveDownload(song); close() },
-        onStartRadio = { actions.onStartRadio(song); close() },
         onPlayNext = { actions.onPlayNext(song); close() },
         onAddToQueue = { actions.onAddToQueue(song); close() },
         onOpenAlbum = { id -> actions.onOpenAlbum(id); close() },
@@ -179,7 +176,6 @@ internal fun DesktopSongMenu(
     onToggleDislike: () -> Unit,
     onAddToPlaylist: () -> Unit,
     onDownload: () -> Unit,
-    onStartRadio: () -> Unit,
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
     onOpenAlbum: ((String) -> Unit)?,
@@ -272,7 +268,6 @@ internal fun DesktopSongMenu(
                 onClick = onDownload,
             )
         }
-        DesktopMenuRow(Icons.Rounded.Radio, DesktopStrings["start_radio", "Start radio"], onClick = onStartRadio)
         DesktopMenuRow(Icons.AutoMirrored.Rounded.PlaylistPlay, DesktopStrings["play_next", "Play next"], onClick = onPlayNext)
         DesktopMenuRow(Icons.AutoMirrored.Rounded.QueueMusic, DesktopStrings["add_to_queue", "Add to queue"], onClick = onAddToQueue)
 

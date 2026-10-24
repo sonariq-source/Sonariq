@@ -377,7 +377,6 @@
     <string name="downloads_finished">Tải xuống · hoàn tất</string>
     <string name="downloading_progress">Đang tải xuống · %1$d%%</string>
     <string name="starting">Đang bắt đầu</string>
-    <string name="start_radio">Phát radio</string>
     <string name="radio_started">Đã bắt đầu radio %1$s</string>
     <string name="saved_to_sonariq_folder">Đã lưu vào Music/Sonariq</string>
     <string name="nothing_downloading">Không có nội dung đang tải</string>
@@ -471,8 +470,6 @@
     <string name="preview">Xem trước</string>
     <string name="prioritize_syllable_lyrics">Ưu tiên lời đồng bộ từng từ</string>
     <string name="prioritize_syllable_lyrics_subtitle">Tiếp tục tìm kiếm thay vì dừng lại ở lời đồng bộ từng dòng để tìm lời bài hát đồng bộ từng từ</string>
-    <string name="ai_word_sync">Đồng bộ từ bằng AI</string>
-    <string name="ai_word_sync_summary">Đo thời gian từng từ từ âm thanh của chính bài hát khi không nguồn nào có</string>
     <string name="ai_wifi_only">Chỉ Wi-Fi</string>
     <string name="ai_wifi_only_summary">Chỉ đo thời gian trong nền trên các mạng không giới hạn dữ liệu</string>
     <string name="quality_hourly">%1$s · %2$s</string>

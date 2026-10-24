@@ -143,7 +143,6 @@ import com.music.sonariq.data.sources.StreamFormat
 import com.music.sonariq.data.sources.TrackMatcher
 import com.music.sonariq.playback.smart.AutomixAnalysisSource
 import com.music.sonariq.playback.smart.VersionAudioAligner
-import com.music.sonariq.playback.radio.RadioSession
 import com.music.sonariq.widget.MediaWidget
 import com.music.sonariq.widget.MediaWidgetSnapshot
 import kotlinx.coroutines.CompletableDeferred
@@ -196,13 +195,9 @@ const val ACTION_TOGGLE_FAVORITE = "com.music.sonariq.action.TOGGLE_FAVORITE"
 const val ACTION_TOGGLE_SHUFFLE = "com.music.sonariq.action.TOGGLE_SHUFFLE"
 
 /** Session actions exposed to Android Auto for the track that is playing. */
-const val ACTION_START_STATION = "com.music.sonariq.action.START_STATION"
 const val ACTION_REVERT_TO_ORIGINAL = "com.music.sonariq.action.REVERT_TO_ORIGINAL"
 const val ACTION_SWAP_TO_VERSION = "com.music.sonariq.action.SWAP_TO_VERSION"
 
-/** Session commands bracketing an explicit radio queue replacement. */
-const val ACTION_BEGIN_RADIO_QUEUE = "com.music.sonariq.action.BEGIN_RADIO_QUEUE"
-const val ACTION_COMMIT_RADIO_QUEUE = "com.music.sonariq.action.COMMIT_RADIO_QUEUE"
 
 /** Session command behind the player menu's "Upgrade quality". */
 const val ACTION_UPGRADE_QUALITY = "com.music.sonariq.action.UPGRADE_QUALITY"
@@ -253,9 +248,6 @@ const val EXTRA_REORDER_ORDER = "sonariq.reorder.order"
 const val ACTION_QUEUE_DRAG = "com.music.sonariq.action.QUEUE_DRAG"
 const val EXTRA_QUEUE_DRAG_ACTIVE = "sonariq.queueDrag.active"
 
-/** A full first page for an explicitly requested station. */
-private const val INITIAL_STATION_TRACKS = 24
-
 /**
  * How long a version switch will sit on a not-yet-downloaded opening before
  * it gives up on the head — [com.music.sonariq.playback.AudioCache.awaitAnalysisHead]
@@ -278,11 +270,6 @@ private const val ALIGNMENT_HEAD_TIMEOUT_MS = 20_000L
  * second.
  */
 private const val ALIGNMENT_MEASURE_TIMEOUT_MS = 30_000L
-
-private fun Song.canStartStation(): Boolean =
-    videoId.isNotBlank() &&
-        !videoId.startsWith("content://") &&
-        !videoId.startsWith("file://")
 
 /**
  * Background playback via Media3. A [MediaLibraryService] gives us the media
@@ -822,20 +809,15 @@ class PlaybackService : MediaLibraryService() {
     private val favoriteCommand = SessionCommand(ACTION_TOGGLE_FAVORITE, Bundle.EMPTY)
     private val autoplayCommand = SessionCommand(ACTION_TOGGLE_AUTOPLAY, Bundle.EMPTY)
     private val shuffleCommand = SessionCommand(ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY)
-    private val startStationCommand = SessionCommand(ACTION_START_STATION, Bundle.EMPTY)
     private val revertToOriginalCommand = SessionCommand(ACTION_REVERT_TO_ORIGINAL, Bundle.EMPTY)
     private val swapToVersionCommand = SessionCommand(ACTION_SWAP_TO_VERSION, Bundle.EMPTY)
-    private val beginRadioQueueCommand = SessionCommand(ACTION_BEGIN_RADIO_QUEUE, Bundle.EMPTY)
-    private val commitRadioQueueCommand = SessionCommand(ACTION_COMMIT_RADIO_QUEUE, Bundle.EMPTY)
     private val upgradeQualityCommand = SessionCommand(ACTION_UPGRADE_QUALITY, Bundle.EMPTY)
     private val swapVersionCommand = SessionCommand(ACTION_SWAP_VERSION, Bundle.EMPTY)
     private val reorderQueueCommand = SessionCommand(ACTION_REORDER_QUEUE, Bundle.EMPTY)
     private val queueDragCommand = SessionCommand(ACTION_QUEUE_DRAG, Bundle.EMPTY)
 
     private var favoriteActionJob: Job? = null
-    private var stationActionJob: Job? = null
     private var autoplayLoadJob: Job? = null
-    private var radioTopUpJob: Job? = null
     /** Rate limit for listener-requested retries; automatic upgrades do not touch it. */
     private val manualUpgradeThrottle = ManualUpgradeThrottle(MANUAL_UPGRADE_COOLDOWN_MS)
     /** Catalogue lookup that decides which rendition of the next video to warm. */
@@ -1104,7 +1086,6 @@ class PlaybackService : MediaLibraryService() {
             autoplayLoadJob = null
             autoplaySeed = null
             loadAutoplayForCurrentTrack()
-            maybeTopUpRadio()
             loadLyricsForCurrentTrack()
             prefetchUpcomingLyrics()
             if (exoPlayer.isPlaying) startLyricsTicker()
@@ -1941,17 +1922,9 @@ class PlaybackService : MediaLibraryService() {
         return listOf(favorite, shuffle)
     }
 
-    /** Adds Radio/Revert for controllers with room for them, e.g. Android Auto. */
+    /** Adds Revert for controllers with room for it, e.g. Android Auto. */
     private fun carButtons(): List<CommandButton> {
         val current = player?.currentMediaItem?.toSong()
-        val station = current
-            ?.takeIf { it.canStartStation() }
-            ?.let {
-                CommandButton.Builder(CommandButton.ICON_RADIO)
-                    .setSessionCommand(startStationCommand)
-                    .setDisplayName(getString(R.string.start_radio))
-                    .build()
-            }
         val revert = current
             ?.takeIf {
                 it.hasYouTubeOriginal() &&
@@ -1964,7 +1937,7 @@ class PlaybackService : MediaLibraryService() {
                     .setDisplayName(getString(R.string.revert_to_original))
                     .build()
             }
-        return notificationButtons() + listOfNotNull(station, revert)
+        return notificationButtons() + listOfNotNull(revert)
     }
 
     /** Android Auto / Automotive controllers currently connected to the session. */
@@ -1975,12 +1948,12 @@ class PlaybackService : MediaLibraryService() {
      * notification is driven by Media3's own internal controller, so it gets
      * an explicit override limited to Favorite/Shuffle; every other connected
      * controller falls back to the broadcast layout, which also carries
-     * Radio/Revert.
+     * Revert.
      *
      * Media3 mirrors the notification controller's layout into the platform
      * session's custom actions, and Android Auto reads the platform session,
      * not the broadcast layout. So while a car is connected the notification
-     * override carries the car buttons too, or Radio/Revert vanish from Auto.
+     * override carries the car buttons too, or Revert vanishes from Auto.
      */
     private fun refreshCustomLayouts() {
         val session = mediaSession ?: return
@@ -1988,60 +1961,6 @@ class PlaybackService : MediaLibraryService() {
         session.setCustomLayout(car)
         session.getMediaNotificationControllerInfo()?.let {
             session.setCustomLayout(it, if (carControllers.isEmpty()) notificationButtons() else car)
-        }
-    }
-
-    /**
-     * Replaces everything around the current track with its YouTube Music
-     * radio. The playing item itself is retained, so asking from Android Auto
-     * does not restart the song or lose the current position.
-     */
-    private fun startStationFromSession() {
-        val originalPlayer = player ?: return
-        val currentItem = originalPlayer.currentMediaItem ?: return
-        val seed = currentItem.toSong().takeIf { it.canStartStation() } ?: return
-        val originalManualQueue = (0 until originalPlayer.mediaItemCount)
-            .map { originalPlayer.getMediaItemAt(it) }
-            .filterNot { it.fromAutoplay }
-            .map { it.mediaId }
-
-        stationActionJob?.cancel()
-        stationActionJob = scope.launch {
-            val radioSeed = seed.copy(radioName = seed.title)
-            val related = loadAutoplayTracks(
-                existing = listOf(radioSeed),
-                seedSong = radioSeed,
-                limit = INITIAL_STATION_TRACKS,
-                context = applicationContext,
-            ).getOrElse {
-                TrackLog.w(
-                    "Sonariq",
-                    "Android Auto station failed: ${it.message}",
-                    about = seed.videoId,
-                )
-                return@launch
-            }
-            if (related.isEmpty()) return@launch
-
-            val activePlayer = player ?: return@launch
-            val activeManualQueue = (0 until activePlayer.mediaItemCount)
-                .map { activePlayer.getMediaItemAt(it) }
-                .filterNot { it.fromAutoplay }
-                .map { it.mediaId }
-            if (activePlayer.currentMediaItem?.mediaId != currentItem.mediaId ||
-                activeManualQueue != originalManualQueue
-            ) {
-                return@launch
-            }
-
-            beginRadioQueue()
-            val currentIndex = activePlayer.currentMediaItemIndex
-            if (currentIndex + 1 < activePlayer.mediaItemCount) {
-                activePlayer.removeMediaItems(currentIndex + 1, activePlayer.mediaItemCount)
-            }
-            if (currentIndex > 0) activePlayer.removeMediaItems(0, currentIndex)
-            activePlayer.addMediaItems(1, related.map { it.toMediaItem() })
-            saveQueueSnapshotImmediately(activePlayer)
         }
     }
 
@@ -2535,15 +2454,11 @@ class PlaybackService : MediaLibraryService() {
         if (enabled) {
             autoplayLoadJob?.cancel()
             autoplayLoadJob = null
-            radioTopUpJob?.cancel()
-            radioTopUpJob = null
             autoplaySeed = null
             loadAutoplayForCurrentTrack()
         } else {
             autoplayLoadJob?.cancel()
             autoplayLoadJob = null
-            radioTopUpJob?.cancel()
-            radioTopUpJob = null
             autoplaySeed = null
             dropAutoplayTracksFromQueue()
             // Switching AutoPlay off is the listener saying they don't want
@@ -2553,29 +2468,6 @@ class PlaybackService : MediaLibraryService() {
             repeatAllStashSeed = null
         }
         refreshCustomLayouts()
-    }
-
-    /**
-     * Refills a live radio station when the queue runs low, independent of
-     * the AutoPlay setting — a station that ends is not a station. Fires
-     * from [Player.Listener.onMediaItemTransition] alongside the autoplay
-     * top-up; [RadioSession.shouldTopUp] keeps the check cheap so asking on
-     * every track change costs nothing when no station is running.
-     */
-    private fun maybeTopUpRadio() {
-        val station = RadioSession.active.value ?: return
-        val exoPlayer = player ?: return
-        if (exoPlayer.repeatMode == Player.REPEAT_MODE_ALL) return
-        if (!RadioSession.shouldTopUp(exoPlayer.currentMediaItemIndex, exoPlayer.mediaItemCount)) return
-        if (radioTopUpJob?.isActive == true) return
-        radioTopUpJob = scope.launch {
-            val queueSongs = (0 until exoPlayer.mediaItemCount).map { exoPlayer.getMediaItemAt(it).toSong() }
-            val playedTail = queueSongs.take(exoPlayer.currentMediaItemIndex + 1).takeLast(5)
-            val batch = RadioSession.loadBatch(queueSongs, playedTail, applicationContext).getOrNull().orEmpty()
-            if (batch.isNotEmpty() && RadioSession.active.value === station) {
-                exoPlayer.addMediaItems(batch.map { it.toMediaItem() })
-            }
-        }
     }
 
     /**
@@ -2807,8 +2699,6 @@ class PlaybackService : MediaLibraryService() {
         // queue whose stash was refused ended up with nothing after it at all.
         autoplayLoadJob?.cancel()
         autoplayLoadJob = null
-        radioTopUpJob?.cancel()
-        radioTopUpJob = null
         autoplaySeed = null
         if (stashed.isEmpty() || !autoplayEnabled(ListenTogether.state.value)) return
         if (exoPlayer.currentMediaItem?.mediaId != seed) return
@@ -5360,38 +5250,6 @@ class PlaybackService : MediaLibraryService() {
         savePlaybackState(player)
     }
 
-    /** Make the newly installed radio queue the durable cold-start boundary. */
-    private fun saveQueueSnapshotImmediately(player: ExoPlayer) {
-        if (ListenTogether.state.value.inParty) return
-        if (player.mediaItemCount == 0) {
-            persistedQueueStart = 0
-            LastPlayed.clearImmediately()
-            return
-        }
-        val range = LastPlayed.window(player.mediaItemCount, player.currentMediaItemIndex)
-        persistedQueueStart = range.first
-        LastPlayed.saveQueueImmediately(
-            songs = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).toSong() },
-            index = player.currentMediaItemIndex,
-            positionMs = player.currentPosition,
-        )
-    }
-
-    /** Drop every service-side reference that could resurrect the former queue. */
-    private fun beginRadioQueue() {
-        crossfade?.onSkipRequested()
-        autoplayLoadJob?.cancel()
-        autoplayLoadJob = null
-        radioTopUpJob?.cancel()
-        radioTopUpJob = null
-        autoplaySeed = null
-        repeatAllStash = emptyList()
-        repeatAllStashSeed = null
-        sessionSongHistory.clear()
-        persistedQueueStart = 0
-        LastPlayed.clearImmediately()
-    }
-
     /** Persist index and position without touching or serializing queue contents. */
     private fun savePlaybackState(player: ExoPlayer) {
         if (player.mediaItemCount == 0) return
@@ -7878,11 +7736,8 @@ class PlaybackService : MediaLibraryService() {
                 .add(favoriteCommand)
                 .add(autoplayCommand)
                 .add(shuffleCommand)
-                .add(startStationCommand)
                 .add(revertToOriginalCommand)
                 .add(swapToVersionCommand)
-                .add(beginRadioQueueCommand)
-                .add(commitRadioQueueCommand)
                 .add(upgradeQualityCommand)
                 .add(swapVersionCommand)
                 .add(reorderQueueCommand)
@@ -7914,11 +7769,8 @@ class PlaybackService : MediaLibraryService() {
             when (customCommand.customAction) {
                 ACTION_TOGGLE_AUTOPLAY -> toggleAutoplayFromNotification()
                 ACTION_TOGGLE_SHUFFLE -> toggleShuffleFromSession()
-                ACTION_START_STATION -> startStationFromSession()
                 ACTION_REVERT_TO_ORIGINAL -> revertCurrentToOriginal()
                 ACTION_SWAP_TO_VERSION -> swapCurrentToVersion(args)
-                ACTION_BEGIN_RADIO_QUEUE -> beginRadioQueue()
-                ACTION_COMMIT_RADIO_QUEUE -> player?.let(::saveQueueSnapshotImmediately)
                 ACTION_UPGRADE_QUALITY -> upgradeQualityNow()
                 ACTION_SWAP_VERSION -> {
                     val bundle = args.getBundle(EXTRA_SWAP_MEDIA_ITEM)

@@ -91,6 +91,8 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MusicOff
 import androidx.compose.material.icons.rounded.MotionPhotosOff
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Palette
@@ -298,7 +300,6 @@ fun SettingsScreen(
     val lockscreenLyrics by AppSettings.lockscreenLyrics.collectAsStateWithLifecycle()
     val translationLanguage by AppSettings.translationLanguage.collectAsStateWithLifecycle()
     val lyricsTranslationOverlay by AppSettings.lyricsTranslationOverlay.collectAsStateWithLifecycle()
-    val aiWordSyncEnabled by AppSettings.aiWordSyncEnabled.collectAsStateWithLifecycle()
     val aiWifiOnly by AppSettings.aiWifiOnly.collectAsStateWithLifecycle()
     val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
     val accent by AppSettings.accentColor.collectAsStateWithLifecycle()
@@ -584,7 +585,7 @@ fun SettingsScreen(
         // above lists that as the module's own row now. Lossless itself is no
         // longer a setting at all — see
         // [SourceResolver.requestForNow][com.music.sonariq.data.sources.SourceResolver.requestForNow].
-        SearchableSettingsGroup(search, header = stringResource(R.string.audio_quality), headerIcon = Icons.Rounded.GraphicEq) {
+        SearchableSettingsGroup(search, header = stringResource(R.string.audio_quality), headerIcon = Icons.Rounded.GraphicEq, defaultExpanded = true) {
             val sourceTitle = stringResource(R.string.source)
             val sourceSubtitle = stringResource(R.string.sources_subtitle)
             row(sourceTitle, sourceSubtitle, "addon", "lossless") {
@@ -1987,45 +1988,28 @@ fun SettingsScreen(
                         onClick = { AppSettings.setLyricsTranslationOverlay(!lyricsTranslationOverlay) },
                     )
                 }
-                val aiWordSyncTitle = stringResource(R.string.ai_word_sync)
-                row(aiWordSyncTitle, "lyrics", "ai", "word", "sync") {
+                // AI word sync itself has no switch: it is always on
+                // (the build-time key is its only gate). What stays here
+                // is its Wi-Fi-only companion, which still applies to
+                // background measurement.
+                val aiWifiOnlyTitle = stringResource(R.string.ai_wifi_only)
+                row(aiWifiOnlyTitle, "lyrics", "ai", "wifi", "wi-fi") {
                     SettingsRow(
-                        icon = Icons.Rounded.AutoAwesome,
-                        title = aiWordSyncTitle,
-                        subtitle = stringResource(R.string.ai_word_sync_summary),
+                        icon = Icons.Rounded.Wifi,
+                        title = aiWifiOnlyTitle,
+                        subtitle = stringResource(R.string.ai_wifi_only_summary),
                         trailing = {
                             Switch(
-                                checked = aiWordSyncEnabled,
-                                onCheckedChange = AppSettings::setAiWordSyncEnabled,
+                                checked = aiWifiOnly,
+                                onCheckedChange = AppSettings::setAiWifiOnly,
                                 colors = SwitchDefaults.colors(
                                     checkedTrackColor = MaterialTheme.colorScheme.primary,
                                     checkedBorderColor = MaterialTheme.colorScheme.primary,
                                 ),
                             )
                         },
-                        onClick = { AppSettings.setAiWordSyncEnabled(!aiWordSyncEnabled) },
+                        onClick = { AppSettings.setAiWifiOnly(!aiWifiOnly) },
                     )
-                }
-                if (aiWordSyncEnabled) {
-                    val aiWifiOnlyTitle = stringResource(R.string.ai_wifi_only)
-                    row(aiWifiOnlyTitle, "lyrics", "ai", "wifi", "wi-fi") {
-                        SettingsRow(
-                            icon = Icons.Rounded.Wifi,
-                            title = aiWifiOnlyTitle,
-                            subtitle = stringResource(R.string.ai_wifi_only_summary),
-                            trailing = {
-                                Switch(
-                                    checked = aiWifiOnly,
-                                    onCheckedChange = AppSettings::setAiWifiOnly,
-                                    colors = SwitchDefaults.colors(
-                                        checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                        checkedBorderColor = MaterialTheme.colorScheme.primary,
-                                    ),
-                                )
-                            },
-                            onClick = { AppSettings.setAiWifiOnly(!aiWifiOnly) },
-                        )
-                    }
                 }
             }
             // Home sections that learn: the feed order follows what gets
@@ -3547,6 +3531,9 @@ private class SettingsSearch(query: String) {
     var anyMatch = false
         private set
 
+    /** True while a query is typed in, however short. */
+    val isActive: Boolean get() = needle.isNotEmpty()
+
     fun matches(vararg keywords: String?): Boolean {
         val hit = needle.isEmpty() ||
             keywords.any { it?.contains(needle, ignoreCase = true) == true }
@@ -3586,10 +3573,40 @@ private class SettingsGroupScope(
 }
 
 /**
- * A [SettingsGroup] whose rows are filtered by the search field, and which
- * takes itself off the screen when none of them are left. Dividers fall
- * between the rows that survived rather than around the gaps left by the ones
- * that didn't, so a filtered card is indistinguishable from a hand-written one.
+ * The rows of one group that survived the search, with dividers between the
+ * rows that survived rather than around the gaps left by the ones that
+ * didn't, so a filtered card is indistinguishable from a hand-written one.
+ */
+@Composable
+private fun SettingsGroupEntries(entries: List<SettingsGroupScope.Entry>) {
+    entries.forEachIndexed { index, entry ->
+        when {
+            index > 0 && entry.divided -> RowDivider()
+            // An undivided row is drawn tight to the top because something
+            // it belongs to is usually above it. Filtered down to itself it
+            // has nothing to sit under, so it is given that room back.
+            index == 0 && !entry.divided -> Spacer(Modifier.height(10.dp))
+        }
+        entry.content()
+    }
+}
+
+/**
+ * One Settings category: a card of rows filtered by the search field, which
+ * takes itself off the screen when none of them are left.
+ *
+ * Headed categories are collapsible "category boxes": the card's first row
+ * is the category's title and icon, and tapping it expands or collapses the
+ * controls inside the card. Expansion is remembered per category (keyed by
+ * its title); only the first headed category starts expanded. While a
+ * search query is active every category that still has matching rows is
+ * shown expanded, so a match is never hidden behind a collapsed header —
+ * and the remembered state underneath is left untouched, so clearing the
+ * query restores the layout the user left.
+ *
+ * The one headerless group (the account rows at the top of the screen) has
+ * no title to tap, so it keeps the plain [SettingsGroup] rendering and is
+ * always shown.
  */
 @Composable
 private fun SearchableSettingsGroup(
@@ -3598,22 +3615,84 @@ private fun SearchableSettingsGroup(
     headerIcon: ImageVector? = null,
     footer: String? = null,
     topSpacing: Dp = 26.dp,
+    defaultExpanded: Boolean = false,
     content: @Composable SettingsGroupScope.() -> Unit,
 ) {
     val scope = SettingsGroupScope(search, header)
     scope.content()
+    // Read before the empty check so this category's remembered state keeps
+    // its slot even on passes where the search filters the category out.
+    var storedExpanded by rememberSaveable(header ?: "settings_top_group") {
+        mutableStateOf(defaultExpanded)
+    }
     if (scope.entries.isEmpty()) return
-    SettingsGroup(header = header, headerIcon = headerIcon, footer = footer, topSpacing = topSpacing) {
-        scope.entries.forEachIndexed { index, entry ->
-            when {
-                index > 0 && entry.divided -> RowDivider()
-                // An undivided row is drawn tight to the top because something
-                // it belongs to is usually above it. Filtered down to itself it
-                // has nothing to sit under, so it is given that room back.
-                index == 0 && !entry.divided -> Spacer(Modifier.height(10.dp))
-            }
-            entry.content()
+    if (header == null) {
+        SettingsGroup(header = null, headerIcon = headerIcon, footer = footer, topSpacing = topSpacing) {
+            SettingsGroupEntries(scope.entries)
         }
+        return
+    }
+    val searching = search.isActive
+    val expanded = searching || storedExpanded
+    Spacer(Modifier.height(20.dp))
+    Column(
+        // Same glass card as [SettingsGroup]: a translucent surface over the
+        // background, edged with a hairline of outline.
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = GROUP_INSET)
+            .clip(GroupShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), GroupShape),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { if (!searching) storedExpanded = !storedExpanded }
+                .padding(horizontal = ROW_INSET, vertical = 14.dp),
+        ) {
+            if (headerIcon != null) {
+                Icon(
+                    imageVector = headerIcon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(
+                // Space Grotesk, the Sonariq display face, for section headers.
+                text = header.uppercase(Locale.ROOT),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                contentDescription = stringResource(
+                    if (expanded) R.string.settings_category_collapse else R.string.settings_category_expand,
+                ),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        if (expanded) {
+            RowDivider()
+            SettingsGroupEntries(scope.entries)
+        }
+    }
+    if (footer != null) {
+        Text(
+            text = footer,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(
+                start = GROUP_INSET + 4.dp,
+                end = GROUP_INSET + 4.dp,
+                top = 8.dp,
+            ),
+        )
     }
 }
 

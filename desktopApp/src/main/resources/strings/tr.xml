@@ -354,7 +354,6 @@
     <string name="downloads_finished">İndirmeler · tamamlandı</string>
     <string name="downloading_progress">İndiriliyor · %1$d%%</string>
     <string name="starting">Başlatılıyor</string>
-    <string name="start_radio">Radyoyu başlat</string>
     <string name="playing_radio">%1$s Radyosu çalıyor</string>
     <string name="radio_started">%1$s radyosu başlatıldı</string>
     <string name="saved_to_sonariq_folder">Müzik/Sonariq klasörüne kaydedildi</string>

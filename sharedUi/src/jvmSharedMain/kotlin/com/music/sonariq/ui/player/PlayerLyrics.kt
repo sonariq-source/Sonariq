@@ -333,12 +333,15 @@ private val GAP_ROW_SPACING = 16.dp
  * slight shrink always travel together, never a hard window and never a
  * strong blur on a near line. The playing line is sharp, full and full
  * size; the line next to it is only slightly softened and fully readable;
- * further lines defocus and dim until they melt away, and the column's own
- * edge fade takes them to nothing at the top and bottom. Lines already
- * sung fall at least as fast as lines still to come — the line just above
- * the playing one is already as soft as the second line below it, and
- * dimmer than the first line below it — while upcoming lines brighten as
- * they approach the focus.
+ * further lines defocus more than they dim — the blur carries the depth,
+ * because dimming alone took distant lines to ghosts. Alpha never falls
+ * below its floor (0.45 for lines still to come, 0.40 for lines already
+ * sung), so every line in the song stays a little bit readable however
+ * far from the focus it sits, and nothing fades a line out at the
+ * column's edges either. Lines already sung fall at least as fast as
+ * lines still to come — the line just above the playing one is already
+ * as soft as the second line below it, and dimmer than the first line
+ * below it — while upcoming lines brighten as they approach the focus.
  *
  * All three values are continuous functions of distance: the anchors below
  * are joined by smooth interpolation, so a line travelling toward or away
@@ -347,12 +350,12 @@ private val GAP_ROW_SPACING = 16.dp
  * panel's one curve. Nothing here is stepped, and no timer tweens a radius.
  *
  * Cost is bounded where the model is used, not here: only rows within
- * [BLUR_WINDOW_DISTANCE] of the playing line ever carry a live blur layer,
- * and by that edge their alpha has already collapsed low enough that
- * dropping the blur beyond it reads as melting away, not as a cut. Past
- * the window, opacity and scale alone carry the fall. The whole-view
- * backdrop stays the cached blurred artwork wash — no per-frame backdrop
- * blur is reintroduced by anything here.
+ * [BLUR_WINDOW_DISTANCE] of the playing line ever carry a live blur layer.
+ * Past the window a line keeps its floor alpha and its shrink and simply
+ * loses the defocus — the handover tween carries the radius down as the
+ * line leaves the window, so the crossing is a settle, not a cut. The
+ * whole-view backdrop stays the cached blurred artwork wash — no per-frame
+ * backdrop blur is reintroduced by anything here.
  */
 internal object LyricDepth {
 
@@ -365,15 +368,21 @@ internal object LyricDepth {
     /** Blur anchors by distance, lines already sung, 0 through 5. */
     private val SUNG_BLUR = floatArrayOf(0f, 4f, 6f, 8f, 10f, 10f)
 
-    /** Alpha anchors by distance, upcoming lines, 0 through 5. */
-    private val UPCOMING_ALPHA = floatArrayOf(1f, 0.50f, 0.30f, 0.18f, 0.12f, 0.08f)
+    /**
+     * Alpha anchors by distance, upcoming lines, 0 through 5.
+     *
+     * The ladder eases to a floor a line never falls below: dimming marks
+     * the distance, but the defocus does the heavy lifting, so a far line
+     * is soft, not gone.
+     */
+    private val UPCOMING_ALPHA = floatArrayOf(1f, 0.70f, 0.58f, 0.50f, 0.47f, 0.45f)
 
     /** Alpha anchors by distance, lines already sung, 0 through 5. */
-    private val SUNG_ALPHA = floatArrayOf(1f, 0.35f, 0.22f, 0.14f, 0.09f, 0.06f)
+    private val SUNG_ALPHA = floatArrayOf(1f, 0.62f, 0.52f, 0.46f, 0.42f, 0.40f)
 
     /** Where alpha settles once the anchors run out, either side. */
-    private const val UPCOMING_ALPHA_FLOOR = 0.05f
-    private const val SUNG_ALPHA_FLOOR = 0.04f
+    private const val UPCOMING_ALPHA_FLOOR = 0.45f
+    private const val SUNG_ALPHA_FLOOR = 0.40f
 
     /** Inactive lines sit this far back; the playing line is full size. */
     private const val INACTIVE_SCALE = 0.97f
@@ -2000,8 +2009,7 @@ internal fun LyricsPanel(
                 // the list — and picking leaves them nothing at all: the gesture
                 // below takes taps at the initial pass, so while a pick is open it
                 // would swallow every choice before the row ever saw it.
-                .revealLyricsControlsOnTap(!controlsOpen && !picking, onBottomHalfTap)
-                .fadingEdges(),
+                .revealLyricsControlsOnTap(!controlsOpen && !picking, onBottomHalfTap),
         // Each row carries GLOW_ROOM of its own inset for the halo, so the
         // list hands that much back — otherwise the lines would sit a glow's
         // width further apart and further in than they used to.
@@ -2062,8 +2070,9 @@ internal fun LyricsPanel(
             // Depth of field, not a window: blur, dimming and shrink travel
             // together, lines already sung fall faster than lines still to
             // come, and everything past the blur window recedes on opacity
-            // and scale alone — by the window's edge it is already faint
-            // enough that losing the blur reads as melting away, not a cut.
+            // and scale alone — the dimming has a floor, so a line out there
+            // is soft and quiet but still there to be read, and the radius
+            // tweens down as it leaves the window rather than cutting off.
             //
             // Position is read here as the *derived* active rows, which
             // change only when the singing crosses a line — never per

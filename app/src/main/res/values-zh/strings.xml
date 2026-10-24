@@ -428,8 +428,6 @@
     <string name="preview">预览</string>
     <string name="prioritize_syllable_lyrics">优先使用逐字歌词</string>
     <string name="prioritize_syllable_lyrics_subtitle">即使已找到逐行同步的歌词，也继续搜索逐字歌词</string>
-    <string name="ai_word_sync">AI逐词同步</string>
-    <string name="ai_word_sync_summary">当没有来源提供时，从曲目自身的音频中测量每个词的时间</string>
     <string name="ai_wifi_only">仅Wi-Fi</string>
     <string name="ai_wifi_only_summary">仅在后台通过不限流量网络测量时间</string>
     <string name="quality_hourly">%1$s · %2$s</string>
@@ -1054,7 +1052,6 @@
 
     <string name="source_unrecognised">Sonariq 无法识别该链接</string>
 
-    <string name="start_radio">开启电台</string>
 
     <string name="subscribe">订阅</string>
 

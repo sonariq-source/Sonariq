@@ -113,6 +113,8 @@
     <string name="clear">Clear</string>
     <string name="search_hint">Artists, Songs, Lyrics and More</string>
     <string name="settings_search_hint">Search settings</string>
+    <string name="settings_category_expand">Expand category</string>
+    <string name="settings_category_collapse">Collapse category</string>
     <string name="settings_search_empty">No settings match “%1$s”</string>
     <string name="recent_search_edit">Edit “%1$s”</string>
     <string name="recent_search_remove">Remove “%1$s” from recent searches</string>
@@ -670,8 +672,6 @@
     <string name="preview">Preview</string>
     <string name="prioritize_syllable_lyrics">Prioritize syllable lyrics</string>
     <string name="prioritize_syllable_lyrics_subtitle">Keep searching past a line-synced match for word-by-word lyrics</string>
-    <string name="ai_word_sync">AI word sync</string>
-    <string name="ai_word_sync_summary">Measure word timings from the track’s own audio when no source has them</string>
     <string name="ai_wifi_only">Wi-Fi only</string>
     <string name="ai_wifi_only_summary">Measure timings in the background only on unmetered networks</string>
     <string name="quality_hourly">%1$s · %2$s</string>

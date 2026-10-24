@@ -458,7 +458,6 @@
     <string name="downloads_finished">Downloads · finished</string>
     <string name="downloading_progress">Downloading · %1$d%%</string>
     <string name="starting">Starting</string>
-    <string name="start_radio">Start radio</string>
     <string name="playing_radio">Playing %1$s Radio</string>
     <string name="playing_from">Playing from %1$s</string>
     <string name="played_by">Played by %1$s</string>

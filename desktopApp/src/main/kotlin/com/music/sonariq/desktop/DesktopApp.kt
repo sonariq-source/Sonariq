@@ -379,14 +379,11 @@ private const val HISTORY_SAMPLE_MS = 5_000L
 /** How long the search field is left alone before its typeahead is asked for. */
 private const val SUGGESTION_DEBOUNCE_MS = 220L
 
-/** How many tracks a station is built with when one is started explicitly. */
 /** A search costs more than a completion, so the live rows wait for a longer pause. */
 private const val TYPEAHEAD_MEDIA_DEBOUNCE_MS = 400L
 
 /** How many playable rows the dropdown shows, matching Android's own limit. */
 private const val TYPEAHEAD_MEDIA_LIMIT = 8
-
-private const val INITIAL_RADIO_TRACKS = 24
 
 /** An artist's top songs, capped so the release shelves are not buried. */
 private const val MAX_ARTIST_SONGS = 20
@@ -988,35 +985,6 @@ fun SonariqDesktopApp() {
 
     /** Puts a track at the end of what the listener queued — not the end of the queue. */
     fun addToQueue(song: Song) = enqueue(song, next = false)
-
-    /** Starts the station YouTube Music builds around one track. */
-    fun startRadio(song: Song) {
-        if (partyTrackChangeBlocked()) return
-        val seed = canonicalSong(song).copy(radioName = song.title)
-        scope.launch {
-            // AutoPlay's section behind the seed, as the phone queues a station — which is also
-            // what lets a party share it: a context tail is never published.
-            val related = DesktopAutoplay.tracksFor(listOf(seed), seed, INITIAL_RADIO_TRACKS)
-                .getOrNull()
-                .orEmpty()
-            if (related.isEmpty()) {
-                DesktopTrackLog.log("radio: nothing to build a station on for '${song.title}'")
-                return@launch
-            }
-            if (partyTrackChangeBlocked()) return@launch
-            if (liveQueue.current?.videoId == seed.videoId) {
-                liveQueue = DesktopQueue(listOf(liveQueue.current!!) + related, index = 0)
-                saveQueue()
-                partySyncHolder[0]?.onLocalIntent()
-            } else {
-                val station = listOf(seed.asQueueEntry(QueueTier.CONTEXT)) + related
-                liveQueue = if (shuffle) DesktopQueue.shuffledStartingAt(station, 0) else DesktopQueue(station, 0)
-                preShuffleOrder = if (shuffle) station.map(DesktopQueue::orderKey) else emptyList()
-                playCurrent()
-            }
-            DesktopTrackLog.log("radio: started a station on '${song.title}' with ${related.size} tracks")
-        }
-    }
 
     /**
      * Opens an album or playlist in place of whatever page was open. The page it replaces is kept
@@ -1902,7 +1870,6 @@ fun SonariqDesktopApp() {
         onAddToPlaylist = { playlistTarget = it },
         onDownload = ::downloadSong,
         onRemoveDownload = ::removeDownload,
-        onStartRadio = ::startRadio,
         onPlayNext = ::playNext,
         onAddToQueue = ::addToQueue,
         onOpenAlbum = ::openAlbum,
@@ -2709,7 +2676,6 @@ fun SonariqDesktopApp() {
         onAddToPlaylist = { playlistTarget = it },
         onDownload = ::downloadSong,
         onRemoveDownload = ::removeDownload,
-        onStartRadio = ::startRadio,
         onPlayNext = ::playNext,
         onAddToQueue = ::addToQueue,
         // Both leave the player, the way opening a page from Android's sheet collapses it.

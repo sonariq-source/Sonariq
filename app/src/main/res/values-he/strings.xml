@@ -406,8 +406,6 @@
     <string name="preview">תצוגה מקדימה</string>
     <string name="prioritize_syllable_lyrics">תעדוף מילים לפי הברות</string>
     <string name="prioritize_syllable_lyrics_subtitle">המשך לחפש מעבר להתאמה של שורה למילים מילה במילה</string>
-    <string name="ai_word_sync">סנכרון מילים באמצעות בינה מלאכותית</string>
-    <string name="ai_word_sync_summary">מדידת תזמון המילים מהשמע של השיר עצמו כשאין מקור שמספק אותם</string>
     <string name="ai_wifi_only">Wi-Fi בלבד</string>
     <string name="ai_wifi_only_summary">מדידת תזמונים ברקע רק ברשתות ללא הגבלת נתונים</string>
     <string name="quality_hourly">%1$s · %2$s</string>
@@ -1079,7 +1077,6 @@
 
     <string name="source_unrecognised">Sonariq לא זיהה את הקישור הזה</string>
 
-    <string name="start_radio">הפעל רדיו</string>
 
     <string name="subscribe">הירשם כמנוי</string>
 

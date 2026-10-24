@@ -349,7 +349,6 @@
     <string name="downloads_finished">การดาวน์โหลด · เสร็จสิ้น</string>
     <string name="downloading_progress">กำลังดาวน์โหลด · %1$d%%</string>
     <string name="starting">กำลังเริ่ม</string>
-    <string name="start_radio">เริ่มวิทยุ</string>
     <string name="playing_radio">กำลังเล่นวิทยุ %1$s</string>
     <string name="radio_started">เริ่มวิทยุ %1$s แล้ว</string>
     <string name="saved_to_sonariq_folder">บันทึกลง Music/Sonariq แล้ว</string>

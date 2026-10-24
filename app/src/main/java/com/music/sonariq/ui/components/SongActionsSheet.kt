@@ -41,7 +41,6 @@ import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.PlaylistRemove
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.ThumbDown
@@ -131,7 +130,6 @@ fun SongActionsSheet(
     likeStatus: LikeStatus,
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
-    onStartRadio: () -> Unit,
     onDownload: () -> Unit,
     /**
      * Copies this track to the WebDAV server. Null hides the row — the caller
@@ -300,12 +298,6 @@ fun SongActionsSheet(
 
         DownloadRow(song, palette, isOffline, onDownload)
         WebDavUploadRow(song, palette, isOffline, onUploadToWebDav)
-        ActionRow(
-            icon = Icons.Rounded.Radio,
-            label = stringResource(R.string.start_radio),
-            accent = palette.accent,
-            onClick = onStartRadio,
-        )
         // Autoplay's own exclusions, ban-on-sight like the other rows here —
         // the ban writes straight to AppSettings, the same way the rows
         // below read sleep-timer and download state where they're drawn, so

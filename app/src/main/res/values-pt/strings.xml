@@ -407,8 +407,6 @@
     <string name="preview">Visualização</string>
     <string name="prioritize_syllable_lyrics">Priorizar letras por sílaba</string>
     <string name="prioritize_syllable_lyrics_subtitle">Continuar procurando por letras palavra por palavra</string>
-    <string name="ai_word_sync">Sincronização de palavras com IA</string>
-    <string name="ai_word_sync_summary">Mede os tempos das palavras a partir do áudio da própria faixa quando nenhuma fonte os tem</string>
     <string name="ai_wifi_only">Apenas Wi-Fi</string>
     <string name="ai_wifi_only_summary">Mede os tempos em segundo plano apenas em redes sem limite de dados</string>
     <string name="quality_hourly">%1$s · %2$s</string>
@@ -1079,7 +1077,6 @@
 
     <string name="source_unrecognised">O Sonariq não reconheceu esse link</string>
 
-    <string name="start_radio">Iniciar rádio</string>
 
     <string name="subscribe">Inscrever-se</string>
 

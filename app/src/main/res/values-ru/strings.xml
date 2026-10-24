@@ -461,8 +461,6 @@
     <string name="preview">Предпросмотр</string>
     <string name="prioritize_syllable_lyrics">Приоритизировать текст по слогам</string>
     <string name="prioritize_syllable_lyrics_subtitle">Продолжать поиск после нахождения совпадения по строкам, чтобы найти текст по словам</string>
-    <string name="ai_word_sync">Синхронизация слов с ИИ</string>
-    <string name="ai_word_sync_summary">Измерять время слов по собственному аудио трека, когда ни у одного источника их нет</string>
     <string name="ai_wifi_only">Только Wi-Fi</string>
     <string name="ai_wifi_only_summary">Измерять время в фоне только в сетях без лимита трафика</string>
     <string name="quality_hourly">%1$s · %2$s</string>
@@ -1103,7 +1101,6 @@
 
     <string name="source_unrecognised">Sonariq не удалось распознать ссылку</string>
 
-    <string name="start_radio">Запустить радио</string>
 
     <string name="subscribe">Подписаться</string>
 

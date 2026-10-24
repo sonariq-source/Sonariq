@@ -371,7 +371,6 @@
     <string name="downloads_finished">Download · completati</string>
     <string name="downloading_progress">Download in corso · %1$d%%</string>
     <string name="starting">Avvio</string>
-    <string name="start_radio">Avvia radio</string>
     <string name="playing_radio">Riproduzione radio %1$s</string>
     <string name="radio_started">Radio %1$s avviata</string>
     <string name="saved_to_sonariq_folder">Salvato in Musica/Sonariq</string>

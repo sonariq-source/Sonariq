@@ -11,7 +11,6 @@ import com.music.sonariq.data.model.Song
 import com.music.sonariq.data.mood.Mood
 import com.music.sonariq.data.mood.MoodStations
 import com.music.sonariq.data.settings.AppSettings
-import com.music.sonariq.playback.radio.RadioSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -91,10 +90,8 @@ object AutoplaySeeds {
     /**
      * Starts [seeds] through the same queue path every other play action
      * uses, with the AutoPlay setting turned on so PlaybackService keeps the
-     * queue going from the playing tracks. Any running radio session is
-     * stopped too — a station would refill the queue itself and fight the
-     * autoplay contract. Returns false when there was nothing real to start,
-     * in which case nothing about playback changes.
+     * queue going from the playing tracks. Returns false when there was
+     * nothing real to start, in which case nothing about playback changes.
      */
     suspend fun startSeededAutoplay(
         controller: MediaController?,
@@ -103,7 +100,6 @@ object AutoplaySeeds {
         if (seeds.isEmpty() || controller == null) return false
         AppSettings.setAutoplay(true)
         controller.playSongs(seeds, 0)
-        RadioSession.stop()
         return true
     }
 }

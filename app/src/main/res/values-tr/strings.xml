@@ -369,7 +369,6 @@
     <string name="downloads_finished">İndirmeler · tamamlandı</string>
     <string name="downloading_progress">İndiriliyor · %1$d%%</string>
     <string name="starting">Başlatılıyor</string>
-    <string name="start_radio">Radyoyu başlat</string>
     <string name="radio_started">%1$s radyosu başlatıldı</string>
     <string name="saved_to_sonariq_folder">Müzik/Sonariq klasörüne kaydedildi</string>
     <string name="nothing_downloading">İndirilen bir şey yok</string>
@@ -471,8 +470,6 @@
     <string name="preview">Önizleme</string>
     <string name="prioritize_syllable_lyrics">Heceli sözlere öncelik ver</string>
     <string name="prioritize_syllable_lyrics_subtitle">Kelime kelime sözler için satır senkronlu bir eşleşmeyi geçtikten sonra aramaya devam et</string>
-    <string name="ai_word_sync">AI kelime senkronu</string>
-    <string name="ai_word_sync_summary">Hiçbir kaynakta yoksa kelime zamanlamalarını parçanın kendi sesinden ölç</string>
     <string name="ai_wifi_only">Yalnızca Wi-Fi</string>
     <string name="ai_wifi_only_summary">Zamanlamaları arka planda yalnızca kotasız ağlarda ölç</string>
     <string name="quality_hourly">%1$s · %2$s</string>

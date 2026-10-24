@@ -113,14 +113,6 @@ fun MediaController.toggleShuffle() {
     )
 }
 
-/** Clears the previous queue's service and restart state before starting radio. */
-suspend fun MediaController.beginRadioQueue() {
-    sendCustomCommand(
-        SessionCommand(ACTION_BEGIN_RADIO_QUEUE, Bundle.EMPTY),
-        Bundle.EMPTY,
-    ).await()
-}
-
 /**
  * Asks the service to go looking for a better copy of the playing track, now,
  * because the listener asked for it.
@@ -235,14 +227,6 @@ fun songFromBundle(b: Bundle): Song = Song(
     playbackSourceId = b.getString("playbackSourceId"),
     isExplicit = if (b.containsKey("isExplicit")) b.getBoolean("isExplicit") else null,
 )
-
-/** Flushes the current radio queue to disk before reporting that it started. */
-suspend fun MediaController.commitRadioQueue() {
-    sendCustomCommand(
-        SessionCommand(ACTION_COMMIT_RADIO_QUEUE, Bundle.EMPTY),
-        Bundle.EMPTY,
-    ).await()
-}
 
 
 /**

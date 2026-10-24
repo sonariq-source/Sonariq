@@ -30,9 +30,11 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Whether one AI word-sync job may start: the feature is switched on, this
- * build carries a transcription key, and no job for the same track is
- * already running.
+ * Whether one AI word-sync job may start: this build carries a
+ * transcription key, and no job for the same track is already running.
+ * AI word sync itself is always on — there is no settings switch for it —
+ * so callers pass `enabled = true`; the parameter stays so the dormant
+ * (keyless-build) behaviour below remains directly testable.
  *
  * Pure, so the dormant behaviour is testable without a device: a build
  * whose key is blank (a fresh checkout, a fork — the key is injected at
@@ -363,7 +365,7 @@ object AiWordSync {
         if (videoId.isBlank()) return
         val key = BuildConfig.GROQ_API_KEY
         if (!aiWordSyncGateAllows(
-                enabled = AppSettings.aiWordSyncEnabled.value,
+                enabled = true, // Always on: there is no settings switch for AI word sync.
                 keyBlank = key.isBlank(),
                 alreadyInFlight = videoId in inFlight,
             )

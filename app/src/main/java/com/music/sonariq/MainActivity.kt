@@ -206,15 +206,10 @@ import com.music.sonariq.playback.QueueSource
 import com.music.sonariq.data.model.QueueTier
 import com.music.sonariq.playback.autoplayEnabledFor
 import com.music.sonariq.playback.autoplaySectionStart
-import com.music.sonariq.playback.beginRadioQueue
-import com.music.sonariq.playback.commitRadioQueue
 import com.music.sonariq.playback.fromAutoplay
 import com.music.sonariq.playback.hasYouTubeOriginal
 import com.music.sonariq.playback.AutoplaySeeds
 import com.music.sonariq.playback.launchSeededAutoplay
-import com.music.sonariq.playback.loadAutoplayTracks
-import com.music.sonariq.playback.radio.RadioSession
-import com.music.sonariq.playback.radio.RadioSource
 import com.music.sonariq.data.mood.Mood
 import com.music.sonariq.data.mood.MoodStations
 import com.music.sonariq.data.mood.MomentSlot
@@ -360,14 +355,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.util.Locale
 
-/** A full first screen of a native YouTube Music radio before AutoPlay tops it up. */
 /** How much of an artist page's header scrolls away before the top fade begins. */
 private const val TOP_FADE_START = 0.55f
 
 /** How much of the header's height the fade takes to reach full strength. */
 private const val TOP_FADE_RAMP = 0.3f
-
-private const val INITIAL_RADIO_TRACKS = 24
 
 internal fun shouldSkipAfterDislike(
     previousStatus: LikeStatus,
@@ -766,12 +758,8 @@ private fun SonariqApp(
     // signal to focus the input field.
     var searchFocusRequested by remember { mutableStateOf(false) }
     val searchFieldFocus = remember { FocusRequester() }
-    // Invalidates an in-flight radio lookup when a later play request wins.
+    // Invalidates an in-flight play lookup when a later play request wins.
     var playRequestGeneration by remember { mutableIntStateOf(0) }
-    // Starting radio from the item already playing must not replace that media
-    // item just to add UI metadata. This temporary label covers that seed; all
-    // following radio items carry radioName in their MediaItem extras.
-    var activeRadioSeed by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     // The modal player owns light status glyphs and its own contrast scrim.
     // Every other surface follows the theme; Replay's page and stories remain
@@ -1410,10 +1398,6 @@ private fun SonariqApp(
         val songs = allSongs.filterNot { it.isUnresolvedSpotify }
         val index = songs.indexOf(allSongs.getOrNull(allIndex)).coerceAtLeast(0)
         playRequestGeneration++
-        activeRadioSeed = null
-        // A station does not survive the user picking new music: the refill
-        // contract ends with the queue it was feeding.
-        RadioSession.stop()
         scope.launch {
             if (refusedByHost()) return@launch
             val c = controller ?: return@launch
@@ -1469,7 +1453,6 @@ private fun SonariqApp(
         ) {
             optimisticVersionSong = null
         }
-        if (activeRadioSeed?.first != player.song?.videoId) activeRadioSeed = null
         if (keepVideoId != player.song?.videoId) keepVideoId = null
         if (player.song?.videoId != convertedAudioId) {
             convertedFromVideo = null
@@ -1553,9 +1536,6 @@ private fun SonariqApp(
                     ).show()
                     else -> {
                         activeController.playSongs(station, 0)
-                        // The mood station owns the queue now; a previous
-                        // radio session must not refill into it.
-                        RadioSession.stop()
                         Toast.makeText(
                             context,
                             context.getString(R.string.radio_started, context.getString(mood.labelRes)),
@@ -1577,9 +1557,6 @@ private fun SonariqApp(
         if (activeController != null && !refusedByHost() && station.isNotEmpty()) {
             scope.launch {
                 activeController.playSongs(station, 0)
-                // The moment station owns the queue now; a previous radio
-                // session must not refill into it.
-                RadioSession.stop()
                 Toast.makeText(
                     context,
                     context.getString(R.string.radio_started, context.getString(slot.labelRes)),
@@ -1590,15 +1567,14 @@ private fun SonariqApp(
     }
 
     /**
-     * A song picked on its own — off a home card or a search hit — starts a
-     * station rather than queueing the list it was shown in. Searching
+     * A song picked on its own — off a home card or a search hit — plays on
+     * its own rather than queueing the list it was shown in. Searching
      * "Perfect" and tapping the top hit otherwise queues twenty covers and
      * remixes of the same song. Album, artist and playlist pages keep [play],
      * where the surrounding list *is* the thing the user asked for.
      */
     val playRadio: (Song, QueueSource) -> Unit = { song, source ->
         playRequestGeneration++
-        activeRadioSeed = null
         scope.launch {
             if (refusedByHost()) return@launch
             val c = controller ?: return@launch
@@ -1612,96 +1588,10 @@ private fun SonariqApp(
                 source = source,
             )
             c.playSongs(oneOffQueue, 0)
-            // The one-off pick replaces whatever was playing, station included.
-            RadioSession.stop()
-            // Start radio in the mini-player; the user opens the full view by tapping it.
+            // Start playback in the mini-player; the user opens the full view by tapping it.
         }
     }
 
-    /**
-     * Starts the explicit station offered by every song overflow menu.
-     *
-     * The related tracks come from YouTube Music's own RDAMVM watch queue.
-     * Loading happens before the player is touched so a failed request cannot
-     * destroy the queue already playing. Once ready, the whole old queue is
-     * replaced in one Media3 operation.
-     */
-    val startRadio: (Song) -> Unit = { song ->
-        val originalController = controller
-        if (originalController != null && !refusedByHost()) {
-            val request = ++playRequestGeneration
-            // Ignore AutoPlay's tail: it may legitimately grow while the
-            // request is in flight and does not mean the listener chose a
-            // different queue. A new album/song queue does.
-            val originalManualQueue = (0 until originalController.mediaItemCount)
-                .map { originalController.getMediaItemAt(it) }
-                .filterNot { it.fromAutoplay }
-                .map { it.mediaId }
-            scope.launch {
-                val seed = song.copy(
-                    radioName = song.title,
-                    playbackSource = song.title,
-                    playbackSourceType = PlaybackSourceType.SHARED_LINK,
-                    playbackSourceId = song.videoId,
-                )
-                val related = loadAutoplayTracks(
-                    existing = listOf(seed),
-                    seedSong = seed,
-                    limit = INITIAL_RADIO_TRACKS,
-                ).getOrElse {
-                    if (request == playRequestGeneration) {
-                        Toast.makeText(context, R.string.couldnt_load_tracks, Toast.LENGTH_SHORT).show()
-                    }
-                    return@launch
-                }
-                if (related.isEmpty()) {
-                    if (request == playRequestGeneration) {
-                        Toast.makeText(context, R.string.couldnt_load_tracks, Toast.LENGTH_SHORT).show()
-                    }
-                    return@launch
-                }
-                val activeController = controller
-                val activeManualQueue = (0 until activeController.mediaItemCount)
-                    .map { activeController.getMediaItemAt(it) }
-                    .filterNot { it.fromAutoplay }
-                    .map { it.mediaId }
-                if (request != playRequestGeneration || activeManualQueue != originalManualQueue) {
-                    return@launch
-                }
-                // Cancel any armed crossfade/AutoPlay work and erase the old
-                // cold-start snapshot before the visible queue is replaced.
-                activeController.beginRadioQueue()
-                val currentIndex = activeController.currentMediaItemIndex
-                val currentItem = activeController.currentMediaItem
-                if (currentIndex >= 0 && currentItem?.mediaId == song.videoId) {
-                    // Keep the current MediaItem itself untouched. Replacing it,
-                    // even with the same song, reparses the source at position
-                    // zero and audibly stops/restarts the track.
-                    if (currentIndex + 1 < activeController.mediaItemCount) {
-                        activeController.removeMediaItems(currentIndex + 1, activeController.mediaItemCount)
-                    }
-                    if (currentIndex > 0) activeController.removeMediaItems(0, currentIndex)
-                    activeController.addMediaItems(1, related.map { it.toMediaItem() })
-                    activeRadioSeed = song.videoId to song.title
-                    // The explicit station owns its own refill contract from
-                    // here — see [RadioSession].
-                    RadioSession.start(RadioSource.Song(song))
-                } else {
-                    activeRadioSeed = null
-                    activeController.playSongs(listOf(seed) + related, 0)
-                    RadioSession.start(RadioSource.Song(song))
-                }
-                // Make this station — never the queue from before it — what a
-                // fresh process restores, even if it is killed immediately.
-                activeController.commitRadioQueue()
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.radio_started, song.title),
-                    Toast.LENGTH_SHORT,
-                ).show()
-            }
-        }
-    }
     val addToQueue: (Song) -> Unit = { song ->
         scope.launch {
             if (refusedByHost()) return@launch
@@ -2413,17 +2303,7 @@ private fun SonariqApp(
             it.videoId == YtMusicRepository.cachedAudioVersion(song.videoId)?.videoId ||
             it.videoId == YtMusicRepository.cachedVideoVersion(song.videoId)?.videoId
         } ?: song
-        val displayedSong = activeRadioSeed
-            ?.takeIf { (videoId, _) -> effectiveSong.radioName == null && videoId == effectiveSong.videoId }
-            ?.let { (videoId, name) ->
-                effectiveSong.copy(
-                    radioName = name,
-                    playbackSource = name,
-                    playbackSourceType = PlaybackSourceType.SHARED_LINK,
-                    playbackSourceId = videoId,
-                )
-            }
-            ?: effectiveSong
+        val displayedSong = effectiveSong
         val playedBy = partyState
             .takeIf {
                 it.inParty && it.playback.track?.videoId == displayedSong.videoId
@@ -4716,7 +4596,6 @@ private fun SonariqApp(
                 likeStatus = likeStatuses[song.videoId] ?: LikeStatus.INDIFFERENT,
                 onPlayNext = { playNext(song); songActions = null },
                 onAddToQueue = { addToQueue(song); songActions = null },
-                onStartRadio = { startRadio(song); songActions = null },
                 // Stays open: the row it replaces itself with is the
                 // progress, and closing the sheet would hide the only
                 // answer to "did that work?".

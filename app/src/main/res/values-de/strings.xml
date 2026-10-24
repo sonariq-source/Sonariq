@@ -442,8 +442,6 @@
     <string name="preview">Vorschau</string>
     <string name="prioritize_syllable_lyrics">Silben-Songtexte priorisieren</string>
     <string name="prioritize_syllable_lyrics_subtitle">Sucht über einen zeilensynchronen Treffer hinaus nach wortgenauen Songtexten weiter</string>
-    <string name="ai_word_sync">KI-Wortsynchronisierung</string>
-    <string name="ai_word_sync_summary">Wortzeiten aus dem eigenen Audio des Titels messen, wenn keine Quelle sie hat</string>
     <string name="ai_wifi_only">Nur Wi-Fi</string>
     <string name="ai_wifi_only_summary">Wortzeiten im Hintergrund nur in Netzwerken ohne Datenlimit messen</string>
     <string name="quality_hourly">%1$s · %2$s</string>
@@ -1075,7 +1073,6 @@
 
     <string name="source_unrecognised">Sonariq konnte diesen Link nicht erkennen</string>
 
-    <string name="start_radio">Radio starten</string>
 
     <string name="subscribe">Abonnieren</string>
 
