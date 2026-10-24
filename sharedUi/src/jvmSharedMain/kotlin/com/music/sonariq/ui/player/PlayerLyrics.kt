@@ -7,7 +7,6 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -326,15 +325,126 @@ private val GAP_ROW_HEIGHT = 40.dp
 private val GAP_ROW_SPACING = 16.dp
 
 /**
- * How the stack falls away either side of the line being sung.
+ * How the stack falls away either side of the line being sung: one pure
+ * depth model for the whole panel, so the list, the tests and the draw code
+ * can never disagree about what a line at a given distance looks like.
  *
- * Indexed by distance from it. Far subtler than a linear ramp: the two lines
- * around the playing one stay legible so you can read ahead and behind, and
- * only past that does the panel let go. The last entry stands for everything
- * further out, which is most of the list.
+ * Blur is deliberately *bounded and quantised*. A live blur is a
+ * RenderEffect worked out over the line's own bitmap, and it is only worth
+ * that cost near the line being read: inside [BLUR_WINDOW] the radius steps
+ * through a handful of fixed values — slight beside the playing line, then
+ * rising steeply to a heavy blur at the window's edge — and outside it the
+ * radius is exactly zero and the caller applies no blur modifier at all, so
+ * a far line costs only its alpha and scale. The radius is read off the
+ * integer distance and never animated through intermediate values: an
+ * animated radius rebuilds its RenderEffect on every frame of the settle,
+ * which was most of the panel's frame cost while a song was playing.
+ *
+ * Alpha and scale carry the depth the blur leaves off. Both fall
+ * monotonically away from the playing line to a floor — the two lines
+ * around it stay legible so you can read ahead and behind, and everything
+ * past that recedes to the floor rather than fading to nothing.
  */
-private val LINE_FALLOFF_ALPHA = floatArrayOf(1f, 0.8f, 0.7f, 0.58f, 0.46f, 0.40f, 0.37f)
-private val LINE_FALLOFF_BLUR = arrayOf(0.dp, 1.dp, 1.dp, 1.7.dp, 2.4.dp, 3.0.dp, 3.6.dp)
+internal object LyricDepth {
+
+    /** Lines this far from the playing one (either side) may carry a blur. */
+    const val BLUR_WINDOW = 4
+
+    /** Quantised blur radii in dp, indexed by distance 0..[BLUR_WINDOW]. */
+    private val BLUR_STEPS_DP = floatArrayOf(0f, 3f, 8f, 17f, 30f)
+
+    private val ALPHA_STEPS = floatArrayOf(1f, 0.80f, 0.70f, 0.58f, 0.46f, 0.40f)
+    private const val ALPHA_FLOOR = 0.37f
+
+    private val SCALE_STEPS = floatArrayOf(1f, 0.995f, 0.99f, 0.985f, 0.98f)
+    private const val SCALE_FLOOR = 0.98f
+
+    /** What one line looks like at a given distance from the playing one. */
+    data class Depth(
+        /** Live blur radius in dp; exactly 0 outside the window. */
+        val blurRadiusDp: Float,
+        val alpha: Float,
+        val scale: Float,
+        val inBlurWindow: Boolean,
+    )
+
+    /** The depth for a line [signedDistance] rows from the playing one. */
+    fun forDistance(signedDistance: Int): Depth {
+        val distance = abs(signedDistance)
+        return Depth(
+            blurRadiusDp = if (distance <= BLUR_WINDOW) BLUR_STEPS_DP[distance] else 0f,
+            alpha = if (distance < ALPHA_STEPS.size) ALPHA_STEPS[distance] else ALPHA_FLOOR,
+            scale = if (distance < SCALE_STEPS.size) SCALE_STEPS[distance] else SCALE_FLOOR,
+            inBlurWindow = distance <= BLUR_WINDOW,
+        )
+    }
+}
+
+/**
+ * This row's depth blur, or nothing at all.
+ *
+ * A blur modifier at radius 0 is still a layer with a RenderEffect to set
+ * up, so a row outside the window — or one whose settings have blur off —
+ * must not carry the modifier in the first place. That conditional is the
+ * whole of the bounded window's saving: most rows of a song are most of
+ * the time outside it.
+ */
+private fun Modifier.depthBlur(radiusDp: Float): Modifier =
+    if (radiusDp > 0f) blur(radiusDp.dp, BlurredEdgeTreatment.Unbounded) else this
+
+/**
+ * The landing of one timed piece of a word — the word itself, or one of its
+ * syllables where the provider split it — as the sweep reaches it.
+ *
+ * Pure arithmetic over the piece's own stamps, and nothing else: it reads
+ * no timing source of its own and changes none, so what lands is exactly
+ * what the sweep was already going to light, given a small pop as it
+ * arrives. The pop runs over the first [LANDING_MS] of the piece (or the
+ * whole piece, where it is shorter): the scale eases from [START_SCALE]
+ * up to 1 while a glow pulse starts at full strength and settles away over
+ * the same stretch. Past the piece's end both are at rest — the finished
+ * word *holds*, the way the sweep itself holds through a pause, rather
+ * than creeping on.
+ */
+internal object LyricWordLanding {
+
+    /** Where a landing piece starts, as a scale about its own centre. */
+    const val START_SCALE = 0.92f
+
+    /** The longest a landing ever takes, however long the piece is held. */
+    const val LANDING_MS = 240L
+
+    private fun smooth(fraction: Float): Float = fraction * fraction * (3f - 2f * fraction)
+
+    /** How far the landing of the piece sung over [startMs]..[endMs] has got, 0..1. */
+    fun progress(positionMs: Long, startMs: Long, endMs: Long): Float {
+        if (positionMs < startMs) return 0f
+        if (positionMs >= endMs) return 1f
+        val span = (endMs - startMs).coerceAtLeast(1L)
+        val window = minOf(span, LANDING_MS)
+        return ((positionMs - startMs).toFloat() / window).coerceIn(0f, 1f)
+    }
+
+    /** The piece's scale at [positionMs]: [START_SCALE] as it starts, 1 once landed. */
+    fun scaleAt(positionMs: Long, startMs: Long, endMs: Long): Float =
+        START_SCALE + (1f - START_SCALE) * smooth(progress(positionMs, startMs, endMs))
+
+    /**
+     * The glow pulse at [positionMs]: full as the piece starts, settling to
+     * nothing as it lands, and nothing at all outside the piece — a word
+     * not yet sung does not glow, and a finished one holds at rest.
+     */
+    fun glowPulseAt(positionMs: Long, startMs: Long, endMs: Long): Float {
+        if (positionMs < startMs || positionMs >= endMs) return 0f
+        return 1f - smooth(progress(positionMs, startMs, endMs))
+    }
+}
+
+/** How far a line sits below its place before it arrives, settling up into it. */
+private val LINE_ARRIVAL_RISE = 8.dp
+
+/** The strongest the landing pulse ever draws the bloom copy at, per piece. */
+private const val LANDING_GLOW_PEAK = 0.55f
 
 /**
  * The shape of the page the lyrics are going to fill.
@@ -365,9 +475,6 @@ private const val SKELETON_PERIOD_MS = 1_400
 
 /** What a line reads at while the list is being scrolled by hand. */
 private const val BROWSING_ALPHA = 0.8f
-
-/** The playing line sits at 1; the rest sit fractionally back from it. */
-private const val INACTIVE_SCALE = 0.98f
 
 /** A line under a finger dips, the way a button does. */
 private const val PRESSED_SCALE = 0.96f
@@ -746,6 +853,12 @@ private fun SweptLyricLine(
     tint: Color = Color.White,
     /** The bloom's colour; the brand lime unless a voice carries its own. */
     glowTint: Color = LyricLime,
+    /**
+     * Whether each word gets its landing pop and glow pulse as the sweep
+     * reaches it — see [LyricWordLanding]. Off where animation is reduced,
+     * and on the one-line strip, whose words have nothing to land into.
+     */
+    wordLanding: Boolean = false,
 ) {
     var layout by remember(line) { mutableStateOf<TextLayoutResult?>(null) }
 
@@ -824,6 +937,7 @@ private fun SweptLyricLine(
                             inset = glowRoom.toPx(),
                             peak = WORD_RISE.toPx(),
                             growth = growth,
+                            landing = wordLanding,
                         )
                     }
                 }
@@ -897,6 +1011,19 @@ private fun SweptLyricLine(
                             peak = WORD_RISE.toPx(),
                             growth = growth,
                         )
+                        // The landing pulse rides this same blurred copy:
+                        // no second layer, no second blur — the piece
+                        // being landed is masked into the bloom at a
+                        // brightness that settles as the piece completes.
+                        if (wordLanding) {
+                            glowLanding(
+                                layout = measured,
+                                line = line,
+                                positionMs = drawnAt(),
+                                inset = glowRoom.toPx(),
+                                peak = WORD_RISE.toPx(),
+                            )
+                        }
                     },
             )
         }
@@ -997,6 +1124,77 @@ private fun ContentDrawScope.glowGrown(
 }
 
 /**
+ * Draws the landing pulse of the piece currently being sung into the bloom
+ * copy — see [LyricWordLanding].
+ *
+ * A companion to [glowGrown], on the same layer and under the same rules:
+ * each letter of the landing piece is masked to the pulse's brightness
+ * with DstIn before the caller's blur spreads it, so the light comes off
+ * the letters themselves. Words held long enough to grow letter by letter
+ * are left to [glowGrown] — they already carry their own bloom, and
+ * drawing both would double it. Where a word is split into syllables the
+ * pulse follows the syllable being sung, not the whole word, so each
+ * syllable lands as its own span begins. At most one piece per word can be
+ * landing at a time, and outside it this costs a walk of the line's words
+ * and their syllables and draws nothing.
+ */
+private fun ContentDrawScope.glowLanding(
+    layout: TextLayoutResult,
+    line: LyricLine,
+    positionMs: Long,
+    inset: Float,
+    peak: Float,
+) {
+    val length = layout.layoutInput.text.length
+    for (index in line.words.indices) {
+        if (line.growingAt(index) != null) continue
+        val word = line.words[index]
+        var pieceStart = word.startMs
+        var pieceEnd = word.endMs
+        var firstChar = 0
+        var lastChar = word.text.length
+        if (word.syllables.isNotEmpty()) {
+            val syllable = word.syllables.firstOrNull {
+                positionMs >= it.startMs && positionMs < it.endMs
+            } ?: continue
+            pieceStart = syllable.startMs
+            pieceEnd = syllable.endMs
+            firstChar = syllable.startChar
+            lastChar = syllable.endChar
+        }
+        val pulse = LyricWordLanding.glowPulseAt(positionMs, pieceStart, pieceEnd)
+        if (pulse <= 0.01f) continue
+        val landingScale = LyricWordLanding.scaleAt(positionMs, pieceStart, pieceEnd)
+        val span = line.wordSpans[index]
+        for (char in (span.first + firstChar) until minOf(span.first + lastChar, length)) {
+            val visualLine = layout.getLineForOffset(char)
+            val from = layout.xOn(char, visualLine, inset)
+            val to = layout.xOn(char + 1, visualLine, inset)
+            if (to <= from) continue
+            val rowTop = layout.getLineTop(visualLine) + inset
+            val bottom = layout.getLineBottom(visualLine) + inset
+            clipRect(
+                left = from,
+                top = rowTop - peak * GROW_HEADROOM,
+                right = to,
+                bottom = bottom,
+            ) {
+                scale(landingScale, landingScale, Offset((from + to) / 2f, (rowTop + bottom) / 2f)) {
+                    this@glowLanding.drawContent()
+                }
+                // Scoped to this letter's own clip, like the grown bloom's:
+                // it takes this letter's brightness down and leaves its
+                // neighbours — landing a beat behind — where they are.
+                drawRect(
+                    color = Color.White.copy(alpha = pulse * LANDING_GLOW_PEAK),
+                    blendMode = BlendMode.DstIn,
+                )
+            }
+        }
+    }
+}
+
+/**
  * Redraws this row with the word being sung lifted off the line, and the ones
  * behind it settling back down.
  *
@@ -1016,6 +1214,7 @@ private fun ContentDrawScope.riseWith(
     inset: Float,
     peak: Float,
     growth: CharGrowth,
+    landing: Boolean = false,
 ) {
     if (!line.isLifted(positionMs)) {
         drawContent()
@@ -1046,9 +1245,38 @@ private fun ContentDrawScope.riseWith(
             // cheaper single slice takes over without a step.
             val held = line.growingAt(index)?.takeIf { positionMs in it.startMs..it.restsAtMs }
             val lift = line.wordLift(index, positionMs)
+            // The landing pop, where it is on: the piece being sung — the
+            // word, or the syllable of it currently sounding — eases from
+            // [LyricWordLanding.START_SCALE] up to full size over its
+            // opening stretch, then holds at 1 for the rest of the piece
+            // and through the pause after it. Between two syllables there
+            // is no piece sounding, so nothing is landing and the word
+            // sits at rest. Read off the same stamps the sweep reads, in
+            // this draw pass, so the pop costs no timer and no state.
+            var landingScale = 1f
+            if (landing && held == null) {
+                val word = line.words[index]
+                var pieceStart = word.startMs
+                var pieceEnd = word.endMs
+                var sounding = positionMs >= word.startMs && positionMs < word.endMs
+                if (sounding && word.syllables.isNotEmpty()) {
+                    val syllable = word.syllables.firstOrNull {
+                        positionMs >= it.startMs && positionMs < it.endMs
+                    }
+                    if (syllable == null) {
+                        sounding = false
+                    } else {
+                        pieceStart = syllable.startMs
+                        pieceEnd = syllable.endMs
+                    }
+                }
+                if (sounding) {
+                    landingScale = LyricWordLanding.scaleAt(positionMs, pieceStart, pieceEnd)
+                }
+            }
             // A word with nothing happening to it is left to the flat run,
             // which is the whole of the line for all but a syllable of it.
-            if (held == null && lift <= 0.01f) continue
+            if (held == null && lift <= 0.01f && landingScale >= 0.999f) continue
             val from = layout.xOn(start, visualLine, inset)
             val to = layout.xOn(end, visualLine, inset)
             // Nothing to cut. Left where it is rather than stepped over, so the
@@ -1065,7 +1293,12 @@ private fun ContentDrawScope.riseWith(
             } else {
                 // Only what is off the floor gets room above the row to be off
                 // it in; see [top].
-                sliceRisen(from, top - peak, to, bottom, -lift * peak)
+                sliceRisen(
+                    from, top - peak, to, bottom, -lift * peak,
+                    scaleFactor = landingScale,
+                    pivotX = (from + to) / 2f,
+                    pivotY = (top + bottom) / 2f,
+                )
             }
             at = end
             edge = to
@@ -1174,10 +1407,22 @@ private fun ContentDrawScope.sliceRisen(
     to: Float,
     bottom: Float,
     dy: Float,
+    scaleFactor: Float = 1f,
+    pivotX: Float = 0f,
+    pivotY: Float = 0f,
 ) {
     if (to <= from) return
     clipShiftedDown(left = from, top = top, right = to, bottom = bottom, dy = dy) {
-        this@sliceRisen.drawContent()
+        // The landing pop never grows past 1, so a landing piece only ever
+        // shrinks inside its own clip — no extra room is owed to it, unlike
+        // a letter swelling in [growEach].
+        if (scaleFactor < 0.999f) {
+            scale(scaleFactor, scaleFactor, Offset(pivotX, pivotY)) {
+                this@sliceRisen.drawContent()
+            }
+        } else {
+            this@sliceRisen.drawContent()
+        }
     }
 }
 
@@ -1918,7 +2163,11 @@ internal fun LyricsPanel(
         ),
         verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
-        itemsIndexed(lines) { index, line ->
+        // Keyed by the line's own index: the row's place in the song is
+        // the stable identity a row's animations and layout state belong
+        // to, so a row keeps them as the list recycles it, and a changed
+        // line at the same place is redrawn rather than inherited.
+        itemsIndexed(lines, key = { index, _ -> index }) { index, line ->
             if (!isSynced && isGeniusSectionHeader(line.text)) {
                 val sectionTitle = line.text.removePrefix("[").removeSuffix("]").trim()
                 Column(
@@ -1958,21 +2207,29 @@ internal fun LyricsPanel(
             // there is no sweep behind it to keep the sung line lit, and it
             // read as dim while it was still being sung.
             val offset = if (scrollLine < 0) 0 else index - scrollLine
-            val distance = abs(offset)
             val isActive = isSynced && index in activeRows
-            // Symmetric either side of the playing line, and shallow: the two
-            // rows around it stay readable so you can follow back over what was
-            // just sung as well as ahead, and everything past that recedes to
-            // the same floor rather than fading to nothing.
-            val step = distance.coerceAtMost(LINE_FALLOFF_ALPHA.lastIndex)
-            val blur by animateDpAsState(
-                targetValue = when {
-                    !isSynced || reduceDynamicBlur || !lyricsBlur || browsing || isActive -> 0.dp
-                    else -> LINE_FALLOFF_BLUR[step]
-                },
-                animationSpec = tween(LYRIC_SETTLE_MS, easing = LYRIC_EASING),
-                label = "lyricBlur",
-            )
+            // One depth for the row, off the pure model — see [LyricDepth].
+            // Symmetric either side of the playing line: the rows around it
+            // stay readable so you can follow back over what was just sung
+            // as well as ahead, and everything past that recedes.
+            //
+            // Position is read here as the *derived* active rows, which
+            // change only when the singing crosses a line — never per
+            // frame — so a position tick does not recompose the list; the
+            // per-frame clock is read only inside each row's own draw and
+            // derived states.
+            val depth = LyricDepth.forDistance(offset)
+            // The blur is *not* animated and carries no state: it snaps
+            // between the model's quantised steps as the integer distance
+            // changes, and a radius of 0 applies no blur modifier at all
+            // (see the rows below), so only the handful of rows inside the
+            // window ever pay for a RenderEffect — and browsing, unsynced
+            // lyrics and the reduced-blur settings pay for none.
+            val blurRadiusDp = when {
+                !isSynced || reduceDynamicBlur || !lyricsBlur || browsing ||
+                    isActive || !renderEffectBlurSupported -> 0f
+                else -> depth.blurRadiusDp
+            }
             val lineAlpha by animateFloatAsState(
                 targetValue = when {
                     !isSynced -> 0.95f
@@ -1980,9 +2237,13 @@ internal fun LyricsPanel(
                     // Reading by hand is not following along: the stack flattens
                     // to one brightness so no row is being pointed at.
                     browsing -> BROWSING_ALPHA
-                    else -> LINE_FALLOFF_ALPHA[step]
+                    else -> depth.alpha
                 },
-                animationSpec = tween(LYRIC_SETTLE_MS, easing = LYRIC_EASING),
+                animationSpec = if (reduceAnimation) {
+                    snap()
+                } else {
+                    tween(LYRIC_SETTLE_MS, easing = LYRIC_EASING)
+                },
                 label = "lyricAlpha",
             )
             if (line.isGap) {
@@ -2025,7 +2286,7 @@ internal fun LyricsPanel(
                 ) {
                 Box(
                     modifier = Modifier
-                        .blur(blur, BlurredEdgeTreatment.Unbounded)
+                        .depthBlur(blurRadiusDp)
                         .clip(RoundedCornerShape(10.dp))
                         // A gap is nothing to pick, so it only ever seeks — and
                         // not even that while a pick is open, where a stray tap
@@ -2110,16 +2371,38 @@ internal fun LyricsPanel(
                     STAGGER_FRACTION * run.durationMs
                 val interaction = remember { MutableInteractionSource() }
                 val pressed by interaction.collectIsPressedAsState()
+                // The row's arrival: a line becoming the sung one rises
+                // the last few dp into its place as its scale and glow
+                // come up, and relaxes back down as it hands over. Driven
+                // by the same active state as the dimming, on the panel's
+                // one curve, and applied in the graphics layer below —
+                // never in layout, so the rows around it are not pushed
+                // about by it. Reduced animation snaps it, as it does the
+                // rest of the row.
+                val arrival by animateFloatAsState(
+                    targetValue = if (isActive) 1f else 0f,
+                    animationSpec = if (reduceAnimation) {
+                        snap()
+                    } else {
+                        tween(LYRIC_SETTLE_MS, easing = LYRIC_EASING)
+                    },
+                    label = "lyricArrival",
+                )
+                val arrivalRisePx = with(LocalDensity.current) { LINE_ARRIVAL_RISE.toPx() }
                 val scale by animateFloatAsState(
                     targetValue = when {
                         pressed -> PRESSED_SCALE
                         isActive -> 1f
-                        else -> INACTIVE_SCALE
+                        // The depth model's own scale, so the rows nearest
+                        // the playing one sit a hair further forward than
+                        // the far ones, which rest at the old inactive scale.
+                        else -> depth.scale
                     },
-                    animationSpec = tween(
-                        durationMillis = if (pressed) 120 else LYRIC_SETTLE_MS,
-                        easing = LYRIC_EASING,
-                    ),
+                    animationSpec = when {
+                        reduceAnimation -> snap()
+                        pressed -> tween(durationMillis = 120, easing = LYRIC_EASING)
+                        else -> tween(durationMillis = LYRIC_SETTLE_MS, easing = LYRIC_EASING)
+                    },
                     label = "lyricScale",
                 )
                 // Apple's bloom on the line being sung. Fades in and out with
@@ -2127,7 +2410,7 @@ internal fun LyricsPanel(
                 // light going down as the next one's comes up.
                 val glow by animateFloatAsState(
                     targetValue = if (isActive && glowing) GLOW_ALPHA else 0f,
-                    animationSpec = tween(durationMillis = 420),
+                    animationSpec = if (reduceAnimation) snap() else tween(durationMillis = 420),
                     label = "lyricGlow",
                 )
                 // No width held back for the swell any more: nothing draws past
@@ -2157,7 +2440,13 @@ internal fun LyricsPanel(
                         // Rows with nothing to catch up on never read the clock
                         // at all, so a handover only invalidates the handful of
                         // layers that are actually fanning out.
-                        translationY = if (staggerDelay <= 0f) {
+                        //
+                        // The row's arrival rise rides the same layer: the
+                        // line sits [LINE_ARRIVAL_RISE] below its place
+                        // until it is the sung one, and settling up into
+                        // place is the last part of its arrival, after the
+                        // stagger above has had its say.
+                        val stagger = if (staggerDelay <= 0f) {
                             0f
                         } else {
                             val elapsed = since.floatValue
@@ -2170,8 +2459,9 @@ internal fun LyricsPanel(
                                 )
                                 )
                         }
+                        translationY = stagger + (1f - arrival) * arrivalRisePx
                     }
-                    .blur(blur, BlurredEdgeTreatment.Unbounded)
+                    .depthBlur(blurRadiusDp)
                     .clip(RoundedCornerShape(10.dp))
                     // The chosen lines are marked on the row itself rather
                     // than with a mark beside it: a lane down the side would
@@ -2303,6 +2593,10 @@ internal fun LyricsPanel(
                         alignEnd = alignEnd,
                         karaoke = lyricsKaraokeEffects,
                         duet = false,
+                        // The lead voice lands its words; reduced
+                        // animation turns the landing off outright, so
+                        // the sweep alone carries the line, as before.
+                        wordLanding = !reduceAnimation,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     // A line the service handed back unchanged ("falling
@@ -2629,6 +2923,8 @@ private fun PanelVoice(
      * cut them, and provider "duet" tagging is not to be faked.
      */
     duet: Boolean = false,
+    /** Whether sung words land with a pop and a glow pulse; see [LyricWordLanding]. */
+    wordLanding: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     // Two words is the smallest splittable line: one for each voice.
@@ -2661,6 +2957,7 @@ private fun PanelVoice(
                 translationProgress = translationProgress,
                 tint = DuetLeadTint,
                 glowTint = DuetLeadTint,
+                wordLanding = wordLanding,
             )
             SweptLyricLine(
                 line = harmony,
@@ -2675,6 +2972,7 @@ private fun PanelVoice(
                 translationProgress = translationProgress,
                 tint = DuetHarmonyTint,
                 glowTint = DuetHarmonyTint,
+                wordLanding = wordLanding,
             )
         }
     } else if (line.isWordSynced && karaoke && !browsing) {
@@ -2703,6 +3001,7 @@ private fun PanelVoice(
             rise = rise,
             alignEnd = alignEnd,
             translationProgress = translationProgress,
+            wordLanding = wordLanding,
         )
     } else if (line.isWordSynced && karaoke) {
         // Browsing: keep the sweep so sung lines stay fully lit and unsung
@@ -2724,6 +3023,7 @@ private fun PanelVoice(
             rise = rise,
             alignEnd = alignEnd,
             translationProgress = translationProgress,
+            wordLanding = wordLanding,
         )
     } else {
         // No word timings, so there is no sweep to light the words as they are

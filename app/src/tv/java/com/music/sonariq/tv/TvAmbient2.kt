@@ -46,6 +46,17 @@ import java.util.Date
 import java.util.Locale
 
 /**
+ * Static backdrop gradient for the ambient-2 screen. The stops never
+ * change, so the brush is built once at file scope instead of being
+ * re-allocated on every recomposition (this screen's tickers recompose it
+ * up to twice a second, for hours at a time).
+ */
+private val Ambient2BackdropBrush = Brush.verticalGradient(
+    0f to Color(0xFF0B0E18),
+    1f to Color(0xFF080910),
+)
+
+/**
  * Sonariq TV ambient mode, second style: a full lyric-view screensaver.
  *
  * The first ambient style ([TvAmbientOverlay]) shows one lyric line under the
@@ -69,6 +80,10 @@ internal fun TvAmbient2Overlay(
     controller: MediaController?,
 ) {
     var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    // SimpleDateFormat is comparatively expensive to construct; it was
+    // being built on every recomposition via formatClock(). One remembered
+    // instance, used only from composition on the main thread.
+    val clockFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     var positionMs by remember(track.videoId) { mutableLongStateOf(0L) }
     var durationMs by remember(track.videoId) { mutableLongStateOf(0L) }
     var upNext by remember { mutableStateOf<List<AmbientTrack>>(emptyList()) }
@@ -100,12 +115,7 @@ internal fun TvAmbient2Overlay(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        0f to Color(0xFF0B0E18),
-                        1f to Color(0xFF080910),
-                    )
-                ),
+                .background(Ambient2BackdropBrush),
         )
 
         Column(
@@ -119,7 +129,7 @@ internal fun TvAmbient2Overlay(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = formatClock(nowMs),
+                    text = clockFormat.format(Date(nowMs)),
                     fontSize = 34.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color.White.copy(alpha = 0.9f),
@@ -270,7 +280,9 @@ private fun Ambient2LyricBlock(track: AmbientTrack, positionMs: Long) {
         }.getOrNull()
     }
 
-    val timed = lines?.filter { it.text.isNotBlank() }.orEmpty()
+    // Memoised on the loaded lines: this block recomposes on every 500ms
+    // position tick, and re-filtering allocated a fresh list each time.
+    val timed = remember(lines) { lines?.filter { it.text.isNotBlank() }.orEmpty() }
     val currentIndex = timed.indexOfLast { it.timeMs <= positionMs }
     if (timed.isEmpty() || currentIndex < 0) return
 
@@ -300,9 +312,6 @@ private fun Ambient2LyricLine(text: String, alpha: Float, size: Int) {
         overflow = TextOverflow.Ellipsis,
     )
 }
-
-private fun formatClock(nowMs: Long): String =
-    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(nowMs))
 
 private fun formatPosition(positionMs: Long, durationMs: Long): String {
     fun fmt(ms: Long): String {

@@ -1593,13 +1593,17 @@ fun NowPlayingScreen(
     // reuse the same tiny pre-blurred bitmap instead of running a screen-sized
     // effect. Prepared immediately: the blur is the portrait player's
     // background from its first frame, and it takes the mesh decode's old
-    // slot on the song-change path rather than adding to it. Skipped while
-    // the full-cover backdrop is up: the bitmap would sit under an opaque
-    // cover, and the cache keeps it warm for the moment the setting turns.
+    // slot on the song-change path rather than adding to it. Prepared even
+    // while the full-cover backdrop is up: the landscape backdrop and the
+    // backdrop behind the lyrics and queue panels are this same bitmap now
+    // (see both call sites below), so it has to be ready in exactly the
+    // states that used to skip it. The cost is the one the mesh decode used
+    // to pay — a 128px decode out of Coil's cache and a CPU blur off the
+    // main thread, once per artwork, cached by URL.
     val fullArtworkBlurImage = rememberFullArtworkBlurImage(
         imageUrl = remoteArt,
         artPx = ART_PX,
-        prepare = !fullCoverShowing,
+        prepare = true,
     )
     // One movable Image node, not two backdrop call sites. Compose carries it
     // between the portrait and landscape players; only the cached bitmap
@@ -1781,25 +1785,43 @@ fun NowPlayingScreen(
                     else -> PlayerPane.Main
                 },
                 background = { backgroundModifier ->
-                    if (fullCoverShowing) {
-                        // Full-cover in landscape: the ambient shape — the
-                        // cover heavily blurred and darkened behind the
-                        // columns, with its scrims always on. The boxed
-                        // sleeve in the left column stays the one sharp
-                        // copy; a second sharp copy back here read as the
-                        // same artwork drawn twice, and its pale areas
-                        // washed the right column out.
-                        FullCoverArtworkBackdrop(
-                            request = art.request,
-                            visible = true,
-                            scrimAlpha = { 1f },
-                            ambient = true,
-                            modifier = backgroundModifier.hazeSource(playerHaze),
-                        )
-                    } else {
-                        // The whole screen is the sheets' frost source: there is
-                        // no full-bleed banner here to be it instead.
+                    // One backdrop in both shapes: the cached, once-blurred
+                    // bitmap (see [rememberFullArtworkBlurImage]), whose only
+                    // motion is a graphicsLayer drift over the finished
+                    // bitmap. The full-cover shape used to draw its own
+                    // ambient backdrop here instead — the sleeve's full-size
+                    // request under a live 48dp `Modifier.blur`, crossfaded
+                    // on every skip and drifted by the same Ken Burns
+                    // animation — a screen-sized blur effect on a layer that
+                    // never stopped moving. The boxed sleeve in the left
+                    // column stays the one sharp copy either way.
+                    //
+                    // The whole screen is the sheets' frost source: there is
+                    // no full-bleed banner here to be it instead.
+                    Box(Modifier.fillMaxSize()) {
                         fullArtworkBlurContent(backgroundModifier.hazeSource(playerHaze))
+                        if (fullCoverShowing) {
+                            // The ambient shape's darkness, kept as a plain
+                            // scrim over the blurred bitmap: the blur
+                            // backdrop's own gradient (0.34 to 0.64) plus
+                            // this one lands at roughly the ambient tint and
+                            // gradient's combined weight, so a mostly white
+                            // sleeve still reads dark across the whole
+                            // landscape player and the right column's text
+                            // keeps its contrast.
+                            Box(
+                                Modifier
+                                    .matchParentSize()
+                                    .background(
+                                        Brush.verticalGradient(
+                                            0f to Color.Black.copy(alpha = 0.38f),
+                                            0.45f to Color.Black.copy(alpha = 0.44f),
+                                            0.72f to Color.Black.copy(alpha = 0.56f),
+                                            1f to Color.Black.copy(alpha = 0.70f),
+                                        ),
+                                    ),
+                            )
+                        }
                     }
                 },
                 artwork = { artworkModifier ->
@@ -2080,6 +2102,15 @@ fun NowPlayingScreen(
         // Spotify's fullscreen Canvas paints its own background over the
         // blur; the lyrics and queue panels still get the blurred artwork
         // behind them once the video has handed off.
+        //
+        // One exception, and it is the panel states under the full-cover
+        // setting: there the main player is the sharp poster itself, by
+        // design, and the blur used to stand down entirely — which left the
+        // lyrics and the queue sitting on that same crisp poster. The blur
+        // now fades in over the poster while a panel owns the screen (it is
+        // drawn after the poster below, for exactly that reason) and back
+        // out as the panel closes, so the words always sit on the blurred
+        // bitmap and the main player keeps its poster untouched.
         val legacyMeshBackdrop = !tabletArtworkBackdrop && !spotifyCanvasPresentation &&
             legacyMesh && !canvasFirstPortrait
         // The animated canvas takes the still backdrop's slot for tracks with
@@ -2091,10 +2122,17 @@ fun NowPlayingScreen(
         // straight back to it, so the canvas remains the no-artwork fallback.
         val canvasBackdropOn = canvasBackdropEnabled && heroClip == null && !fullCoverShowing
         val stillBackdropOn = canvasBackdropOn || legacyMeshBackdrop
+        // A panel over the full-cover poster wants the blur even though the
+        // main player under the same setting wants the sharp poster — the
+        // two are told apart by nothing but which panel is open. The legacy
+        // mesh still wins over the blur on its own pages (see above), panels
+        // included: its promise is the mesh everywhere, verbatim.
+        val panelBlurBackdrop = (lyricsOpen || queueOpen) && fullArtworkBlurImage != null
         val fullArtworkBackdropAlpha by animateFloatAsState(
             targetValue = if (
-                !stillBackdropOn && !fullCoverShowing &&
-                (tabletArtworkBackdrop || fullArtworkBlurImage != null)
+                !stillBackdropOn &&
+                (panelBlurBackdrop ||
+                    (!fullCoverShowing && (tabletArtworkBackdrop || fullArtworkBlurImage != null)))
             ) 1f else 0f,
             animationSpec = tween(durationMillis = 360, easing = FastOutSlowInEasing),
             label = "fullArtworkBackdropCrossfade",
@@ -2118,10 +2156,6 @@ fun NowPlayingScreen(
                 modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
             )
         }
-        fullArtworkBlurContent(
-            Modifier.graphicsLayer { alpha = fullArtworkBackdropAlpha },
-        )
-
         // The full-cover backdrop: the sharp cover across the whole player,
         // behind everything else in this box. On the main player it sits
         // exactly under the sleeve blown out into the same full-screen
@@ -2142,6 +2176,18 @@ fun NowPlayingScreen(
             // (see sleeveRect), so nothing is removed or blurred.
             ambient = false,
             modifier = Modifier.matchParentSize(),
+        )
+
+        // The cached blur, drawn over the poster rather than under it: on
+        // the main player its alpha is 0 and the poster shows through
+        // untouched, and as a panel opens the alpha above fades the blurred
+        // bitmap in over the poster, so the lyrics and the queue sit on the
+        // blur in every configuration. Everywhere else this layer's alpha
+        // behaved exactly as it did when it sat under the poster — a layer
+        // at alpha 0 under an opaque poster and a layer at alpha 0 over it
+        // are the same picture.
+        fullArtworkBlurContent(
+            Modifier.graphicsLayer { alpha = fullArtworkBackdropAlpha },
         )
 
         // Mount once, behind the controls. A known portrait aspect changes the

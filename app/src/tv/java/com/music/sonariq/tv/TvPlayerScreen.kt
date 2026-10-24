@@ -1,5 +1,7 @@
 package com.music.sonariq.tv
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.LongState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -45,6 +48,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -67,6 +71,19 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
 /**
+ * Backdrop scrim over the full-bleed artwork. The stops never change, so the
+ * brush is built once at file scope instead of being re-allocated (list +
+ * gradient) on every recomposition of the player screen.
+ */
+private val TvBackdropScrimBrush = Brush.verticalGradient(
+    colors = listOf(
+        Color.Black.copy(alpha = 0.68f),
+        Color.Black.copy(alpha = 0.82f),
+        Color.Black.copy(alpha = 0.90f),
+    ),
+)
+
+/**
  * Sonariq TV player: now-playing on the left, synced lyrics on the right.
  * D-pad transport controls. Lyrics load automatically from every provider.
  *
@@ -83,8 +100,14 @@ fun TvPlayerScreen(
 ) {
     var lyrics by remember(song.videoId) { mutableStateOf<List<LyricLine>?>(null) }
     var loadingLyrics by remember(song.videoId) { mutableStateOf(true) }
-    var positionMs by remember { mutableLongStateOf(0L) }
-    var durationMs by remember { mutableLongStateOf(0L) }
+    // Position/duration are held as State objects, NOT delegated values:
+    // reading a delegated Long in this body would subscribe the WHOLE screen
+    // to the 1-second ticker, recomposing the backdrop, artwork and
+    // transport every tick. As State objects they are only read inside the
+    // small scopes that need them — TvProgress, the derived current-index
+    // below, and the current lyric line — so a tick touches only those.
+    val positionState = remember { mutableLongStateOf(0L) }
+    val durationState = remember { mutableLongStateOf(0L) }
     var isPlaying by remember { mutableStateOf(false) }
     val fullBleedArtwork by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
     val backFocus = remember { FocusRequester() }
@@ -110,8 +133,8 @@ fun TvPlayerScreen(
     // Follow playback position, once a second — lyric lines move slower.
     LaunchedEffect(controller) {
         while (isActive) {
-            positionMs = controller?.currentPosition ?: 0L
-            durationMs = controller?.duration?.takeIf { it > 0 } ?: 0L
+            positionState.longValue = controller?.currentPosition ?: 0L
+            durationState.longValue = controller?.duration?.takeIf { it > 0 } ?: 0L
             isPlaying = controller?.isPlaying == true
             delay(1000)
         }
@@ -123,8 +146,15 @@ fun TvPlayerScreen(
 
     val listState = rememberLazyListState()
     val lines = lyrics ?: emptyList()
-    val currentIndex by remember(lines, positionMs) {
-        derivedStateOf { lines.indexOfLast { it.timeMs <= positionMs }.coerceAtLeast(0) }
+    // derivedStateOf over the position State: it re-evaluates on each tick
+    // but only notifies its readers when the index actually changes (once
+    // per lyric line), and this screen's body never reads position itself.
+    // (Keying a remember on positionMs, as before, recreated this state on
+    // every tick and subscribed the whole body to the ticker.)
+    val currentIndex by remember(lines) {
+        derivedStateOf {
+            lines.indexOfLast { it.timeMs <= positionState.longValue }.coerceAtLeast(0)
+        }
     }
 
     // Jump straight to the current line — no scroll animation frames.
@@ -134,6 +164,16 @@ fun TvPlayerScreen(
         }
     }
 
+    // Hoisted per-song values: artworkAt() is a string rewrite and the two
+    // typography copies allocate a TextStyle — none of that needs to re-run
+    // when an unrelated state (lyrics loaded, play state) recomposes us.
+    val backdropArtwork = remember(song) { song.artworkAt(1024) }
+    val sleeveArtwork = remember(song) { song.artworkAt(512) }
+    val headlineType = MaterialTheme.typography.headlineMedium
+    val titleStyle = remember(headlineType) { headlineType.copy(fontSize = 32.sp) }
+    val artistType = MaterialTheme.typography.titleLarge
+    val artistStyle = remember(artistType) { artistType.copy(fontSize = 22.sp) }
+
     Box(Modifier.fillMaxSize()) {
         // Static full-cover artwork backdrop: one image, one scrim,
         // nothing animated — no drift, no crossfade, cheap enough for
@@ -142,9 +182,9 @@ fun TvPlayerScreen(
         // field behind the sleeve and the lyrics and can never wash
         // the screen out to light grey.
         if (fullBleedArtwork) {
-            song.artworkAt(1024)?.let { backdropArtwork ->
+            backdropArtwork?.let { art ->
                 AsyncImage(
-                    model = backdropArtwork,
+                    model = art,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -154,15 +194,7 @@ fun TvPlayerScreen(
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Black.copy(alpha = 0.68f),
-                                    Color.Black.copy(alpha = 0.82f),
-                                    Color.Black.copy(alpha = 0.90f),
-                                ),
-                            ),
-                        ),
+                        .background(TvBackdropScrimBrush),
                 )
             }
         }
@@ -194,7 +226,7 @@ fun TvPlayerScreen(
                 }
                 Spacer(Modifier.height(24.dp))
                 AsyncImage(
-                    model = song.artworkAt(512),
+                    model = sleeveArtwork,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -204,7 +236,7 @@ fun TvPlayerScreen(
                 Spacer(Modifier.height(24.dp))
                 Text(
                     text = song.title,
-                    style = MaterialTheme.typography.headlineMedium.copy(fontSize = 32.sp),
+                    style = titleStyle,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
@@ -212,7 +244,7 @@ fun TvPlayerScreen(
                 )
                 Text(
                     text = song.artist,
-                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp),
+                    style = artistStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -265,22 +297,9 @@ fun TvPlayerScreen(
                     }
                 }
                 Spacer(Modifier.height(16.dp))
-                val progress = if (durationMs > 0) {
-                    (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
-                } else 0f
-                LinearProgressIndicator(
-                    progress = progress,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "${formatMs(positionMs)} / ${formatMs(durationMs)}",
-                    fontSize = 18.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                // Own tiny scope (see TvProgress): the 1s ticker recomposes
+                // only this leaf, not the artwork/backdrop/transport above.
+                TvProgress(positionState = positionState, durationState = durationState)
             }
 
             Spacer(Modifier.width(64.dp))
@@ -326,7 +345,7 @@ fun TvPlayerScreen(
                                     // everything else is static text.
                                     revealedChars = when {
                                         index < currentIndex -> line.text.length
-                                        index == currentIndex -> revealCount(line, positionMs)
+                                        index == currentIndex -> revealCount(line, positionState.longValue)
                                         else -> 0
                                     },
                                     isCurrent = index == currentIndex,
@@ -339,6 +358,34 @@ fun TvPlayerScreen(
             }
         }
     }
+}
+
+/**
+ * Progress bar + elapsed/total time, in its own composition scope. This is
+ * the only part of the left column that reads the position/duration states,
+ * so the once-a-second ticker recomposes just this leaf instead of the
+ * whole player screen. Layout and look are exactly as before.
+ */
+@Composable
+private fun TvProgress(positionState: LongState, durationState: LongState) {
+    val positionMs = positionState.longValue
+    val durationMs = durationState.longValue
+    val progress = if (durationMs > 0) {
+        (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
+    } else 0f
+    LinearProgressIndicator(
+        progress = progress,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(6.dp)
+            .clip(RoundedCornerShape(3.dp)),
+    )
+    Spacer(Modifier.height(8.dp))
+    Text(
+        text = "${formatMs(positionMs)} / ${formatMs(durationMs)}",
+        fontSize = 18.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 private fun revealCount(line: LyricLine, positionMs: Long): Int {
@@ -366,6 +413,19 @@ private fun TvLyricLine(
         Spacer(Modifier.height(10.dp))
         return
     }
+    // Cheap beauty touch, TV-safe: when this line becomes the current line it
+    // lands with a brief scale settle (0.96 -> 1.0 over 240ms, one-shot).
+    // The animation lives entirely in a graphicsLayer transform — draw
+    // phase only: no relayout, no per-frame recomposition, no blur, no
+    // infinite loop — and it rests at exactly 1f, so past and upcoming lines
+    // render pixel-identically to before. No focusable elements involved.
+    val pop = remember(line.timeMs, line.text) { Animatable(1f) }
+    LaunchedEffect(isCurrent) {
+        if (isCurrent) {
+            pop.snapTo(0.96f)
+            pop.animateTo(1f, animationSpec = tween(durationMillis = 240))
+        }
+    }
     val annotated = buildAnnotatedString {
         val cut = revealedChars.coerceIn(0, line.text.length)
         withStyle(SpanStyle(color = Color.White, fontWeight = FontWeight.Bold)) {
@@ -388,7 +448,12 @@ private fun TvLyricLine(
         fontSize = if (isCurrent) 36.sp else 28.sp,
         lineHeight = 44.sp,
         fontWeight = if (isCurrent || isPast) FontWeight.SemiBold else FontWeight.Normal,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = pop.value
+                scaleY = pop.value
+            },
     )
 }
 

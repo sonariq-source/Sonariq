@@ -74,6 +74,7 @@
 
 ### Synced lyrics
 - **Word-synced lyrics** — real per-word and per-syllable timings, never estimated or interpolated. TTML timings are hunted first for every track; if a song only has line timings at first, Sonariq keeps looking in the background and upgrades it the moment real word timings are found.
+- **Depth and motion** — lines drift out of focus under a deepening blur as they leave the playing line, the playing line blooms as it settles in, and every sung word lands with a soft pop and glow.
 - **Fully automatic** — every provider is raced in parallel; the best sync wins with zero setup.
 - **Smart timing** — cross-checks providers so the first line never jumps the gun on instrumental intros.
 - **Clean UI** — no provider badges, no sync estimates. Just the words.
