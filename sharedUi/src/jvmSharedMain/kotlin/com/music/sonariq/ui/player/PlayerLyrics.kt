@@ -329,16 +329,19 @@ private val GAP_ROW_SPACING = 16.dp
  * depth model for the whole panel, so the list, the tests and the draw code
  * can never disagree about what a line at a given distance looks like.
  *
- * Blur is deliberately *bounded and quantised*. A live blur is a
+ * Blur is deliberately *bounded, quantised and gentle*. A live blur is a
  * RenderEffect worked out over the line's own bitmap, and it is only worth
  * that cost near the line being read: inside [BLUR_WINDOW] the radius steps
- * through a handful of fixed values — slight beside the playing line, then
- * rising steeply to a heavy blur at the window's edge — and outside it the
+ * through a handful of fixed values — a whisper beside the playing line,
+ * rising slowly to a low cap at the window's edge — and outside it the
  * radius is exactly zero and the caller applies no blur modifier at all, so
- * a far line costs only its alpha and scale. The radius is read off the
- * integer distance and never animated through intermediate values: an
- * animated radius rebuilds its RenderEffect on every frame of the settle,
- * which was most of the panel's frame cost while a song was playing.
+ * a far line costs only its alpha and scale. Every line stays readable at
+ * every distance: the blur is seasoning, and the separation between lines
+ * comes from the dimming below, not from smearing the words. The radius is
+ * read off the integer distance and never animated through intermediate
+ * values: an animated radius rebuilds its RenderEffect on every frame of
+ * the settle, which was most of the panel's frame cost while a song was
+ * playing.
  *
  * Alpha and scale carry the depth the blur leaves off. Both fall
  * monotonically away from the playing line to a floor — the two lines
@@ -351,7 +354,7 @@ internal object LyricDepth {
     const val BLUR_WINDOW = 4
 
     /** Quantised blur radii in dp, indexed by distance 0..[BLUR_WINDOW]. */
-    private val BLUR_STEPS_DP = floatArrayOf(0f, 3f, 8f, 17f, 30f)
+    private val BLUR_STEPS_DP = floatArrayOf(0f, 0.8f, 1.6f, 2.8f, 4.5f)
 
     private val ALPHA_STEPS = floatArrayOf(1f, 0.80f, 0.70f, 0.58f, 0.46f, 0.40f)
     private const val ALPHA_FLOOR = 0.37f

@@ -54,20 +54,27 @@ class LyricDepthTest {
     }
 
     @Test
-    fun `blur rises steeply through the window from slight to heavy`() {
+    fun `blur rises gently through the window and caps at a whisper`() {
         val radii = (0..LyricDepth.BLUR_WINDOW).map { LyricDepth.forDistance(it).blurRadiusDp }
-        // A few dp beside the playing line: enough to soften, not to smear.
-        assertTrue(radii[1] in 1f..6f)
-        // Tens of dp at the window's edge.
-        assertTrue(radii.last() >= 20f)
-        // Strictly rising, and rising faster the further out it gets.
+        // The exact curve: a whisper beside the playing line, never a smear.
+        assertEquals(listOf(0f, 0.8f, 1.6f, 2.8f, 4.5f), radii)
+        // Strictly rising through the window.
         for (index in 1 until radii.size) {
             assertTrue("step $index", radii[index] > radii[index - 1])
         }
+        // And rising gently: the steps widen only slowly, never steeply.
         for (index in 2 until radii.size) {
             assertTrue(
                 "step $index",
                 radii[index] - radii[index - 1] >= radii[index - 1] - radii[index - 2],
+            )
+        }
+        // The hard cap holds at every distance, inside the window or out:
+        // no line is ever blurred past the point of readability.
+        for (distance in -40..40) {
+            assertTrue(
+                "distance $distance",
+                LyricDepth.forDistance(distance).blurRadiusDp <= 4.5f,
             )
         }
     }
@@ -96,7 +103,7 @@ class LyricDepthTest {
             LyricDepth.forDistance(12).alpha,
             0f,
         )
-        assertTrue(LyricDepth.forDistance(40).alpha >= 0.3f)
+        assertTrue(LyricDepth.forDistance(40).alpha >= 0.35f)
     }
 
     @Test
@@ -114,13 +121,16 @@ class LyricDepthTest {
     @Test
     fun `near lines stay legible`() {
         // The two lines around the playing one are for reading ahead and
-        // behind: most of their brightness survives and their blur is slight.
+        // behind: most of their brightness survives and their blur is a
+        // whisper at most.
         for (distance in 1..2) {
             val depth = LyricDepth.forDistance(distance)
             assertTrue("distance $distance", depth.alpha >= 0.65f)
-            assertTrue("distance $distance", depth.blurRadiusDp <= 10f)
+            assertTrue("distance $distance", depth.blurRadiusDp <= 2f)
             assertTrue("distance $distance", depth.scale >= 0.99f)
         }
+        assertEquals(0.8f, LyricDepth.forDistance(1).blurRadiusDp, 0f)
+        assertEquals(1.6f, LyricDepth.forDistance(2).blurRadiusDp, 0f)
     }
 }
 
