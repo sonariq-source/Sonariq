@@ -166,7 +166,7 @@ import kotlinx.coroutines.launch
  * it as far down as the panel does left the words ahead of the highlight hard
  * to read at a glance.
  */
-private const val UNSUNG_ALPHA = 0.45f
+private const val UNSUNG_ALPHA = 0.50f
 private const val UNSUNG_ALPHA_STRIP = 0.55f
 
 /**
@@ -230,7 +230,7 @@ private val GLOW_ROOM = 10.dp
  */
 private val BACKING_FONT_SIZE = 23.sp
 private val BACKING_LINE_HEIGHT = 29.sp
-private const val BACKING_ALPHA = 0.72f
+private const val BACKING_ALPHA = 0.60f
 
 /**
  * How the answering voice comes and goes; see [revealBacking]. am-lyrics opens
@@ -329,102 +329,105 @@ private val GAP_ROW_SPACING = 16.dp
  * depth model for the whole panel, so the list, the tests and the draw code
  * can never disagree about what a line at a given distance looks like.
  *
- * The words themselves are never blurred — not the line being sung, not
- * the ones around it, not the far ones. Blurring text smeared the words
- * however gentle the radius was, so the panel's blur lives where it
- * belongs: in the artwork backdrop behind the words, which is soft
- * everywhere and costs the text nothing. What separates the lines here is
- * dimming alone — the line being sung stands at full brightness and the
- * rest fall away below it.
+ * Depth of field, the way the reference view does it: blur, dimming and a
+ * slight shrink always travel together, never a hard window and never a
+ * strong blur on a near line. The playing line is sharp, full and full
+ * size; the line next to it is only slightly softened and fully readable;
+ * further lines defocus and dim until they melt away, and the column's own
+ * edge fade takes them to nothing at the top and bottom. Lines already
+ * sung fall at least as fast as lines still to come — the line just above
+ * the playing one is already as soft as the second line below it, and
+ * dimmer than the first line below it — while upcoming lines brighten as
+ * they approach the focus.
  *
- * Alpha and scale carry the whole of that fall. Both fall monotonically
- * away from the playing line to a floor — the two lines around it stay
- * legible so you can read ahead and behind, and everything past that
- * recedes to the floor rather than fading to nothing. [Depth.blurRadiusDp]
- * stays in the model at exactly zero so that "the text is never blurred"
- * is a pinned property of this one place, not a habit each caller has to
- * remember.
+ * All three values are continuous functions of distance: the anchors below
+ * are joined by smooth interpolation, so a line travelling toward or away
+ * from the focus un-blurs, brightens and grows without a step, and the
+ * row's own handover animation carries it between evaluations on the
+ * panel's one curve. Nothing here is stepped, and no timer tweens a radius.
+ *
+ * Cost is bounded where the model is used, not here: only rows within
+ * [BLUR_WINDOW_DISTANCE] of the playing line ever carry a live blur layer,
+ * and by that edge their alpha has already collapsed low enough that
+ * dropping the blur beyond it reads as melting away, not as a cut. Past
+ * the window, opacity and scale alone carry the fall. The whole-view
+ * backdrop stays the cached blurred artwork wash — no per-frame backdrop
+ * blur is reintroduced by anything here.
  */
 internal object LyricDepth {
 
-    private val ALPHA_STEPS = floatArrayOf(1f, 0.80f, 0.70f, 0.58f, 0.46f, 0.40f)
-    private const val ALPHA_FLOOR = 0.37f
+    /** Rows this far from the playing line, at most, carry a live blur. */
+    const val BLUR_WINDOW_DISTANCE = 4
 
-    private val SCALE_STEPS = floatArrayOf(1f, 0.995f, 0.99f, 0.985f, 0.98f)
-    private const val SCALE_FLOOR = 0.98f
+    /** Blur anchors by distance, upcoming lines, 0 through 5. */
+    private val UPCOMING_BLUR = floatArrayOf(0f, 1.5f, 4f, 7f, 9f, 10f)
+
+    /** Blur anchors by distance, lines already sung, 0 through 5. */
+    private val SUNG_BLUR = floatArrayOf(0f, 4f, 6f, 8f, 10f, 10f)
+
+    /** Alpha anchors by distance, upcoming lines, 0 through 5. */
+    private val UPCOMING_ALPHA = floatArrayOf(1f, 0.50f, 0.30f, 0.18f, 0.12f, 0.08f)
+
+    /** Alpha anchors by distance, lines already sung, 0 through 5. */
+    private val SUNG_ALPHA = floatArrayOf(1f, 0.35f, 0.22f, 0.14f, 0.09f, 0.06f)
+
+    /** Where alpha settles once the anchors run out, either side. */
+    private const val UPCOMING_ALPHA_FLOOR = 0.05f
+    private const val SUNG_ALPHA_FLOOR = 0.04f
+
+    /** Inactive lines sit this far back; the playing line is full size. */
+    private const val INACTIVE_SCALE = 0.97f
 
     /** What one line looks like at a given distance from the playing one. */
     data class Depth(
-        /**
-         * The blur on the words themselves: none, at any distance. Kept
-         * in the model — pinned at zero by its tests — so the panel's one
-         * rule about text blur has exactly one place to live; the blur in
-         * this screen is the backdrop's, never the words'.
-         */
+        /** The depth-of-field blur on the words themselves, in dp. */
         val blurRadiusDp: Float,
         val alpha: Float,
         val scale: Float,
     )
 
-    /** The depth for a line [signedDistance] rows from the playing one. */
-    fun forDistance(signedDistance: Int): Depth {
-        val distance = abs(signedDistance)
-        return Depth(
-            blurRadiusDp = 0f,
-            alpha = if (distance < ALPHA_STEPS.size) ALPHA_STEPS[distance] else ALPHA_FLOOR,
-            scale = if (distance < SCALE_STEPS.size) SCALE_STEPS[distance] else SCALE_FLOOR,
-        )
-    }
-}
-
-/**
- * The landing of one timed piece of a word — the word itself, or one of its
- * syllables where the provider split it — as the sweep reaches it.
- *
- * Pure arithmetic over the piece's own stamps, and nothing else: it reads
- * no timing source of its own and changes none, so what lands is exactly
- * what the sweep was already going to light, given a gentle brighten as it
- * arrives. The brighten is light only: a glow pulse on the bloom copy
- * behind the words, starting at full strength as the piece begins and
- * settling away over its first [LANDING_MS] (or the whole piece, where it
- * is shorter). The words themselves never move, scale or blur for it —
- * they are already where they belong, and all that changes is how much
- * light they carry. Past the piece's end the pulse is at rest — the
- * finished word *holds*, the way the sweep itself holds through a pause,
- * rather than creeping on.
- */
-internal object LyricWordLanding {
-
-    /** The longest a landing ever takes, however long the piece is held. */
-    const val LANDING_MS = 240L
-
     private fun smooth(fraction: Float): Float = fraction * fraction * (3f - 2f * fraction)
 
-    /** How far the landing of the piece sung over [startMs]..[endMs] has got, 0..1. */
-    fun progress(positionMs: Long, startMs: Long, endMs: Long): Float {
-        if (positionMs < startMs) return 0f
-        if (positionMs >= endMs) return 1f
-        val span = (endMs - startMs).coerceAtLeast(1L)
-        val window = minOf(span, LANDING_MS)
-        return ((positionMs - startMs).toFloat() / window).coerceIn(0f, 1f)
+    private fun at(distance: Float, anchors: FloatArray, floor: Float): Float {
+        if (distance <= 0f) return anchors[0]
+        val last = anchors.lastIndex
+        // The last anchor is the value at its own distance; the floor is
+        // reached one step further out, interpolated — never stepped to —
+        // so the curve stays continuous all the way out.
+        if (distance >= last + 1) return floor
+        val below = distance.toInt()
+        val t = smooth(distance - below)
+        val next = if (below + 1 <= last) anchors[below + 1] else floor
+        return anchors[below] + (next - anchors[below]) * t
     }
 
     /**
-     * The glow pulse at [positionMs]: full as the piece starts, settling to
-     * nothing as it lands, and nothing at all outside the piece — a word
-     * not yet sung does not glow, and a finished one holds at rest.
+     * The depth for a line [signedDistance] rows from the playing one —
+     * negative for lines already sung, positive for lines still to come.
+     * A fractional distance interpolates smoothly between the anchors
+     * either side of it, so the model is continuous, not stepped.
      */
-    fun glowPulseAt(positionMs: Long, startMs: Long, endMs: Long): Float {
-        if (positionMs < startMs || positionMs >= endMs) return 0f
-        return 1f - smooth(progress(positionMs, startMs, endMs))
+    fun forSignedDistance(signedDistance: Float): Depth {
+        val distance = abs(signedDistance)
+        val sung = signedDistance < 0f
+        val blurAnchors = if (sung) SUNG_BLUR else UPCOMING_BLUR
+        val alphaAnchors = if (sung) SUNG_ALPHA else UPCOMING_ALPHA
+        val alphaFloor = if (sung) SUNG_ALPHA_FLOOR else UPCOMING_ALPHA_FLOOR
+        return Depth(
+            blurRadiusDp = at(distance, blurAnchors, blurAnchors.last()),
+            alpha = at(distance, alphaAnchors, alphaFloor),
+            scale = if (distance <= 0f) 1f
+            else 1f - (1f - INACTIVE_SCALE) * smooth(distance.coerceAtMost(1f)),
+        )
     }
+
+    /** The depth for a line [signedDistance] whole rows from the playing one. */
+    fun forDistance(signedDistance: Int): Depth =
+        forSignedDistance(signedDistance.toFloat())
 }
 
 /** How far a line sits below its place before it arrives, settling up into it. */
 private val LINE_ARRIVAL_RISE = 8.dp
-
-/** The strongest the landing pulse ever draws the bloom copy at, per piece. */
-private const val LANDING_GLOW_PEAK = 0.55f
 
 /**
  * The shape of the page the lyrics are going to fill.
@@ -833,13 +836,6 @@ private fun SweptLyricLine(
     tint: Color = Color.White,
     /** The bloom's colour; the brand lime unless a voice carries its own. */
     glowTint: Color = LyricLime,
-    /**
-     * Whether each word gets its landing brighten — a glow pulse on the
-     * bloom copy — as the sweep reaches it; see [LyricWordLanding]. Off
-     * where animation is reduced, and on the one-line strip, whose words
-     * have nothing to land into.
-     */
-    wordLanding: Boolean = false,
 ) {
     var layout by remember(line) { mutableStateOf<TextLayoutResult?>(null) }
 
@@ -983,6 +979,9 @@ private fun SweptLyricLine(
                         // is the whole difference between this and a halo
                         // travelling under the highlight.
                         val measured = layout ?: return@drawWithContent
+                        // Only the held words bloom, through [glowGrown]:
+                        // an ordinary word gets no pop and no glow, just the
+                        // sweep's own brighten as it is sung.
                         glowGrown(
                             layout = measured,
                             line = line,
@@ -991,19 +990,6 @@ private fun SweptLyricLine(
                             peak = WORD_RISE.toPx(),
                             growth = growth,
                         )
-                        // The landing pulse rides this same blurred copy:
-                        // no second layer, no second blur — the piece
-                        // being landed is masked into the bloom at a
-                        // brightness that settles as the piece completes.
-                        if (wordLanding) {
-                            glowLanding(
-                                layout = measured,
-                                line = line,
-                                positionMs = drawnAt(),
-                                inset = glowRoom.toPx(),
-                                peak = WORD_RISE.toPx(),
-                            )
-                        }
                     },
             )
         }
@@ -1096,74 +1082,6 @@ private fun ContentDrawScope.glowGrown(
                 // own, a beat behind — where they are.
                 drawRect(
                     color = Color.White.copy(alpha = growth.bloom),
-                    blendMode = BlendMode.DstIn,
-                )
-            }
-        }
-    }
-}
-
-/**
- * Draws the landing pulse of the piece currently being sung into the bloom
- * copy — see [LyricWordLanding].
- *
- * A companion to [glowGrown], on the same layer and under the same rules:
- * each letter of the landing piece is masked to the pulse's brightness
- * with DstIn before the caller's blur spreads it, so the light comes off
- * the letters themselves. Words held long enough to grow letter by letter
- * are left to [glowGrown] — they already carry their own bloom, and
- * drawing both would double it. Where a word is split into syllables the
- * pulse follows the syllable being sung, not the whole word, so each
- * syllable lands as its own span begins. At most one piece per word can be
- * landing at a time, and outside it this costs a walk of the line's words
- * and their syllables and draws nothing.
- */
-private fun ContentDrawScope.glowLanding(
-    layout: TextLayoutResult,
-    line: LyricLine,
-    positionMs: Long,
-    inset: Float,
-    peak: Float,
-) {
-    val length = layout.layoutInput.text.length
-    for (index in line.words.indices) {
-        if (line.growingAt(index) != null) continue
-        val word = line.words[index]
-        var pieceStart = word.startMs
-        var pieceEnd = word.endMs
-        var firstChar = 0
-        var lastChar = word.text.length
-        if (word.syllables.isNotEmpty()) {
-            val syllable = word.syllables.firstOrNull {
-                positionMs >= it.startMs && positionMs < it.endMs
-            } ?: continue
-            pieceStart = syllable.startMs
-            pieceEnd = syllable.endMs
-            firstChar = syllable.startChar
-            lastChar = syllable.endChar
-        }
-        val pulse = LyricWordLanding.glowPulseAt(positionMs, pieceStart, pieceEnd)
-        if (pulse <= 0.01f) continue
-        val span = line.wordSpans[index]
-        for (char in (span.first + firstChar) until minOf(span.first + lastChar, length)) {
-            val visualLine = layout.getLineForOffset(char)
-            val from = layout.xOn(char, visualLine, inset)
-            val to = layout.xOn(char + 1, visualLine, inset)
-            if (to <= from) continue
-            val rowTop = layout.getLineTop(visualLine) + inset
-            val bottom = layout.getLineBottom(visualLine) + inset
-            clipRect(
-                left = from,
-                top = rowTop - peak * GROW_HEADROOM,
-                right = to,
-                bottom = bottom,
-            ) {
-                this@glowLanding.drawContent()
-                // Scoped to this letter's own clip, like the grown bloom's:
-                // it takes this letter's brightness down and leaves its
-                // neighbours — landing a beat behind — where they are.
-                drawRect(
-                    color = Color.White.copy(alpha = pulse * LANDING_GLOW_PEAK),
                     blendMode = BlendMode.DstIn,
                 )
             }
@@ -2141,17 +2059,31 @@ internal fun LyricsPanel(
             val offset = if (scrollLine < 0) 0 else index - scrollLine
             val isActive = isSynced && index in activeRows
             // One depth for the row, off the pure model — see [LyricDepth].
-            // Symmetric either side of the playing line: the rows around it
-            // stay readable so you can follow back over what was just sung
-            // as well as ahead, and everything past that recedes. Dimming
-            // and scale only — no row carries a blur, at any distance.
+            // Depth of field, not a window: blur, dimming and shrink travel
+            // together, lines already sung fall faster than lines still to
+            // come, and everything past the blur window recedes on opacity
+            // and scale alone — by the window's edge it is already faint
+            // enough that losing the blur reads as melting away, not a cut.
             //
             // Position is read here as the *derived* active rows, which
             // change only when the singing crosses a line — never per
             // frame — so a position tick does not recompose the list; the
             // per-frame clock is read only inside each row's own draw and
-            // derived states.
+            // derived states. The blur below animates on the same handover
+            // curve as the dimming, so a line un-blurs and brightens as one
+            // movement when it comes into focus, and no radius is ever
+            // driven by a timer of its own.
             val depth = LyricDepth.forDistance(offset)
+            val blurInWindow = abs(offset) <= LyricDepth.BLUR_WINDOW_DISTANCE
+            val blurDp by animateFloatAsState(
+                targetValue = if (blurInWindow) depth.blurRadiusDp else 0f,
+                animationSpec = if (reduceAnimation) {
+                    snap()
+                } else {
+                    tween(LYRIC_SETTLE_MS, easing = LYRIC_EASING)
+                },
+                label = "lyricBlur",
+            )
             val lineAlpha by animateFloatAsState(
                 targetValue = when {
                     !isSynced -> 0.95f
@@ -2513,11 +2445,20 @@ internal fun LyricsPanel(
                         alignEnd = alignEnd,
                         karaoke = lyricsKaraokeEffects,
                         duet = false,
-                        // The lead voice lands its words; reduced
-                        // animation turns the landing off outright, so
-                        // the sweep alone carries the line, as before.
-                        wordLanding = !reduceAnimation,
-                        modifier = Modifier.fillMaxWidth(),
+                        // The depth blur lives on the lead voice alone:
+                        // the answering voice under it stays sharp, and
+                        // the translation under that, so a row's second
+                        // voice never smears with the first. Past the
+                        // window the row carries no blur modifier at all —
+                        // the modifier only stays on while the animated
+                        // radius is still settling back to nothing.
+                        modifier = Modifier.fillMaxWidth().then(
+                            if (blurDp > 0.01f || blurInWindow) {
+                                Modifier.blur(blurDp.dp)
+                            } else {
+                                Modifier
+                            },
+                        ),
                     )
                     // A line the service handed back unchanged ("falling
                     // down" in a Korean song) gets no second copy of itself.
@@ -2843,8 +2784,6 @@ private fun PanelVoice(
      * cut them, and provider "duet" tagging is not to be faked.
      */
     duet: Boolean = false,
-    /** Whether sung words land with a glow pulse; see [LyricWordLanding]. */
-    wordLanding: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     // Two words is the smallest splittable line: one for each voice.
@@ -2877,7 +2816,6 @@ private fun PanelVoice(
                 translationProgress = translationProgress,
                 tint = DuetLeadTint,
                 glowTint = DuetLeadTint,
-                wordLanding = wordLanding,
             )
             SweptLyricLine(
                 line = harmony,
@@ -2892,7 +2830,6 @@ private fun PanelVoice(
                 translationProgress = translationProgress,
                 tint = DuetHarmonyTint,
                 glowTint = DuetHarmonyTint,
-                wordLanding = wordLanding,
             )
         }
     } else if (line.isWordSynced && karaoke && !browsing) {
@@ -2921,7 +2858,6 @@ private fun PanelVoice(
             rise = rise,
             alignEnd = alignEnd,
             translationProgress = translationProgress,
-            wordLanding = wordLanding,
         )
     } else if (line.isWordSynced && karaoke) {
         // Browsing: keep the sweep so sung lines stay fully lit and unsung
@@ -2943,7 +2879,6 @@ private fun PanelVoice(
             rise = rise,
             alignEnd = alignEnd,
             translationProgress = translationProgress,
-            wordLanding = wordLanding,
         )
     } else {
         // No word timings, so there is no sweep to light the words as they are

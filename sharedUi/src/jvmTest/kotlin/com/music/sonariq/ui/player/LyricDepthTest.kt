@@ -5,10 +5,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The panel's depth model: the words are never blurred at any distance —
- * the blur lives in the backdrop behind the panel, and a line is carried
- * by alpha and scale alone. These are the properties the panel's look
- * rests on, so they are pinned here rather than left to the eye.
+ * The panel's depth model: distance depth-of-field, the way the reference
+ * view does it — blur, dimming and a slight shrink travelling together,
+ * never a hard window and never a strong blur on a near line. The playing
+ * line is sharp, full and full size; the line next to it is only slightly
+ * softened and fully readable; further lines defocus and dim until they
+ * melt away. Lines already sung fall at least as fast as lines still to
+ * come, and upcoming lines brighten as they approach the focus. The model
+ * is a continuous function of distance, not a step table.
  */
 class LyricDepthTest {
 
@@ -21,149 +25,143 @@ class LyricDepthTest {
     }
 
     @Test
-    fun `depth is symmetric either side of the playing line`() {
-        for (distance in -8..8) {
-            assertEquals(
-                "distance $distance",
-                LyricDepth.forDistance(distance),
-                LyricDepth.forDistance(-distance),
+    fun `upcoming anchors follow the reference ladder`() {
+        // distance: blur, alpha, scale.
+        val expected = listOf(
+            Triple(0f, 1.00f, 1.00f),
+            Triple(1.5f, 0.50f, 0.97f),
+            Triple(4f, 0.30f, 0.97f),
+            Triple(7f, 0.18f, 0.97f),
+            Triple(9f, 0.12f, 0.97f),
+        )
+        for (distance in expected.indices) {
+            val depth = LyricDepth.forDistance(distance)
+            val (blur, alpha, scale) = expected[distance]
+            assertEquals("blur at $distance", blur, depth.blurRadiusDp, 0.0001f)
+            assertEquals("alpha at $distance", alpha, depth.alpha, 0.0001f)
+            assertEquals("scale at $distance", scale, depth.scale, 0.0001f)
+        }
+    }
+
+    @Test
+    fun `sung anchors fall at least as fast as upcoming ones`() {
+        // The line just sung is already as soft as the second line below
+        // the playing one, and dimmer than the first line below it.
+        val justSung = LyricDepth.forDistance(-1)
+        assertEquals(4f, justSung.blurRadiusDp, 0.0001f)
+        assertEquals(0.35f, justSung.alpha, 0.0001f)
+        assertEquals(0.97f, justSung.scale, 0.0001f)
+        assertEquals(6f, LyricDepth.forDistance(-2).blurRadiusDp, 0.0001f)
+        assertEquals(0.22f, LyricDepth.forDistance(-2).alpha, 0.0001f)
+        assertEquals(8f, LyricDepth.forDistance(-3).blurRadiusDp, 0.0001f)
+        assertEquals(0.14f, LyricDepth.forDistance(-3).alpha, 0.0001f)
+        for (distance in 1..8) {
+            val sung = LyricDepth.forDistance(-distance)
+            val upcoming = LyricDepth.forDistance(distance)
+            assertTrue(
+                "sung blur at $distance",
+                sung.blurRadiusDp >= upcoming.blurRadiusDp,
+            )
+            assertTrue(
+                "sung alpha at $distance",
+                sung.alpha <= upcoming.alpha,
             )
         }
     }
 
     @Test
-    fun `no line is ever blurred`() {
-        // The whole of the rule, at every distance the list can produce:
-        // the words stay crisp and only the backdrop behind them is soft.
-        for (distance in -60..60) {
-            assertEquals(
-                "distance $distance",
-                0f,
-                LyricDepth.forDistance(distance).blurRadiusDp,
-                0f,
-            )
+    fun `depth is continuous between anchors, not stepped`() {
+        // Halfway to the next line sits strictly between the two anchors
+        // on every value, either side of the playing line.
+        val halfUp = LyricDepth.forSignedDistance(0.5f)
+        assertTrue(halfUp.blurRadiusDp > 0f && halfUp.blurRadiusDp < 1.5f)
+        assertTrue(halfUp.alpha < 1f && halfUp.alpha > 0.50f)
+        assertTrue(halfUp.scale < 1f && halfUp.scale > 0.97f)
+        val halfSung = LyricDepth.forSignedDistance(-0.5f)
+        assertTrue(halfSung.blurRadiusDp > 0f && halfSung.blurRadiusDp < 4f)
+        assertTrue(halfSung.alpha < 1f && halfSung.alpha > 0.35f)
+        // Fine steps never jump and never reverse, either side.
+        for (side in listOf(1f, -1f)) {
+            var previousBlur = -1f
+            var previousAlpha = Float.MAX_VALUE
+            var previousScale = Float.MAX_VALUE
+            var d = 0f
+            while (d <= 6.001f) {
+                val depth = LyricDepth.forSignedDistance(side * d)
+                assertTrue("blur at $d", depth.blurRadiusDp >= previousBlur)
+                assertTrue("alpha at $d", depth.alpha <= previousAlpha)
+                assertTrue("scale at $d", depth.scale <= previousScale)
+                previousBlur = depth.blurRadiusDp
+                previousAlpha = depth.alpha
+                previousScale = depth.scale
+                d += 0.05f
+            }
         }
     }
 
     @Test
-    fun `alpha falls monotonically to its floor`() {
-        var previous = Float.MAX_VALUE
-        for (distance in 0..40) {
-            val alpha = LyricDepth.forDistance(distance).alpha
-            assertTrue("distance $distance", alpha <= previous)
-            assertTrue("distance $distance", alpha > 0f)
-            previous = alpha
-        }
-        // The floor is reached and then held, never crossed.
+    fun `far lines collapse toward nothing and blur caps out`() {
+        // Past the anchors the fall continues to a faint floor, never to
+        // a visible line and never past it.
+        assertTrue(LyricDepth.forDistance(5).alpha <= 0.08f)
+        assertTrue(LyricDepth.forDistance(-5).alpha <= 0.06f)
         assertEquals(
             LyricDepth.forDistance(40).alpha,
             LyricDepth.forDistance(12).alpha,
             0f,
         )
-        assertTrue(LyricDepth.forDistance(40).alpha >= 0.35f)
-    }
-
-    @Test
-    fun `scale falls monotonically to the inactive floor`() {
-        var previous = Float.MAX_VALUE
-        for (distance in 0..40) {
-            val scale = LyricDepth.forDistance(distance).scale
-            assertTrue("distance $distance", scale <= previous)
-            assertTrue("distance $distance", scale < 1f || distance == 0)
-            previous = scale
-        }
-        assertEquals(0.98f, LyricDepth.forDistance(40).scale, 0.0001f)
-    }
-
-    @Test
-    fun `near lines stay legible`() {
-        // The two lines around the playing one are for reading ahead and
-        // behind: most of their brightness survives, and they sit near
-        // enough full size that the fall reads as dimming, not shrinking.
-        for (distance in 1..2) {
-            val depth = LyricDepth.forDistance(distance)
-            assertTrue("distance $distance", depth.alpha >= 0.65f)
-            assertTrue("distance $distance", depth.scale >= 0.99f)
-        }
-    }
-}
-
-/**
- * The landing of a sung word or syllable: a gentle brighten — a glow
- * pulse that starts as its span begins, settles inside the span, and then
- * holds — it never creeps through the pause after the word, and nothing
- * glows before the word is sung at all. The words themselves never move
- * or scale for it; only the light on the bloom copy changes.
- */
-class LyricWordLandingTest {
-
-    private val start = 10_000L
-    private val end = 11_000L
-
-    @Test
-    fun `nothing lands before the piece starts`() {
-        assertEquals(0f, LyricWordLanding.progress(start - 1, start, end), 0f)
-        assertEquals(0f, LyricWordLanding.glowPulseAt(start - 1, start, end), 0f)
-    }
-
-    @Test
-    fun `the pulse starts full as the piece begins`() {
-        assertEquals(1f, LyricWordLanding.glowPulseAt(start, start, end), 0f)
-    }
-
-    @Test
-    fun `progress rises monotonically and completes inside the piece`() {
-        var previous = 0f
-        var at = start
-        while (at <= end) {
-            val progress = LyricWordLanding.progress(at, start, end)
-            assertTrue("at $at", progress >= previous)
-            assertTrue("at $at", progress <= 1f)
-            previous = progress
-            at += 20
-        }
-        // A one-second piece has long landed by its end.
-        assertEquals(1f, LyricWordLanding.progress(end - 1, start, end), 0f)
-    }
-
-    @Test
-    fun `the pulse settles as the piece lands`() {
-        var previous = Float.MAX_VALUE
-        var at = start
-        while (at < end) {
-            val pulse = LyricWordLanding.glowPulseAt(at, start, end)
-            assertTrue("at $at", pulse <= previous)
-            assertTrue("at $at", pulse >= 0f)
-            previous = pulse
-            at += 20
-        }
-        assertEquals(0f, LyricWordLanding.glowPulseAt(end - 1, start, end), 0f)
-    }
-
-    @Test
-    fun `a finished piece holds at rest through the pause after it`() {
-        for (at in listOf(end, end + 1, end + 500, end + 60_000)) {
-            assertEquals("at $at", 1f, LyricWordLanding.progress(at, start, end), 0f)
-            assertEquals("at $at", 0f, LyricWordLanding.glowPulseAt(at, start, end), 0f)
+        assertEquals(
+            LyricDepth.forDistance(-40).alpha,
+            LyricDepth.forDistance(-12).alpha,
+            0f,
+        )
+        assertTrue(LyricDepth.forDistance(40).alpha > 0f)
+        assertTrue(LyricDepth.forDistance(-40).alpha > 0f)
+        for (distance in -60..60) {
+            assertTrue(
+                "blur at $distance",
+                LyricDepth.forDistance(distance).blurRadiusDp <= 10f,
+            )
         }
     }
 
     @Test
-    fun `a short piece lands over its own span, not a longer window`() {
-        val shortStart = 20_000L
-        val shortEnd = 20_100L
-        // Halfway through a 100 ms piece the landing is halfway done, and
-        // by its end it has completed exactly.
-        assertEquals(0.5f, LyricWordLanding.progress(20_050L, shortStart, shortEnd), 0.0001f)
-        assertEquals(1f, LyricWordLanding.progress(shortEnd, shortStart, shortEnd), 0f)
+    fun `the blur window edge is invisible`() {
+        // By the window's edge the line is already faint enough that
+        // dropping the live blur beyond it reads as melting away, not as
+        // a cut — and past the window lines only get fainter.
+        val window = LyricDepth.BLUR_WINDOW_DISTANCE
+        assertTrue(LyricDepth.forDistance(window).alpha <= 0.12f)
+        assertTrue(LyricDepth.forDistance(-window).alpha <= 0.09f)
+        assertTrue(
+            LyricDepth.forDistance(window + 1).alpha <=
+                LyricDepth.forDistance(window).alpha,
+        )
+        assertTrue(
+            LyricDepth.forDistance(-window - 1).alpha <=
+                LyricDepth.forDistance(-window).alpha,
+        )
     }
 
     @Test
-    fun `a held piece lands early and then holds`() {
-        val heldStart = 30_000L
-        val heldEnd = 33_000L
-        // Long before a three-second hold ends, the landing is over.
-        assertEquals(1f, LyricWordLanding.progress(heldStart + 1_000, heldStart, heldEnd), 0f)
-        assertEquals(0f, LyricWordLanding.glowPulseAt(heldStart + 1_000, heldStart, heldEnd), 0f)
+    fun `near lines stay fully readable`() {
+        // One away, upcoming: only slightly softened, half bright, a hair
+        // back — the reference's "slight softening only, fully readable".
+        val next = LyricDepth.forDistance(1)
+        assertTrue(next.blurRadiusDp <= 2f)
+        assertTrue(next.alpha >= 0.50f)
+        assertEquals(0.97f, next.scale, 0.0001f)
+    }
+
+    @Test
+    fun `scale settles at the inactive value past the first step`() {
+        for (distance in listOf(-40, -2, -1, 1, 2, 40)) {
+            assertEquals(
+                "scale at $distance",
+                0.97f,
+                LyricDepth.forDistance(distance).scale,
+                0.0001f,
+            )
+        }
     }
 }
