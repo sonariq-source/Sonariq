@@ -10,9 +10,13 @@ import com.music.sonariq.playback.TransitionFilterProcessor
 /**
  * Composite DSP chain executing Sonariq's custom audio processors in their canonical sequence:
  *
- * AudioBlock(Float32) -> SpatialAudioProcessor -> EqualizerProcessor
- *   -> MonoMixProcessor -> TransitionFilterProcessor -> LoudnessProcessor
- *   -> AudioBlock(Float32)
+ * AudioBlock(Float32) -> VocalRemoverProcessor -> SpatialAudioProcessor
+ *   -> EqualizerProcessor -> MonoMixProcessor -> TransitionFilterProcessor
+ *   -> LoudnessProcessor -> AudioBlock(Float32)
+ *
+ * The vocal remover runs first, on the untouched stereo image: widening
+ * would move centre content into the sides before it could be scaled, and
+ * the mono fold would destroy the side signal it recombines from.
  *
  * Operates purely on in-place Float32 audio blocks without intermediate fixed-point quantization,
  * preserving full dynamic range and headroom.
@@ -36,6 +40,7 @@ class DspChain(
     val transition: TransitionFilterProcessor = TransitionFilterProcessor(),
     val loudness: LoudnessProcessor = LoudnessProcessor(),
     val mono: MonoMixProcessor = MonoMixProcessor(),
+    val vocal: VocalRemoverProcessor = VocalRemoverProcessor(),
 ) : FloatAudioProcessor {
 
     private var currentSampleRate: Int = 0
@@ -43,6 +48,7 @@ class DspChain(
 
     override fun configure(sampleRate: Int, channelCount: Int) {
         this.currentSampleRate = sampleRate
+        vocal.configure(sampleRate, channelCount)
         spatial.configure(sampleRate, channelCount)
         equalizer.configure(sampleRate, channelCount)
         transition.configure(sampleRate, channelCount)
@@ -78,6 +84,7 @@ class DspChain(
             }
         }
 
+        vocal.process(block)
         spatial.process(block)
         equalizer.process(block)
         mono.process(block)
@@ -87,6 +94,7 @@ class DspChain(
 
     @Suppress("DEPRECATION")
     override fun flush() {
+        vocal.flush()
         spatial.flush()
         equalizer.flush()
         transition.flush()
@@ -96,6 +104,7 @@ class DspChain(
 
     override fun reset() {
         processCounter = 0L
+        vocal.reset()
         spatial.reset()
         equalizer.reset()
         transition.reset()

@@ -79,6 +79,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.guava.future
 import com.music.sonariq.playback.audio.DspChain
 import com.music.sonariq.playback.audio.MonoMixProcessor
+import com.music.sonariq.playback.audio.VocalRemoverProcessor
 import com.music.sonariq.playback.cast.CastController
 import com.music.sonariq.playback.cast.CastPlayback
 import com.music.sonariq.playback.cast.CastSink
@@ -663,6 +664,8 @@ class PlaybackService : MediaLibraryService() {
     private val equalizerProcessorB = EqualizerProcessor()
     private val monoMixA = MonoMixProcessor()
     private val monoMixB = MonoMixProcessor()
+    private val vocalRemoverA = VocalRemoverProcessor()
+    private val vocalRemoverB = VocalRemoverProcessor()
     private val transitionFilterA = TransitionFilterProcessor()
     private val transitionFilterB = TransitionFilterProcessor()
 
@@ -1716,6 +1719,7 @@ class PlaybackService : MediaLibraryService() {
             transitionFilterA,
             loudnessA,
             monoMixA,
+            vocalRemoverA,
             ownsSession = true,
         )
         val sparePlayer = buildPlayer(
@@ -1724,6 +1728,7 @@ class PlaybackService : MediaLibraryService() {
             transitionFilterB,
             loudnessB,
             monoMixB,
+            vocalRemoverB,
             ownsSession = false,
         )
         player = exoPlayer
@@ -2748,9 +2753,10 @@ class PlaybackService : MediaLibraryService() {
         filter: TransitionFilterProcessor,
         loudness: LoudnessProcessor,
         mono: MonoMixProcessor,
+        vocal: VocalRemoverProcessor,
         ownsSession: Boolean,
     ): ExoPlayer = ExoPlayer.Builder(this)
-        .setRenderersFactory(silenceSkippingRenderers(spatial, equalizer, filter, loudness, mono))
+        .setRenderersFactory(silenceSkippingRenderers(spatial, equalizer, filter, loudness, mono, vocal))
         .setMediaSourceFactory(requireNotNull(mediaSourceFactory))
         .setLoadControl(farBufferingLoadControl())
         .setAudioAttributes(AUDIO_ATTRIBUTES, /* handleAudioFocus = */ ownsSession)
@@ -5847,6 +5853,7 @@ class PlaybackService : MediaLibraryService() {
         transition: TransitionFilterProcessor,
         loudness: LoudnessProcessor,
         mono: MonoMixProcessor,
+        vocal: VocalRemoverProcessor,
     ) = object : DefaultRenderersFactory(this) {
         init {
             // Do not force PCM_FLOAT onto an OEM speaker mixer merely because
@@ -5957,7 +5964,7 @@ class PlaybackService : MediaLibraryService() {
             // them for the same reason: it belongs to the listener and
             // the whole session, while the transition filter belongs to
             // one handoff and has to have the last word on it.
-            val dspChain = DspChain(spatial, equalizer, transition, loudness, mono)
+            val dspChain = DspChain(spatial, equalizer, transition, loudness, mono, vocal)
             return PrecisionAudioSink(
                 delegate = defaultSink,
                 dspChain = dspChain,
@@ -5983,6 +5990,8 @@ class PlaybackService : MediaLibraryService() {
         player.applyPlaybackTuning()
         monoMixA.enabled = AppSettings.monoAudioEnabled.value
         monoMixB.enabled = AppSettings.monoAudioEnabled.value
+        vocalRemoverA.level = AppSettings.vocalLevel.value
+        vocalRemoverB.level = AppSettings.vocalLevel.value
         // Restore persisted shuffle and repeat states on startup. Assign both
         // values: Android can destroy and recreate the service while retaining
         // this process, so QueueShuffle's process-wide object may still hold
@@ -6211,6 +6220,7 @@ class PlaybackService : MediaLibraryService() {
             transitionFilterA,
             loudnessA,
             monoMixA,
+            vocalRemoverA,
             ownsSession = true,
         )
         val newSpare = buildPlayer(
@@ -6219,6 +6229,7 @@ class PlaybackService : MediaLibraryService() {
             transitionFilterB,
             loudnessB,
             monoMixB,
+            vocalRemoverB,
             ownsSession = false,
         )
         player = newActive
@@ -6357,6 +6368,12 @@ class PlaybackService : MediaLibraryService() {
             AppSettings.monoAudioEnabled.collect { enabled ->
                 monoMixA.enabled = enabled
                 monoMixB.enabled = enabled
+            }
+        }
+        scope.launch {
+            AppSettings.vocalLevel.collect { level ->
+                vocalRemoverA.level = level
+                vocalRemoverB.level = level
             }
         }
         scope.launch {

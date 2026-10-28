@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -61,7 +60,7 @@ import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 import kotlin.math.roundToInt
 
-internal val DRAWER_SHAPE = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
+internal val DRAWER_SHAPE = GlassTokens.drawerShape
 
 /**
  * The widest the drawer itself gets, however wide the window behind it is.
@@ -75,9 +74,9 @@ internal val DRAWER_SHAPE = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
  *
  * No effect on a phone, which is narrower than this everywhere it runs.
  */
-internal val DRAWER_MAX_WIDTH = 640.dp
-internal val ROW_SHAPE = RoundedCornerShape(16.dp)
-internal val SCRIM_COLOR = Color.Black.copy(alpha = 0.5f)
+internal val DRAWER_MAX_WIDTH = GlassTokens.drawerMaxWidth
+internal val ROW_SHAPE = GlassTokens.rowShape
+internal val SCRIM_COLOR = GlassTokens.scrim
 
 /**
  * How much of its own height the drawer has to be dragged before letting go
@@ -199,7 +198,7 @@ fun PlayerDrawer(
             modifier = Modifier
                 // Capped so a phone full of rows scrolls inside the drawer
                 // rather than growing one into a full-screen page.
-                .heightIn(max = 560.dp)
+                .heightIn(max = GlassTokens.drawerMaxHeight)
                 // Capped before the fill, so [Modifier.fillMaxWidth] fills to
                 // the cap rather than to the window. Centred by the parent's
                 // own BottomCenter alignment once it is narrower.
@@ -210,14 +209,14 @@ fun PlayerDrawer(
                 .clip(DRAWER_SHAPE)
                 .then(
                     if (reduceDynamicBlur) {
-                        Modifier.background(Color(0xFF121212))
+                        Modifier.background(GlassTokens.surface)
                     } else {
                         Modifier
                             .optimizedHazeEffect(
                                 state = hazeState,
-                                style = HazeMaterials.regular(Color(0xFF141414)),
+                                style = HazeMaterials.regular(GlassTokens.hazeTint),
                             )
-                            .background(Color(0xFF121212).copy(alpha = 0.9f))
+                            .background(GlassTokens.surface.copy(alpha = GlassTokens.surfaceAlpha))
                     }
                 )
                 .clickable(
@@ -250,7 +249,7 @@ fun PlayerDrawer(
                     .padding(bottom = 12.dp)
                     .size(width = 36.dp, height = 4.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.25f)),
+                    .background(GlassTokens.handle),
             )
             Text(
                 text = title,

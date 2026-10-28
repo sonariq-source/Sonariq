@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -65,10 +64,10 @@ import dev.chrisbanes.haze.materials.HazeMaterials
 import java.util.Locale
 import kotlin.math.roundToInt
 
-private val DrawerShape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
-private val ControlShape = RoundedCornerShape(16.dp)
-private val ScrimColor = Color.Black.copy(alpha = 0.5f)
-private val DrawerMaxWidth = 640.dp
+private val DrawerShape = GlassTokens.drawerShape
+private val ControlShape = GlassTokens.rowShape
+private val ScrimColor = GlassTokens.scrim
+private val DrawerMaxWidth = GlassTokens.drawerMaxWidth
 private const val StepMs = 100
 private const val DismissDragFraction = 0.25f
 
@@ -145,14 +144,14 @@ internal fun LyricsOffsetSheet(
                     .clip(DrawerShape)
                     .then(
                         if (reduceDynamicBlur) {
-                            Modifier.background(Color(0xFF121212))
+                            Modifier.background(GlassTokens.surface)
                         } else {
                             Modifier
                                 .optimizedHazeEffect(
                                     state = hazeState,
-                                    style = HazeMaterials.regular(Color(0xFF141414)),
+                                    style = HazeMaterials.regular(GlassTokens.hazeTint),
                                 )
-                                .background(Color(0xFF121212).copy(alpha = 0.9f))
+                                .background(GlassTokens.surface.copy(alpha = GlassTokens.surfaceAlpha))
                         },
                     )
                     .clickable(
@@ -182,7 +181,7 @@ internal fun LyricsOffsetSheet(
                         .padding(bottom = 12.dp)
                         .size(width = 36.dp, height = 4.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.25f)),
+                        .background(GlassTokens.handle),
                 )
                 Text(
                     text = stringResource(Res.string.lyrics_offset),

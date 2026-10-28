@@ -717,6 +717,14 @@ object AppSettings {
     val lyricsReducedMotion = MutableStateFlow(false)
 
     /**
+     * The Vocal Remover's level: 1 is the original mix, untouched; 0 is
+     * the stereo centre channel fully removed. Applied live by
+     * [com.music.sonariq.playback.audio.VocalRemoverProcessor] in the
+     * playback DSP chain.
+     */
+    val vocalLevel = MutableStateFlow(DEFAULT_VOCAL_LEVEL)
+
+    /**
      * The Now Playing visualizer's rendering mode. Off hides the strip
      * entirely — and the capture with it.
      */
@@ -1260,6 +1268,9 @@ object AppSettings {
             prefs.getString(KEY_LYRICS_BACKGROUND, null),
         )
         lyricsReducedMotion.value = prefs.getBoolean(KEY_LYRICS_REDUCED_MOTION, false)
+        vocalLevel.value =
+            prefs.getFloat(KEY_VOCAL_LEVEL, DEFAULT_VOCAL_LEVEL)
+                .coerceIn(MIN_VOCAL_LEVEL, MAX_VOCAL_LEVEL)
         visualizerStyle.value = VisualizerStyle.fromPersistedName(
             prefs.getString(KEY_VISUALIZER_STYLE, null),
         )
@@ -1998,6 +2009,13 @@ object AppSettings {
         if (lyricsReducedMotion.value == value) return
         lyricsReducedMotion.value = value
         prefs.edit().putBoolean(KEY_LYRICS_REDUCED_MOTION, value).apply()
+    }
+
+    fun setVocalLevel(value: Float) {
+        val normalized = value.coerceIn(MIN_VOCAL_LEVEL, MAX_VOCAL_LEVEL)
+        if (vocalLevel.value == normalized) return
+        vocalLevel.value = normalized
+        prefs.edit().putFloat(KEY_VOCAL_LEVEL, normalized).apply()
     }
 
     fun setVisualizerStyle(value: VisualizerStyle) {
@@ -2851,6 +2869,11 @@ object AppSettings {
     const val MAX_LYRICS_HIGHLIGHT_INTENSITY = 1.6f
     const val DEFAULT_LYRICS_HIGHLIGHT_INTENSITY = 1f
 
+    /** The Vocal Remover's level range; mirrors the player's own constants. */
+    const val MIN_VOCAL_LEVEL = 0f
+    const val MAX_VOCAL_LEVEL = 1f
+    const val DEFAULT_VOCAL_LEVEL = 1f
+
     /** The visualizer strip's sensitivity slider range; 1 is the meter's own calibration. */
     const val MIN_VISUALIZER_INTENSITY = 0.25f
     const val MAX_VISUALIZER_INTENSITY = 2f
@@ -2959,6 +2982,7 @@ object AppSettings {
     private const val KEY_LYRICS_HIGHLIGHT_INTENSITY = "lyrics_highlight_intensity"
     private const val KEY_LYRICS_BACKGROUND = "lyrics_background"
     private const val KEY_LYRICS_REDUCED_MOTION = "lyrics_reduced_motion"
+    private const val KEY_VOCAL_LEVEL = "vocal_level"
     private const val KEY_VISUALIZER_STYLE = "visualizer_style"
     private const val KEY_VISUALIZER_INTENSITY = "visualizer_intensity"
     private const val KEY_VISUALIZER_BATTERY_SAVER = "visualizer_battery_saver"

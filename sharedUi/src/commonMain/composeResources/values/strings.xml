@@ -237,4 +237,7 @@
     <string name="lyrics_appearance_word_highlighting">Word highlighting</string>
     <string name="lyrics_appearance_auto_scroll">Auto-scroll</string>
     <string name="lyrics_appearance_reduced_motion">Reduced motion</string>
+    <string name="vocal_remover">Vocal Remover</string>
+    <string name="vocal_remover_description">Reduces centre-channel vocals in stereo tracks. Results vary by mix, and other centre sounds soften too.</string>
+    <string name="vocal_remover_reset">Reset</string>
 </resources>

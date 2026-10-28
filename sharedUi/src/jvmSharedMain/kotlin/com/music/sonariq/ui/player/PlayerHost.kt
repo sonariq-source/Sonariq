@@ -132,6 +132,7 @@ private val DefaultArtworkGesturesEnabled = MutableStateFlow(true)
 private val DefaultLyricsHighlightIntensity = MutableStateFlow(DEFAULT_LYRICS_HIGHLIGHT_INTENSITY)
 private val DefaultLyricsBackground = MutableStateFlow(LyricsBackground.ARTWORK)
 private val DefaultLyricsReducedMotion = MutableStateFlow(false)
+private val DefaultVocalLevel = MutableStateFlow(DEFAULT_VOCAL_LEVEL)
 
 /** What the output drawer needs to know about casting to draw its row. */
 data class CastUi(
@@ -178,6 +179,14 @@ interface PlayerSettingsSource {
     val lyricsBackground: StateFlow<LyricsBackground> get() = DefaultLyricsBackground
     /** Lyrics-only reduced motion, on top of the app-wide reduce-animation setting. */
     val lyricsReducedMotion: StateFlow<Boolean> get() = DefaultLyricsReducedMotion
+    /**
+     * Whether this platform's playback pipeline carries the Vocal Remover
+     * DSP stage. False hides the player's entry point altogether rather
+     * than offering a slider nothing is listening to.
+     */
+    val vocalRemoverAvailable: Boolean get() = false
+    /** The Vocal Remover's level: 1 is the original mix, 0 is centre removed. */
+    val vocalLevel: StateFlow<Float> get() = DefaultVocalLevel
     val lyricsOffsetMs: StateFlow<Int>
     /** Per-track lyric offsets, videoId to offsetMs; a track without an entry follows [lyricsOffsetMs]. */
     val lyricsOffsetOverrides: StateFlow<Map<String, Int>>
@@ -219,6 +228,7 @@ interface PlayerSettingsSource {
     fun setLyricsHighlightIntensity(value: Float) = Unit
     fun setLyricsBackground(value: LyricsBackground) = Unit
     fun setLyricsReducedMotion(value: Boolean) = Unit
+    fun setVocalLevel(value: Float) = Unit
     fun setLyricsOffsetMs(value: Int)
     /** Null clears the track's own offset, handing it back to the global one. */
     fun setLyricsOffsetForTrack(videoId: String, offsetMs: Int?)
@@ -252,6 +262,14 @@ const val DEFAULT_LYRICS_FONT_SIZE_SP = 17f
 const val MIN_LYRICS_HIGHLIGHT_INTENSITY = 0.4f
 const val MAX_LYRICS_HIGHLIGHT_INTENSITY = 1.6f
 const val DEFAULT_LYRICS_HIGHLIGHT_INTENSITY = 1f
+
+/**
+ * The Vocal Remover's level range: 1 is the original mix, untouched; 0 is
+ * centre channel fully removed. The phone's AppSettings mirrors these.
+ */
+const val MIN_VOCAL_LEVEL = 0f
+const val MAX_VOCAL_LEVEL = 1f
+const val DEFAULT_VOCAL_LEVEL = 1f
 
 /** How many per-track lyric offsets are kept; the oldest edits fall off. */
 const val MAX_LYRIC_OFFSET_OVERRIDES = 100

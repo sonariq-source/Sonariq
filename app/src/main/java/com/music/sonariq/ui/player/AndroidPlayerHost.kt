@@ -72,6 +72,8 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         override val lyricsHighlightIntensity get() = AppSettings.lyricsHighlightIntensity
         override val lyricsBackground get() = AppSettings.lyricsBackground
         override val lyricsReducedMotion get() = AppSettings.lyricsReducedMotion
+        override val vocalRemoverAvailable: Boolean = true
+        override val vocalLevel get() = AppSettings.vocalLevel
         override val lyricsOffsetMs get() = AppSettings.lyricsOffsetMs
         override val lyricsOffsetOverrides get() = AppSettings.lyricsOffsetOverrides
         override val lyricsSourceOrder get() = AppSettings.lyricsSourceOrder
@@ -105,6 +107,7 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
             AppSettings.setLyricsBackground(value)
         override fun setLyricsReducedMotion(value: Boolean) =
             AppSettings.setLyricsReducedMotion(value)
+        override fun setVocalLevel(value: Float) = AppSettings.setVocalLevel(value)
         override fun setLyricsOffsetMs(value: Int) = AppSettings.setLyricsOffsetMs(value)
         override fun setLyricsOffsetForTrack(videoId: String, offsetMs: Int?) =
             AppSettings.setLyricsOffsetForTrack(videoId, offsetMs)

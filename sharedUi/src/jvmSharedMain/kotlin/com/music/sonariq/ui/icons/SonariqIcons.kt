@@ -44,6 +44,30 @@ object SonariqIcons {
         }.build()
     }
 
+    /**
+     * The Vocal Remover's mark: a row of waveform bars, tall at the centre
+     * the way a voice sits in a mix. Bars, never a microphone — the feature
+     * reshapes the playing audio and listens to nothing.
+     */
+    val VocalWaveform: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_vocal_waveform", defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = stroke, strokeLineWidth = STROKE,
+                strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round,
+            ) {
+                for ((x, half) in listOf(
+                    4f to 2.5f, 8f to 4.5f, 12f to 7f, 16f to 4.5f, 20f to 2.5f,
+                )) {
+                    moveTo(x, 12f - half)
+                    lineTo(x, 12f + half)
+                }
+            }
+        }.build()
+    }
+
     val LyricsQuote: ImageVector by lazy {
         ImageVector.Builder(
             name = "bc_lyrics_quote", defaultWidth = 24.dp, defaultHeight = 24.dp,

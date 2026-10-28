@@ -74,7 +74,7 @@
 
 ### Synced lyrics
 - **Word-synced lyrics** — real per-word and per-syllable timings, never estimated or interpolated. TTML timings are hunted first for every track; if a song only has line timings at first, Sonariq keeps looking in the background and upgrades it the moment real word timings are found.
-- **Depth and motion** — lines drift out of focus under a deepening blur as they leave the playing line, the playing line blooms as it settles in, and every sung word lands with a soft pop and glow.
+- **Depth and motion** — every line stays sharp; lines dim and settle back as they leave the playing line, the playing line blooms as it settles in, and every sung word lands with a soft pop and glow.
 - **Fully automatic** — every provider is raced in parallel; the best sync wins with zero setup.
 - **Smart timing** — cross-checks providers so the first line never jumps the gun on instrumental intros.
 - **Clean UI** — no provider badges, no sync estimates. Just the words.
@@ -120,7 +120,7 @@
 - **New green-gradient waveform logo** — on the launcher, in-app and in notifications.
 - **Custom theme colour picker** — hue/saturation/hex picker for the app accent.
 - **Prism design system** — matte midnight/plum surfaces, coral primary, orchid secondary, cyan highlights.
-- **Liquid glass** — milkier blur, vivid refraction, luminous rims and top-light sheen, on by default.
+- **Liquid glass** — milkier blur, vivid refraction, luminous rims and top-light sheen, on by default. The player's sheets, drawers and floating controls now share one set of glass tokens — the same tint, hairline and corners everywhere.
 - **Animated navigation** — tabs bloom, pages slide, modals rise. The whole app breathes.
 - **Redesigned Now Playing** — glowing scrubber, luminous transport controls, live audio visualiser, and a gently drifting animated backdrop. The caption under the player shows your phone's real model, and the lyrics screen has a one-tap share button for story cards.
 - **Mini-player progress** — a slim progress line along the mini player's foot follows the song.
@@ -143,6 +143,7 @@
 - **7-band EQ** with user presets and tone trims.
 - **Per-device EQ profiles** — your EQ follows the output: one setting for earbuds, another for the speaker.
 - **Mono audio mix** — downmix to mono for single-ear listening.
+- **Vocal Remover** — turn the centre channel of a stereo mix down from Now Playing to soften the lead vocal; the level is yours, and the original is one reset away.
 - **EQ preset sharing** — send your sound to friends as a Sonariq link.
 - **Playback speed control** (0.5×–2.0×) and **skip silence**.
 - **Sleep timer** — fixed presets or "stop after this track", with gradual fade-out over the last 60 seconds.

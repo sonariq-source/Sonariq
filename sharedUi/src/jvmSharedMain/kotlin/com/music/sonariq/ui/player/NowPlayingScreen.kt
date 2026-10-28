@@ -713,6 +713,7 @@ fun NowPlayingScreen(
     var showAudioOutput by remember { mutableStateOf(false) }
     // Gated on the Bluetooth permission the first time — see [rememberOutputPicker].
     val openAudioOutput = rememberOutputPicker { showAudioOutput = true }
+    var showVocalRemover by remember { mutableStateOf(false) }
     // Listening in a party whose host has taken the controls: the transport
     // keeps only play/pause, which from here moves this device alone.
     val controlsLocked = rememberControlsLocked()
@@ -986,6 +987,8 @@ fun NowPlayingScreen(
     // back has to close it first rather than taking the drawer out from
     // under it.
     PlayerBackHandler(enabled = showAudioOutput) { showAudioOutput = false }
+
+    PlayerBackHandler(enabled = showVocalRemover) { showVocalRemover = false }
 
     PlayerBackHandler(enabled = showListenTogetherMembers) { showListenTogetherMembers = false }
 
@@ -1468,6 +1471,7 @@ fun NowPlayingScreen(
             onCycleRepeat = onCycleRepeat,
             onToggleAutoplay = onToggleAutoplay,
             onOpenOutput = openAudioOutput,
+            onOpenVocalRemover = { showVocalRemover = true },
             onListenTogether = onListenTogether,
             onOpenListenTogetherMembers = openListenTogetherMembers,
         )
@@ -1500,6 +1504,7 @@ fun NowPlayingScreen(
             onToggleLyrics = toggleLyrics,
             onToggleQueue = toggleQueue,
             onOpenOutput = openAudioOutput,
+            onOpenVocalRemover = { showVocalRemover = true },
         )
         // Keep the current output caption visible in every state.
         Spacer(Modifier.height(18.dp))
@@ -1556,6 +1561,12 @@ fun NowPlayingScreen(
                 hazeState = playerHaze,
                 onDismiss = onDismissLyricsOffset,
                 videoId = song.videoId,
+            )
+        }
+        if (showVocalRemover && PlayerSettings.vocalRemoverAvailable) {
+            VocalRemoverSheet(
+                hazeState = playerHaze,
+                onDismiss = { showVocalRemover = false },
             )
         }
         lyricsShare?.let { request ->
@@ -2270,7 +2281,7 @@ fun NowPlayingScreen(
         // A subview replaces that hero with an artwork-derived mesh, so it gets
         // only a modest floor rather than an opaque status-bar surface.
         val playerSubviewOpen = lyricsOpen || queueOpen || lyricsOffsetOpen ||
-            showAudioPipeline || showCast || showAudioOutput ||
+            showAudioPipeline || showCast || showAudioOutput || showVocalRemover ||
             lyricsShare != null
         val topGradientAlpha = if (playerSubviewOpen) {
             maxOf(artworkStatusScrimAlpha, SUBVIEW_STATUS_SCRIM_MIN_ALPHA)
