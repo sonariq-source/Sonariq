@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -57,6 +59,7 @@ import com.music.sonariq.data.model.ROW_ART_PX
 import com.music.sonariq.data.model.Song
 import com.music.sonariq.data.model.artworkAt
 import com.music.sonariq.data.settings.AppSettings
+import com.music.sonariq.playback.PlaybackPosition
 import com.music.sonariq.sharedui.resources.Res as SharedRes
 import com.music.sonariq.sharedui.resources.ic_player_next
 import com.music.sonariq.ui.components.thumbnailBorder
@@ -357,6 +360,14 @@ fun MiniPlayer(
     dock: PlayerDock? = null,
     /** Dragging the bar up into the player. */
     pull: MiniPlayerPull? = null,
+    /**
+     * The shared playhead, for the progress line along the bar's foot.
+     * Passed as the object, never its value: the line reads it in its own
+     * tiny scope, so a tick recomposes the line and nothing else.
+     */
+    position: PlaybackPosition? = null,
+    /** The current track's duration, settling once per track. */
+    durationMs: Long = 0L,
     modifier: Modifier = Modifier,
 ) {
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
@@ -463,6 +474,49 @@ fun MiniPlayer(
                 )
             }
         }
+        if (position != null) {
+            MiniPlayerProgress(
+                position = position,
+                durationMs = durationMs,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 28.dp)
+                    .padding(bottom = 5.dp)
+                    .fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/**
+ * The mini player's progress line: how far through the track the playhead
+ * is, along the bar's foot. Its own composable on purpose — the playhead
+ * ticks twice a second, and the read lives here so the tick recomposes
+ * this 2dp line and nothing else on the bar.
+ */
+@Composable
+private fun MiniPlayerProgress(
+    position: PlaybackPosition,
+    durationMs: Long,
+    modifier: Modifier = Modifier,
+) {
+    val fraction = if (durationMs > 0L) {
+        (position.positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    Box(
+        modifier = modifier
+            .height(2.dp)
+            .clip(RoundedCornerShape(1.dp))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth(fraction)
+                .fillMaxHeight()
+                .background(MaterialTheme.colorScheme.primary),
+        )
     }
 }
 

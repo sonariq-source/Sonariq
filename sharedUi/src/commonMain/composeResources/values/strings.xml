@@ -224,4 +224,17 @@
     <string name="member_since">Member since</string>
     <string name="import_spotify">Import Spotify</string>
     <string name="import_spotify_subtitle">From a playlist link</string>
+    <string name="lyrics_appearance">Lyrics appearance</string>
+    <string name="lyrics_appearance_text_size">Text size</string>
+    <string name="lyrics_appearance_highlight">Highlight</string>
+    <string name="lyrics_appearance_highlight_low">Low</string>
+    <string name="lyrics_appearance_highlight_medium">Medium</string>
+    <string name="lyrics_appearance_highlight_high">High</string>
+    <string name="lyrics_appearance_background">Background</string>
+    <string name="lyrics_background_artwork">Artwork</string>
+    <string name="lyrics_background_dimmed">Dimmed</string>
+    <string name="lyrics_background_solid">Solid</string>
+    <string name="lyrics_appearance_word_highlighting">Word highlighting</string>
+    <string name="lyrics_appearance_auto_scroll">Auto-scroll</string>
+    <string name="lyrics_appearance_reduced_motion">Reduced motion</string>
 </resources>

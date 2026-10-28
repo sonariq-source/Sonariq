@@ -129,6 +129,9 @@ private val NoCast = MutableStateFlow(CastUi())
 
 private val DefaultCanvasBackdropEnabled = MutableStateFlow(true)
 private val DefaultArtworkGesturesEnabled = MutableStateFlow(true)
+private val DefaultLyricsHighlightIntensity = MutableStateFlow(DEFAULT_LYRICS_HIGHLIGHT_INTENSITY)
+private val DefaultLyricsBackground = MutableStateFlow(LyricsBackground.ARTWORK)
+private val DefaultLyricsReducedMotion = MutableStateFlow(false)
 
 /** What the output drawer needs to know about casting to draw its row. */
 data class CastUi(
@@ -169,6 +172,12 @@ interface PlayerSettingsSource {
     val lyricsBlur: StateFlow<Boolean>
     val lyricsFontSizeSp: StateFlow<Float>
     val lyricsKaraokeEffects: StateFlow<Boolean>
+    /** How strong the playing line's bloom is, as a scale around its long-standing strength. */
+    val lyricsHighlightIntensity: StateFlow<Float> get() = DefaultLyricsHighlightIntensity
+    /** What the lyrics panel draws behind its lines. */
+    val lyricsBackground: StateFlow<LyricsBackground> get() = DefaultLyricsBackground
+    /** Lyrics-only reduced motion, on top of the app-wide reduce-animation setting. */
+    val lyricsReducedMotion: StateFlow<Boolean> get() = DefaultLyricsReducedMotion
     val lyricsOffsetMs: StateFlow<Int>
     /** Per-track lyric offsets, videoId to offsetMs; a track without an entry follows [lyricsOffsetMs]. */
     val lyricsOffsetOverrides: StateFlow<Map<String, Int>>
@@ -207,6 +216,9 @@ interface PlayerSettingsSource {
     fun setLyricsAutoScroll(value: Boolean)
     fun setLyricsFontSizeSp(value: Float)
     fun setLyricsKaraokeEffects(value: Boolean)
+    fun setLyricsHighlightIntensity(value: Float) = Unit
+    fun setLyricsBackground(value: LyricsBackground) = Unit
+    fun setLyricsReducedMotion(value: Boolean) = Unit
     fun setLyricsOffsetMs(value: Int)
     /** Null clears the track's own offset, handing it back to the global one. */
     fun setLyricsOffsetForTrack(videoId: String, offsetMs: Int?)
@@ -231,6 +243,15 @@ const val MAX_LYRICS_OFFSET_MS = 5_000
 const val MIN_LYRICS_FONT_SIZE_SP = 13f
 const val MAX_LYRICS_FONT_SIZE_SP = 24f
 const val DEFAULT_LYRICS_FONT_SIZE_SP = 17f
+
+/**
+ * The highlight-intensity slider's range, as a scale around the playing
+ * line's bloom. 1 is the panel's long-standing strength; the phone's
+ * AppSettings mirrors these.
+ */
+const val MIN_LYRICS_HIGHLIGHT_INTENSITY = 0.4f
+const val MAX_LYRICS_HIGHLIGHT_INTENSITY = 1.6f
+const val DEFAULT_LYRICS_HIGHLIGHT_INTENSITY = 1f
 
 /** How many per-track lyric offsets are kept; the oldest edits fall off. */
 const val MAX_LYRIC_OFFSET_OVERRIDES = 100

@@ -1589,4 +1589,15 @@
     </plurals>
     <string name="settings_category_expand">Expand category</string>
     <string name="settings_category_collapse">Collapse category</string>
+    <string name="lyrics_highlight_intensity">Lyrics highlight intensity</string>
+    <string name="lyrics_highlight_intensity_subtitle">How strong the glow on the playing line is</string>
+    <string name="lyrics_background">Lyrics background</string>
+    <string name="lyrics_background_artwork">Artwork</string>
+    <string name="lyrics_background_artwork_subtitle">The player's artwork backdrop shows through</string>
+    <string name="lyrics_background_dimmed">Dimmed</string>
+    <string name="lyrics_background_dimmed_subtitle">A dark scrim over the artwork backdrop</string>
+    <string name="lyrics_background_solid">Solid</string>
+    <string name="lyrics_background_solid_subtitle">A plain background behind the words</string>
+    <string name="lyrics_reduced_motion">Lyrics reduced motion</string>
+    <string name="lyrics_reduced_motion_subtitle">Still the lyrics panel's movement and word rise</string>
 </resources>

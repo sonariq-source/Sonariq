@@ -16,6 +16,7 @@ import com.music.sonariq.playback.EqLayout
 import com.music.sonariq.playback.EqualizerPreset
 import com.music.sonariq.ui.player.decodeLyricOffsets
 import com.music.sonariq.ui.player.encodeLyricOffsets
+import com.music.sonariq.ui.player.LyricsBackground
 import com.music.sonariq.ui.player.VisualizerStyle
 import com.music.sonariq.ui.player.withLyricOffset
 import com.music.sonariq.ui.theme.AccentColor
@@ -706,6 +707,15 @@ object AppSettings {
     /** Whether word-synced lines light word by word; off renders whole-line highlights instead. */
     val lyricsKaraokeEffects = MutableStateFlow(true)
 
+    /** How strong the playing line's bloom is, as a scale around [DEFAULT_LYRICS_HIGHLIGHT_INTENSITY]. */
+    val lyricsHighlightIntensity = MutableStateFlow(DEFAULT_LYRICS_HIGHLIGHT_INTENSITY)
+
+    /** What the lyrics panel draws behind its lines. */
+    val lyricsBackground = MutableStateFlow(LyricsBackground.ARTWORK)
+
+    /** Lyrics-only reduced motion, on top of the app-wide reduce-animation setting. */
+    val lyricsReducedMotion = MutableStateFlow(false)
+
     /**
      * The Now Playing visualizer's rendering mode. Off hides the strip
      * entirely — and the capture with it.
@@ -1243,6 +1253,13 @@ object AppSettings {
                 .coerceIn(MIN_LYRICS_FONT_SIZE_SP, MAX_LYRICS_FONT_SIZE_SP)
         lyricsAutoScroll.value = prefs.getBoolean(KEY_LYRICS_AUTO_SCROLL, true)
         lyricsKaraokeEffects.value = prefs.getBoolean(KEY_LYRICS_KARAOKE, true)
+        lyricsHighlightIntensity.value =
+            prefs.getFloat(KEY_LYRICS_HIGHLIGHT_INTENSITY, DEFAULT_LYRICS_HIGHLIGHT_INTENSITY)
+                .coerceIn(MIN_LYRICS_HIGHLIGHT_INTENSITY, MAX_LYRICS_HIGHLIGHT_INTENSITY)
+        lyricsBackground.value = LyricsBackground.fromPersistedName(
+            prefs.getString(KEY_LYRICS_BACKGROUND, null),
+        )
+        lyricsReducedMotion.value = prefs.getBoolean(KEY_LYRICS_REDUCED_MOTION, false)
         visualizerStyle.value = VisualizerStyle.fromPersistedName(
             prefs.getString(KEY_VISUALIZER_STYLE, null),
         )
@@ -1962,6 +1979,25 @@ object AppSettings {
         if (lyricsKaraokeEffects.value == value) return
         lyricsKaraokeEffects.value = value
         prefs.edit().putBoolean(KEY_LYRICS_KARAOKE, value).apply()
+    }
+
+    fun setLyricsHighlightIntensity(value: Float) {
+        val normalized = value.coerceIn(MIN_LYRICS_HIGHLIGHT_INTENSITY, MAX_LYRICS_HIGHLIGHT_INTENSITY)
+        if (lyricsHighlightIntensity.value == normalized) return
+        lyricsHighlightIntensity.value = normalized
+        prefs.edit().putFloat(KEY_LYRICS_HIGHLIGHT_INTENSITY, normalized).apply()
+    }
+
+    fun setLyricsBackground(value: LyricsBackground) {
+        if (lyricsBackground.value == value) return
+        lyricsBackground.value = value
+        prefs.edit().putString(KEY_LYRICS_BACKGROUND, value.persistedName).apply()
+    }
+
+    fun setLyricsReducedMotion(value: Boolean) {
+        if (lyricsReducedMotion.value == value) return
+        lyricsReducedMotion.value = value
+        prefs.edit().putBoolean(KEY_LYRICS_REDUCED_MOTION, value).apply()
     }
 
     fun setVisualizerStyle(value: VisualizerStyle) {
@@ -2810,6 +2846,11 @@ object AppSettings {
     const val MAX_LYRICS_FONT_SIZE_SP = 24f
     const val DEFAULT_LYRICS_FONT_SIZE_SP = 17f
 
+    /** The highlight-intensity slider range; mirrors the player's own constants. */
+    const val MIN_LYRICS_HIGHLIGHT_INTENSITY = 0.4f
+    const val MAX_LYRICS_HIGHLIGHT_INTENSITY = 1.6f
+    const val DEFAULT_LYRICS_HIGHLIGHT_INTENSITY = 1f
+
     /** The visualizer strip's sensitivity slider range; 1 is the meter's own calibration. */
     const val MIN_VISUALIZER_INTENSITY = 0.25f
     const val MAX_VISUALIZER_INTENSITY = 2f
@@ -2915,6 +2956,9 @@ object AppSettings {
     private const val KEY_LYRICS_FONT_SIZE_SP = "lyrics_font_size_sp"
     private const val KEY_LYRICS_AUTO_SCROLL = "lyrics_auto_scroll"
     private const val KEY_LYRICS_KARAOKE = "lyrics_karaoke"
+    private const val KEY_LYRICS_HIGHLIGHT_INTENSITY = "lyrics_highlight_intensity"
+    private const val KEY_LYRICS_BACKGROUND = "lyrics_background"
+    private const val KEY_LYRICS_REDUCED_MOTION = "lyrics_reduced_motion"
     private const val KEY_VISUALIZER_STYLE = "visualizer_style"
     private const val KEY_VISUALIZER_INTENSITY = "visualizer_intensity"
     private const val KEY_VISUALIZER_BATTERY_SAVER = "visualizer_battery_saver"

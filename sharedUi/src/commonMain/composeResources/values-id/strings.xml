@@ -204,4 +204,17 @@
     <string name="search_library_hint">Lagu, Artis, dan Album</string>
     <string name="search_library_no_results">Tidak ada di Musik Lokal yang cocok dengan “%1$s”.</string>
     <string name="search_no_results">No results for “%1$s”.</string>
+    <string name="lyrics_appearance">Lyrics appearance</string>
+    <string name="lyrics_appearance_text_size">Text size</string>
+    <string name="lyrics_appearance_highlight">Highlight</string>
+    <string name="lyrics_appearance_highlight_low">Low</string>
+    <string name="lyrics_appearance_highlight_medium">Medium</string>
+    <string name="lyrics_appearance_highlight_high">High</string>
+    <string name="lyrics_appearance_background">Background</string>
+    <string name="lyrics_background_artwork">Artwork</string>
+    <string name="lyrics_background_dimmed">Dimmed</string>
+    <string name="lyrics_background_solid">Solid</string>
+    <string name="lyrics_appearance_word_highlighting">Word highlighting</string>
+    <string name="lyrics_appearance_auto_scroll">Auto-scroll</string>
+    <string name="lyrics_appearance_reduced_motion">Reduced motion</string>
 </resources>

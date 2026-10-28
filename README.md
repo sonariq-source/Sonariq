@@ -78,6 +78,8 @@
 - **Fully automatic** — every provider is raced in parallel; the best sync wins with zero setup.
 - **Smart timing** — cross-checks providers so the first line never jumps the gun on instrumental intros.
 - **Clean UI** — no provider badges, no sync estimates. Just the words.
+- **Lyrics appearance menu** — right on the lyrics screen: text size, highlight intensity, background (artwork, dimmed or solid), word highlighting, auto-scroll and reduced motion, all saved.
+- **Tap a word to seek** — on word-synced lines, tapping a single word jumps the song to that word; tapping a line still seeks to the line.
 - **Translations & romanisation**, per-track offset, in-lyrics search and copy.
 - **Lyrics translation overlay** — automatic translated subtitle lines in Now Playing (an explicit romanise tap wins over the overlay).
 - **Lock-screen lyrics** — the current line shows right on your lock screen.
@@ -121,6 +123,7 @@
 - **Liquid glass** — milkier blur, vivid refraction, luminous rims and top-light sheen, on by default.
 - **Animated navigation** — tabs bloom, pages slide, modals rise. The whole app breathes.
 - **Redesigned Now Playing** — glowing scrubber, luminous transport controls, live audio visualiser, and a gently drifting animated backdrop. The caption under the player shows your phone's real model, and the lyrics screen has a one-tap share button for story cards.
+- **Mini-player progress** — a slim progress line along the mini player's foot follows the song.
 - **Animated album canvas** — motion artwork on the now-playing screen.
 
 ### In-app updates

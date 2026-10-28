@@ -69,6 +69,9 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         override val lyricsBlur get() = AppSettings.lyricsBlur
         override val lyricsFontSizeSp get() = AppSettings.lyricsFontSizeSp
         override val lyricsKaraokeEffects get() = AppSettings.lyricsKaraokeEffects
+        override val lyricsHighlightIntensity get() = AppSettings.lyricsHighlightIntensity
+        override val lyricsBackground get() = AppSettings.lyricsBackground
+        override val lyricsReducedMotion get() = AppSettings.lyricsReducedMotion
         override val lyricsOffsetMs get() = AppSettings.lyricsOffsetMs
         override val lyricsOffsetOverrides get() = AppSettings.lyricsOffsetOverrides
         override val lyricsSourceOrder get() = AppSettings.lyricsSourceOrder
@@ -96,6 +99,12 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         override fun setLyricsAutoScroll(value: Boolean) = AppSettings.setLyricsAutoScroll(value)
         override fun setLyricsFontSizeSp(value: Float) = AppSettings.setLyricsFontSizeSp(value)
         override fun setLyricsKaraokeEffects(value: Boolean) = AppSettings.setLyricsKaraokeEffects(value)
+        override fun setLyricsHighlightIntensity(value: Float) =
+            AppSettings.setLyricsHighlightIntensity(value)
+        override fun setLyricsBackground(value: LyricsBackground) =
+            AppSettings.setLyricsBackground(value)
+        override fun setLyricsReducedMotion(value: Boolean) =
+            AppSettings.setLyricsReducedMotion(value)
         override fun setLyricsOffsetMs(value: Int) = AppSettings.setLyricsOffsetMs(value)
         override fun setLyricsOffsetForTrack(videoId: String, offsetMs: Int?) =
             AppSettings.setLyricsOffsetForTrack(videoId, offsetMs)

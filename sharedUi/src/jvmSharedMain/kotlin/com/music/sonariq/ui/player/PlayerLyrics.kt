@@ -25,6 +25,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -54,13 +55,21 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -109,6 +118,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.layout
@@ -138,6 +148,7 @@ import com.music.sonariq.data.lyrics.isGeniusSectionHeader
 import com.music.sonariq.data.lyrics.GrowingWord
 import com.music.sonariq.data.lyrics.LyricAlignment
 import com.music.sonariq.data.lyrics.LyricLine
+import com.music.sonariq.data.lyrics.LyricWord
 import com.music.sonariq.data.lyrics.LyricsSource
 import com.music.sonariq.data.lyrics.translationLanguageName
 import com.music.sonariq.ui.haptics.Haptic
@@ -187,6 +198,9 @@ private const val UNSUNG_ALPHA_STRIP = 0.55f
  * up letter by letter, which is where the light was always meant to come from.
  */
 private const val GLOW_ALPHA = 0.62f
+
+/** The scrim the DIMMED lyrics background lays over the artwork wash. */
+private const val LYRICS_DIMMED_SCRIM_ALPHA = 0.45f
 
 /**
  * The lyric accents in the brand lime — the current line's bloom and the
@@ -636,6 +650,27 @@ internal fun adjustedLyricsSeekTarget(lineTimeMs: Long, offsetMs: Int): Long =
     (lineTimeMs + offsetMs.toLong()).coerceAtLeast(0L)
 
 /**
+ * The word a tap at [charOffset] in [LyricLine.text] means, for tap-to-seek.
+ *
+ * Only real word timings answer: a line with no words, or with words that
+ * were interpolated rather than measured (those are stripped upstream, and
+ * this refuses them again so no caller can seek on an invented stamp),
+ * returns null and the tap falls back to the line's own seek. A tap inside a
+ * word picks that word; a tap on the gap between two words picks the one
+ * coming next, which is the word a reader tapping just ahead of it means;
+ * a tap past the last word picks the last.
+ */
+internal fun wordAtCharOffset(line: LyricLine, charOffset: Int): LyricWord? {
+    if (line.words.isEmpty() || line.wordsEstimated) return null
+    val spans = line.wordSpans
+    if (spans.size != line.words.size) return null
+    for (index in spans.indices) {
+        if (charOffset <= spans[index].last) return line.words[index]
+    }
+    return line.words.last()
+}
+
+/**
  * The current lyric, one line, directly above the scrubber — or the line
  * saying why there isn't one.
  */
@@ -845,6 +880,12 @@ private fun SweptLyricLine(
     tint: Color = Color.White,
     /** The bloom's colour; the brand lime unless a voice carries its own. */
     glowTint: Color = LyricLime,
+    /**
+     * Tap on a single word, to seek to it. Null where the line is not the
+     * lead voice or carries no timings worth seeking on — the tap then
+     * belongs to the row, which seeks to the line as it always has.
+     */
+    onWordTap: ((LyricWord) -> Unit)? = null,
 ) {
     var layout by remember(line) { mutableStateOf<TextLayoutResult?>(null) }
 
@@ -951,8 +992,32 @@ private fun SweptLyricLine(
     // within the block, for the case where it has wrapped. Neither alone is
     // enough, and the three copies all take both, so they still land on top of
     // each other.
+    // Word tap-to-seek, where the caller allows it: the tap is resolved
+    // against the same layout the sweep draws from, so the word under the
+    // finger is the word that gets the seek. Consuming the tap here keeps
+    // the row's own line seek from firing underneath it; a drag is not a
+    // tap, so scrolling the panel is untouched.
+    val wordTap: Modifier = if (onWordTap != null) {
+        Modifier.pointerInput(line, onWordTap) {
+            detectTapGestures { offset ->
+                val measured = layout ?: return@detectTapGestures
+                val inset = glowRoom.toPx()
+                val originX = if (alignEnd) {
+                    size.width.toFloat() - inset - measured.size.width.toFloat()
+                } else {
+                    inset
+                }
+                val position = Offset(offset.x - originX, offset.y - inset)
+                val charOffset = measured.getOffsetForPosition(position)
+                wordAtCharOffset(line, charOffset)?.let { word -> onWordTap(word) }
+            }
+        }
+    } else {
+        Modifier
+    }
+
     Box(
-        modifier.lyricParticles(layout, translationProgress, glowRoom),
+        modifier.then(wordTap).lyricParticles(layout, translationProgress, glowRoom),
         contentAlignment = if (alignEnd) Alignment.TopEnd else Alignment.TopStart,
     ) {
         Text(
@@ -1859,9 +1924,25 @@ internal fun LyricsPanel(
     val lyricsFontSizeSp by PlayerSettings.lyricsFontSizeSp.collectAsStateWithLifecycle()
     val lyricsAutoScroll by PlayerSettings.lyricsAutoScroll.collectAsStateWithLifecycle()
     val lyricsKaraokeEffects by PlayerSettings.lyricsKaraokeEffects.collectAsStateWithLifecycle()
+    val lyricsHighlightIntensity by PlayerSettings.lyricsHighlightIntensity.collectAsStateWithLifecycle()
+    val lyricsBackground by PlayerSettings.lyricsBackground.collectAsStateWithLifecycle()
+    val lyricsReducedMotion by PlayerSettings.lyricsReducedMotion.collectAsStateWithLifecycle()
+    // The panel's own reduced-motion choice rides on the app-wide one: either
+    // turns the panel's movement off, and every animation spec below reads
+    // this one value so the two can never disagree inside the panel.
+    val panelReducedMotion = reduceAnimation || lyricsReducedMotion
 
-    val glowing = !reduceAnimation && !reduceDynamicBlur && lyricsBlur &&
+    val glowing = !panelReducedMotion && !reduceDynamicBlur && lyricsBlur &&
         renderEffectBlurSupported
+
+    // The panel's own backdrop choice, drawn under the lines and over the
+    // player's artwork wash: nothing for ARTWORK (the long-standing look),
+    // a scrim for DIMMED, the plain background for SOLID.
+    val panelBackground: Modifier = when (lyricsBackground) {
+        LyricsBackground.ARTWORK -> Modifier
+        LyricsBackground.DIMMED -> Modifier.background(Color.Black.copy(alpha = LYRICS_DIMMED_SCRIM_ALPHA))
+        LyricsBackground.SOLID -> Modifier.background(MaterialTheme.colorScheme.background)
+    }
 
     LaunchedEffect(listState) {
         listState.interactionSource.interactions.collect { interaction ->
@@ -1984,7 +2065,7 @@ internal fun LyricsPanel(
         if (looking) {
             LyricsSkeleton(empty)
         } else {
-            Box(empty, contentAlignment = Alignment.Center) {
+            Box(empty.then(panelBackground), contentAlignment = Alignment.Center) {
                 Text(
                     text = stringResource(Res.string.no_lyrics_for_track),
                     style = MaterialTheme.typography.titleMedium,
@@ -1997,7 +2078,7 @@ internal fun LyricsPanel(
 
     // The list and the floating search share a Box: the search pill overlays
     // the panel's top end without taking layout space from the lines.
-    Box(modifier) {
+    Box(modifier.then(panelBackground)) {
         LazyColumn(
             state = listState,
             modifier = Modifier
@@ -2086,7 +2167,7 @@ internal fun LyricsPanel(
             val blurInWindow = abs(offset) <= LyricDepth.BLUR_WINDOW_DISTANCE
             val blurDp by animateFloatAsState(
                 targetValue = if (blurInWindow) depth.blurRadiusDp else 0f,
-                animationSpec = if (reduceAnimation) {
+                animationSpec = if (panelReducedMotion) {
                     snap()
                 } else {
                     tween(LYRIC_SETTLE_MS, easing = LYRIC_EASING)
@@ -2102,7 +2183,7 @@ internal fun LyricsPanel(
                     browsing -> BROWSING_ALPHA
                     else -> depth.alpha
                 },
-                animationSpec = if (reduceAnimation) {
+                animationSpec = if (panelReducedMotion) {
                     snap()
                 } else {
                     tween(LYRIC_SETTLE_MS, easing = LYRIC_EASING)
@@ -2243,7 +2324,7 @@ internal fun LyricsPanel(
                 // rest of the row.
                 val arrival by animateFloatAsState(
                     targetValue = if (isActive) 1f else 0f,
-                    animationSpec = if (reduceAnimation) {
+                    animationSpec = if (panelReducedMotion) {
                         snap()
                     } else {
                         tween(LYRIC_SETTLE_MS, easing = LYRIC_EASING)
@@ -2261,7 +2342,7 @@ internal fun LyricsPanel(
                         else -> depth.scale
                     },
                     animationSpec = when {
-                        reduceAnimation -> snap()
+                        panelReducedMotion -> snap()
                         pressed -> tween(durationMillis = 120, easing = LYRIC_EASING)
                         else -> tween(durationMillis = LYRIC_SETTLE_MS, easing = LYRIC_EASING)
                     },
@@ -2271,8 +2352,16 @@ internal fun LyricsPanel(
                 // the line rather than switching, so a handover is one line's
                 // light going down as the next one's comes up.
                 val glow by animateFloatAsState(
-                    targetValue = if (isActive && glowing) GLOW_ALPHA else 0f,
-                    animationSpec = if (reduceAnimation) snap() else tween(durationMillis = 420),
+                    // The reader's highlight intensity scales the bloom, and
+                    // nothing else: the sweep's brightness is the sync signal
+                    // and stays where it was, so a stronger or softer glow
+                    // never changes what reads as sung.
+                    targetValue = if (isActive && glowing) {
+                        (GLOW_ALPHA * lyricsHighlightIntensity).coerceAtMost(1f)
+                    } else {
+                        0f
+                    },
+                    animationSpec = if (panelReducedMotion) snap() else tween(durationMillis = 420),
                     label = "lyricGlow",
                 )
                 // No width held back for the swell any more: nothing draws past
@@ -2429,7 +2518,7 @@ internal fun LyricsPanel(
                     animateFloatAsState(
                         targetValue = if (wanted) 1f else 0f,
                         animationSpec = when {
-                            reduceAnimation -> tween(0)
+                            panelReducedMotion -> tween(0)
                             wanted -> tween(BACKING_OPEN_MS, easing = LYRIC_EASING)
                             else -> tween(
                                 BACKING_CLOSE_MS,
@@ -2454,6 +2543,15 @@ internal fun LyricsPanel(
                         alignEnd = alignEnd,
                         karaoke = lyricsKaraokeEffects,
                         duet = false,
+                        // Reduced motion stills the words' rise with the
+                        // rest of the panel; the sweep itself is the sync
+                        // signal and keeps moving.
+                        rise = !panelReducedMotion,
+                        onWordTap = if (isSynced && !picking) {
+                            { word -> onSeekToLine(word.startMs) }
+                        } else {
+                            null
+                        },
                         // The depth blur lives on the lead voice alone:
                         // the answering voice under it stays sharp, and
                         // the translation under that, so a row's second
@@ -2598,6 +2696,16 @@ internal fun LyricsPanel(
             },
             modifier = Modifier
                 .align(Alignment.TopEnd)
+                .padding(top = 4.dp, start = PLAYER_GUTTER, end = PLAYER_GUTTER),
+        )
+    }
+
+    // The appearance menu, top-start to balance the search pill: the same
+    // lyrics settings Settings carries, reachable without leaving the song.
+    if (!picking) {
+        LyricsAppearanceOverlay(
+            modifier = Modifier
+                .align(Alignment.TopStart)
                 .padding(top = 4.dp, start = PLAYER_GUTTER, end = PLAYER_GUTTER),
         )
     }
@@ -2750,6 +2858,197 @@ private fun LyricsSearchOverlay(
 }
 
 /**
+ * The lyrics appearance menu: a floating pill at the panel's top start, in
+ * the search pill's treatment, opening a compact menu over the panel's own
+ * settings — text size, highlight strength, background, word highlighting,
+ * auto-scroll and reduced motion. Every control writes straight through to
+ * the same persisted settings Settings carries, so the two never disagree,
+ * and nothing here is a preview: what is picked is what the panel does.
+ */
+@Composable
+private fun LyricsAppearanceOverlay(modifier: Modifier = Modifier) {
+    val haptics = rememberHaptics()
+    var expanded by remember { mutableStateOf(false) }
+    val fontSizeSp by PlayerSettings.lyricsFontSizeSp.collectAsStateWithLifecycle()
+    val highlightIntensity by PlayerSettings.lyricsHighlightIntensity.collectAsStateWithLifecycle()
+    val background by PlayerSettings.lyricsBackground.collectAsStateWithLifecycle()
+    val wordHighlighting by PlayerSettings.lyricsKaraokeEffects.collectAsStateWithLifecycle()
+    val autoScroll by PlayerSettings.lyricsAutoScroll.collectAsStateWithLifecycle()
+    val reducedMotion by PlayerSettings.lyricsReducedMotion.collectAsStateWithLifecycle()
+    val pill = RoundedCornerShape(20.dp)
+    Box(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .clip(pill)
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
+                .border(1.dp, LyricLime.copy(alpha = 0.28f), pill),
+            contentAlignment = Alignment.Center,
+        ) {
+            IconButton(
+                onClick = {
+                    haptics.play(Haptic.Select)
+                    expanded = true
+                },
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Tune,
+                    contentDescription = stringResource(Res.string.lyrics_appearance),
+                    tint = Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.width(300.dp),
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(
+                    text = stringResource(Res.string.lyrics_appearance),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(Res.string.lyrics_appearance_text_size),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(
+                        onClick = {
+                            haptics.play(Haptic.Tick)
+                            PlayerSettings.setLyricsFontSizeSp(fontSizeSp - 1f)
+                        },
+                        enabled = fontSizeSp > MIN_LYRICS_FONT_SIZE_SP,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Remove,
+                            contentDescription = stringResource(Res.string.lyrics_appearance_text_size),
+                        )
+                    }
+                    Text(
+                        text = fontSizeSp.roundToInt().toString(),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    IconButton(
+                        onClick = {
+                            haptics.play(Haptic.Tick)
+                            PlayerSettings.setLyricsFontSizeSp(fontSizeSp + 1f)
+                        },
+                        enabled = fontSizeSp < MAX_LYRICS_FONT_SIZE_SP,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = stringResource(Res.string.lyrics_appearance_text_size),
+                        )
+                    }
+                }
+                Text(
+                    text = stringResource(Res.string.lyrics_appearance_highlight),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for ((label, value) in listOf(
+                        Res.string.lyrics_appearance_highlight_low to 0.6f,
+                        Res.string.lyrics_appearance_highlight_medium to 1f,
+                        Res.string.lyrics_appearance_highlight_high to 1.4f,
+                    )) {
+                        FilterChip(
+                            selected = abs(highlightIntensity - value) < 0.05f,
+                            onClick = {
+                                haptics.play(Haptic.Tick)
+                                PlayerSettings.setLyricsHighlightIntensity(value)
+                            },
+                            label = { Text(text = stringResource(label)) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                            ),
+                        )
+                    }
+                }
+                Text(
+                    text = stringResource(Res.string.lyrics_appearance_background),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for ((label, value) in listOf(
+                        Res.string.lyrics_background_artwork to LyricsBackground.ARTWORK,
+                        Res.string.lyrics_background_dimmed to LyricsBackground.DIMMED,
+                        Res.string.lyrics_background_solid to LyricsBackground.SOLID,
+                    )) {
+                        FilterChip(
+                            selected = background == value,
+                            onClick = {
+                                haptics.play(Haptic.Tick)
+                                PlayerSettings.setLyricsBackground(value)
+                            },
+                            label = { Text(text = stringResource(label)) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                            ),
+                        )
+                    }
+                }
+                LyricsAppearanceSwitchRow(
+                    label = stringResource(Res.string.lyrics_appearance_word_highlighting),
+                    checked = wordHighlighting,
+                    onCheckedChange = { PlayerSettings.setLyricsKaraokeEffects(it) },
+                )
+                LyricsAppearanceSwitchRow(
+                    label = stringResource(Res.string.lyrics_appearance_auto_scroll),
+                    checked = autoScroll,
+                    onCheckedChange = { PlayerSettings.setLyricsAutoScroll(it) },
+                )
+                LyricsAppearanceSwitchRow(
+                    label = stringResource(Res.string.lyrics_appearance_reduced_motion),
+                    checked = reducedMotion,
+                    onCheckedChange = { PlayerSettings.setLyricsReducedMotion(it) },
+                )
+            }
+        }
+    }
+}
+
+/** One switch row of [LyricsAppearanceOverlay]: label left, switch right. */
+@Composable
+private fun LyricsAppearanceSwitchRow(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    val haptics = rememberHaptics()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                haptics.play(Haptic.Tick)
+                onCheckedChange(!checked)
+            }
+            .padding(vertical = 4.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                checkedBorderColor = MaterialTheme.colorScheme.primary,
+            ),
+        )
+    }
+}
+
+/**
  * One voice of a row in [LyricsPanel] — the lead, or the answering line drawn
  * under it.
  *
@@ -2793,6 +3092,12 @@ private fun PanelVoice(
      * cut them, and provider "duet" tagging is not to be faked.
      */
     duet: Boolean = false,
+    /**
+     * Tap on a single word of a word-synced line, to seek to that word.
+     * Only the lead voice takes it, and only where the line carries real
+     * word timings — see [wordAtCharOffset].
+     */
+    onWordTap: ((LyricWord) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     // Two words is the smallest splittable line: one for each voice.
@@ -2867,6 +3172,7 @@ private fun PanelVoice(
             rise = rise,
             alignEnd = alignEnd,
             translationProgress = translationProgress,
+            onWordTap = onWordTap,
         )
     } else if (line.isWordSynced && karaoke) {
         // Browsing: keep the sweep so sung lines stay fully lit and unsung
@@ -2888,6 +3194,7 @@ private fun PanelVoice(
             rise = rise,
             alignEnd = alignEnd,
             translationProgress = translationProgress,
+            onWordTap = onWordTap,
         )
     } else {
         // No word timings, so there is no sweep to light the words as they are

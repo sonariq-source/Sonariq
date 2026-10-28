@@ -4239,6 +4239,8 @@ private fun SonariqApp(
                             onBlockedControl = showHostOnlyNotice,
                             dock = activeDock,
                             pull = playerSheetMotion.takeIf { !reducePlayerMotion },
+                            position = player.position,
+                            durationMs = player.durationMs,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(Modifier.height(8.dp))

@@ -179,6 +179,7 @@ import com.music.sonariq.ui.components.MessageState
 import com.music.sonariq.ui.components.SearchField
 import com.music.sonariq.ui.components.thumbnailBorder
 import com.music.sonariq.ui.MainViewModel
+import com.music.sonariq.ui.player.LyricsBackground
 import com.music.sonariq.ui.home.SectionReorderSheet
 import com.music.sonariq.ui.library.AutoDownloadSettings
 import com.music.sonariq.ui.library.LibraryBackupScreen
@@ -288,6 +289,9 @@ fun SettingsScreen(
     val lyricsFontSizeSp by AppSettings.lyricsFontSizeSp.collectAsStateWithLifecycle()
     val lyricsAutoScroll by AppSettings.lyricsAutoScroll.collectAsStateWithLifecycle()
     val lyricsKaraokeEffects by AppSettings.lyricsKaraokeEffects.collectAsStateWithLifecycle()
+    val lyricsHighlightIntensity by AppSettings.lyricsHighlightIntensity.collectAsStateWithLifecycle()
+    val lyricsBackground by AppSettings.lyricsBackground.collectAsStateWithLifecycle()
+    val lyricsReducedMotion by AppSettings.lyricsReducedMotion.collectAsStateWithLifecycle()
     val visualizerStyle by AppSettings.visualizerStyle.collectAsStateWithLifecycle()
     val visualizerIntensity by AppSettings.visualizerIntensity.collectAsStateWithLifecycle()
     val visualizerBatterySaver by AppSettings.visualizerBatterySaver.collectAsStateWithLifecycle()
@@ -1912,6 +1916,75 @@ fun SettingsScreen(
                             )
                         },
                         onClick = { AppSettings.setLyricsKaraokeEffects(!lyricsKaraokeEffects) },
+                    )
+                }
+                val lyricsIntensityTitle = stringResource(R.string.lyrics_highlight_intensity)
+                row(lyricsIntensityTitle, "lyrics", "highlight", "intensity", "glow") {
+                    SliderRow(
+                        icon = Icons.Rounded.AutoAwesome,
+                        title = lyricsIntensityTitle,
+                        subtitle = stringResource(R.string.lyrics_highlight_intensity_subtitle),
+                        value = "${(lyricsHighlightIntensity * 100).roundToInt()}%",
+                        sliderValue = lyricsHighlightIntensity,
+                        onSliderValue = AppSettings::setLyricsHighlightIntensity,
+                        valueRange = AppSettings.MIN_LYRICS_HIGHLIGHT_INTENSITY..
+                            AppSettings.MAX_LYRICS_HIGHLIGHT_INTENSITY,
+                        steps = 11,
+                    )
+                }
+                val lyricsBackgroundTitle = stringResource(R.string.lyrics_background)
+                row(lyricsBackgroundTitle, "lyrics", "background", "artwork", "backdrop") {
+                    SettingsRow(
+                        icon = Icons.Rounded.BlurOn,
+                        title = lyricsBackgroundTitle,
+                        subtitle = stringResource(
+                            when (lyricsBackground) {
+                                LyricsBackground.ARTWORK -> R.string.lyrics_background_artwork_subtitle
+                                LyricsBackground.DIMMED -> R.string.lyrics_background_dimmed_subtitle
+                                LyricsBackground.SOLID -> R.string.lyrics_background_solid_subtitle
+                            },
+                        ),
+                        trailing = {
+                            Text(
+                                text = stringResource(
+                                    when (lyricsBackground) {
+                                        LyricsBackground.ARTWORK -> R.string.lyrics_background_artwork
+                                        LyricsBackground.DIMMED -> R.string.lyrics_background_dimmed
+                                        LyricsBackground.SOLID -> R.string.lyrics_background_solid
+                                    },
+                                ),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        },
+                        onClick = {
+                            AppSettings.setLyricsBackground(
+                                when (lyricsBackground) {
+                                    LyricsBackground.ARTWORK -> LyricsBackground.DIMMED
+                                    LyricsBackground.DIMMED -> LyricsBackground.SOLID
+                                    LyricsBackground.SOLID -> LyricsBackground.ARTWORK
+                                },
+                            )
+                        },
+                    )
+                }
+                val lyricsReducedMotionTitle = stringResource(R.string.lyrics_reduced_motion)
+                row(lyricsReducedMotionTitle, "lyrics", "reduced", "motion", "animation") {
+                    SettingsRow(
+                        icon = Icons.Rounded.MotionPhotosOff,
+                        title = lyricsReducedMotionTitle,
+                        subtitle = stringResource(R.string.lyrics_reduced_motion_subtitle),
+                        trailing = {
+                            Switch(
+                                checked = lyricsReducedMotion,
+                                onCheckedChange = AppSettings::setLyricsReducedMotion,
+                                colors = SwitchDefaults.colors(
+                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            )
+                        },
+                        onClick = { AppSettings.setLyricsReducedMotion(!lyricsReducedMotion) },
                     )
                 }
                 val prefetchLyricsTitle = stringResource(R.string.prefetch_lyrics)
