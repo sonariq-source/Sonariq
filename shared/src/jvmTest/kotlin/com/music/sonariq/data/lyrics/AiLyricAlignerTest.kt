@@ -605,17 +605,18 @@ class AiLyricAlignerTest {
 
     @Test
     fun outOfOrderTokenStartsAreHeldMonotonic() {
-        // The transcription's own order runs bravo long after charlie's
-        // stamp. Emitted as measured, the sweep would travel backwards
-        // and charlie would end before it began; the starts are held
-        // strictly increasing instead, a millisecond apart at worst.
+        // The transcription's charlie starts before its bravo, though
+        // its midpoint still lands inside the line's window. Emitted as
+        // measured, the sweep would travel backwards and charlie would
+        // end before it began; the starts are held strictly increasing
+        // instead, a millisecond apart at worst.
         val lines = listOf(
             line(10_000, "alpha bravo charlie", sungUntilMs = 20_000),
         )
         val tokens = listOf(
             token("alpha", 10_000, 10_400),
             token("bravo", 17_400, 17_800),
-            token("charlie", 9_000, 9_400),
+            token("charlie", 17_300, 17_900),
         )
         val out = checkNotNull(AiLyricAligner.align(lines, tokens))
         assertEquals(
