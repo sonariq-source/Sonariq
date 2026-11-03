@@ -4,7 +4,9 @@ import com.music.sonariq.data.model.QueueTier
 import com.music.sonariq.data.model.SearchFilter
 import com.music.sonariq.data.model.SearchResult
 import com.music.sonariq.data.model.Song
+import com.music.sonariq.playback.AutoplayFreshness
 import com.music.sonariq.playback.QueueBuilder
+import java.util.prefs.Preferences
 
 /** Most Autoplay-suggested tracks kept queued ahead of the current one at once. */
 const val MAX_QUEUED_AUTOPLAY = 10
@@ -70,8 +72,58 @@ internal object DesktopAutoplay {
         }
         val related = DesktopSearchClient.radio(seed).getOrElse { return Result.failure(it) }
         DesktopTrackLog.log("autoplay: station for '${seedSong.title}' offered ${related.size} tracks")
-        val extra = QueueBuilder.extend(existing, related, limit)
+        // Session freshness, the same rule as the phone: the pool is
+        // demoted against this seed's remembered batches before the
+        // queue builder cuts it, so replaying a song does not hand back
+        // last session's sequence, and the delivered batch is recorded
+        // for the next session.
+        val previous = history()[seedSong.videoId].orEmpty()
+        val freshFirst = AutoplayFreshness.freshOrder(related, previous, related.size)
+        val extra = QueueBuilder.extend(existing, freshFirst, limit)
         if (extra.isEmpty()) return Result.success(emptyList())
+        recordBatch(seedSong.videoId, extra.map { it.videoId })
         return Result.success(extra.map { it.copy(queueTier = QueueTier.AUTOPLAY, radioName = seedSong.radioName) })
     }
+
+    // -- Recommendation history ----------------------------------------
+    //
+    // The bounded per-seed history [AutoplayFreshness] reasons about,
+    // persisted in the desktop preferences as one line per seed:
+    // `seedId|id,id;id,id` — batches newest first, ids comma-joined,
+    // batches semicolon-joined. Catalogue ids carry none of those
+    // characters, so the flat encoding cannot corrupt an id.
+
+    private val historyPreferences: Preferences =
+        Preferences.userRoot().node("com.music.sonariq.desktop.autoplay")
+
+    private var historyCache: Map<String, List<List<String>>>? = null
+
+    @Synchronized
+    private fun history(): Map<String, List<List<String>>> {
+        historyCache?.let { return it }
+        val raw = runCatching { historyPreferences.get(KEY_HISTORY, "") }.getOrDefault("")
+        val parsed = LinkedHashMap<String, List<List<String>>>()
+        for (line in raw.lineSequence()) {
+            val seed = line.substringBefore('|')
+            val batchesPart = line.substringAfter('|', "")
+            if (seed.isBlank() || batchesPart.isBlank()) continue
+            parsed[seed] = batchesPart.split(';')
+                .map { batch -> batch.split(',').filter { it.isNotBlank() } }
+                .filter { it.isNotEmpty() }
+        }
+        historyCache = parsed
+        return parsed
+    }
+
+    @Synchronized
+    private fun recordBatch(seedId: String, batchIds: List<String>) {
+        val updated = AutoplayFreshness.recordBatch(history(), seedId, batchIds)
+        historyCache = updated
+        val raw = updated.entries.joinToString("\n") { (seed, batches) ->
+            seed + "|" + batches.joinToString(";") { it.joinToString(",") }
+        }
+        runCatching { historyPreferences.put(KEY_HISTORY, raw) }
+    }
+
+    private const val KEY_HISTORY = "freshHistory"
 }

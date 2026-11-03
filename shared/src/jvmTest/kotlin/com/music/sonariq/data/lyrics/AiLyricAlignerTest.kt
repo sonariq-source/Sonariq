@@ -26,8 +26,8 @@ class AiLyricAlignerTest {
     // -- Version ------------------------------------------------------------
 
     @Test
-    fun alignmentVersionIsTwo() {
-        assertEquals(2, AiLyricAligner.ALIGNMENT_VERSION)
+    fun alignmentVersionIsThree() {
+        assertEquals(3, AiLyricAligner.ALIGNMENT_VERSION)
     }
 
     // -- Normalisation -----------------------------------------------------
@@ -570,6 +570,138 @@ class AiLyricAlignerTest {
         // The last words end at their lines' display ends.
         assertEquals(5_000L, out[0].words.last().endMs)
         assertEquals(8_000L, out[1].words.last().endMs)
+    }
+
+    // -- Start sanitising (version 3) ---------------------------------------------------
+
+    @Test
+    fun wordStartNeverPrecedesItsLine() {
+        val lines = listOf(
+            line(5_000, "hello brave world"),
+            line(10_000, "sing it loud"),
+        )
+        val tokens = listOf(
+            // The recogniser caught the first word a hair before the
+            // line's own stamp — inside the window's slack, so it is a
+            // candidate — but emitted there the word would light during
+            // the previous line. Its start is held at the line's stamp.
+            token("hello", 4_700, 5_100),
+            token("brave", 5_600, 6_000),
+            token("world", 6_100, 6_600),
+            token("sing", 10_100, 10_500),
+            token("it", 10_600, 10_900),
+            token("loud", 11_000, 11_800),
+        )
+        val out = checkNotNull(AiLyricAligner.align(lines, tokens))
+        assertEquals(
+            listOf(
+                LyricWord(5_000, 5_600, "hello"),
+                LyricWord(5_600, 6_100, "brave"),
+                LyricWord(6_100, 10_000, "world"),
+            ),
+            out[0].words,
+        )
+    }
+
+    @Test
+    fun outOfOrderTokenStartsAreHeldMonotonic() {
+        // The transcription's own order runs bravo long after charlie's
+        // stamp. Emitted as measured, the sweep would travel backwards
+        // and charlie would end before it began; the starts are held
+        // strictly increasing instead, a millisecond apart at worst.
+        val lines = listOf(
+            line(10_000, "alpha bravo charlie", sungUntilMs = 20_000),
+        )
+        val tokens = listOf(
+            token("alpha", 10_000, 10_400),
+            token("bravo", 17_400, 17_800),
+            token("charlie", 9_000, 9_400),
+        )
+        val out = checkNotNull(AiLyricAligner.align(lines, tokens))
+        assertEquals(
+            listOf(
+                LyricWord(10_000, 17_400, "alpha"),
+                LyricWord(17_400, 17_401, "bravo"),
+                LyricWord(17_401, 20_000, "charlie"),
+            ),
+            out[0].words,
+        )
+        val starts = out[0].words.map { it.startMs }
+        assertEquals(starts.sorted(), starts)
+        assertTrue(out[0].words.all { it.endMs > it.startMs })
+    }
+
+    @Test
+    fun sustainedWordIsNotCutShortByItsTokenEnd() {
+        val lines = listOf(
+            line(1_000, "stay with me now", sungUntilMs = 6_000),
+        )
+        val tokens = listOf(
+            // "stay" is held by the singer, but the recogniser stopped
+            // hearing it at 1400. The word still runs to the next word's
+            // start — the token's end is never an emitted end.
+            token("stay", 1_100, 1_400),
+            token("with", 2_500, 2_700),
+            token("me", 2_800, 3_000),
+            token("now", 3_100, 3_400),
+        )
+        val out = checkNotNull(AiLyricAligner.align(lines, tokens))
+        assertEquals(LyricWord(1_100, 2_500, "stay"), out[0].words.first())
+        assertEquals(LyricWord(3_100, 6_000, "now"), out[0].words.last())
+    }
+
+    @Test
+    fun fastRapLineWithManyShortWordsAligns() {
+        val lines = listOf(
+            line(1_000, "go get it now quick fast run it up"),
+        )
+        val tokens = listOf(
+            token("go", 1_100, 1_250),
+            token("get", 1_300, 1_450),
+            token("it", 1_500, 1_650),
+            token("now", 1_700, 1_850),
+            token("quick", 1_900, 2_050),
+            token("fast", 2_100, 2_250),
+            token("run", 2_300, 2_450),
+            token("it", 2_500, 2_650),
+            token("up", 2_700, 2_850),
+        )
+        val out = checkNotNull(AiLyricAligner.align(lines, tokens))
+        // Every word of the patter is timed, in order, each holding to
+        // the next one's start — speed is no excuse for a skipped word.
+        assertEquals(9, out[0].words.size)
+        assertEquals(
+            listOf(1_100L, 1_300L, 1_500L, 1_700L, 1_900L, 2_100L, 2_300L, 2_500L, 2_700L),
+            out[0].words.map { it.startMs },
+        )
+        for (index in 0 until out[0].words.lastIndex) {
+            assertEquals(out[0].words[index + 1].startMs, out[0].words[index].endMs)
+        }
+    }
+
+    @Test
+    fun mixedLanguageLineAligns() {
+        val lines = listOf(
+            line(1_000, "mahal kita forever and always"),
+        )
+        val tokens = listOf(
+            token("mahal", 1_100, 1_400),
+            token("kita", 1_500, 1_800),
+            token("forever", 1_900, 2_300),
+            token("and", 2_400, 2_600),
+            token("always", 2_700, 3_100),
+        )
+        val out = checkNotNull(AiLyricAligner.align(lines, tokens))
+        // Tagalog and English in one line: the lyric's own words keep
+        // their spelling and order, timed by the matching tokens.
+        assertEquals(
+            listOf("mahal", "kita", "forever", "and", "always"),
+            out[0].words.map { it.text },
+        )
+        assertEquals(
+            listOf(1_100L, 1_500L, 1_900L, 2_400L, 2_700L),
+            out[0].words.map { it.startMs },
+        )
     }
 
     // -- Tagalog shapes ---------------------------------------------------------------

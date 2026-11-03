@@ -121,3 +121,40 @@ object SmartAutoplay {
             .sumOf { it.value }
     }
 }
+
+/**
+ * The persisted recommendation history behind session-fresh Autoplay:
+ * which songs each seed's recent Autoplay batches actually queued,
+ * newest batch first. Kept in the same store as the predictor, bounded
+ * by [AutoplayFreshness] on every axis, and read back only to demote —
+ * never to exclude — what a new session would otherwise repeat.
+ */
+object AutoplayHistoryStore {
+
+    private const val KEY_HISTORY = "fresh_history"
+
+    private val json = Json { ignoreUnknownKeys = true }
+
+    private fun prefs(context: Context): SharedPreferences =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    private fun parseHistory(raw: String?): Map<String, List<List<String>>> =
+        runCatching {
+            json.decodeFromString<Map<String, List<List<String>>>>(raw ?: "{}")
+        }.getOrDefault(emptyMap())
+
+    /** This seed's remembered batches, newest first; empty when none. */
+    fun recentBatches(context: Context, seedId: String): List<List<String>> =
+        parseHistory(prefs(context).getString(KEY_HISTORY, null))[seedId] ?: emptyList()
+
+    /** Records one delivered batch as this seed's newest session. */
+    fun recordBatch(context: Context, seedId: String, batchIds: List<String>) {
+        val store = prefs(context)
+        val updated = AutoplayFreshness.recordBatch(
+            parseHistory(store.getString(KEY_HISTORY, null)),
+            seedId,
+            batchIds,
+        )
+        store.edit().putString(KEY_HISTORY, json.encodeToString(updated)).apply()
+    }
+}

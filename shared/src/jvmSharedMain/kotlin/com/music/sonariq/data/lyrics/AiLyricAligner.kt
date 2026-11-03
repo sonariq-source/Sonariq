@@ -92,8 +92,8 @@ private fun collapseRepeatedLetters(unit: String): String {
 
 /**
  * Word timings measured from the track's own audio, for songs no provider
- * could word-sync. This is alignment version 2 — see [ALIGNMENT_VERSION] —
- * rebuilt around the line timings the provider lookup already trusts.
+ * could word-sync. This is alignment version 3 — see [ALIGNMENT_VERSION] —
+ * built around the line timings the provider lookup already trusts.
  *
  * Version 1 aligned the whole song in one global sequence alignment, and
  * real songs broke it three ways. A repeated chorus confused the global
@@ -103,7 +103,7 @@ private fun collapseRepeatedLetters(unit: String): String {
  * transcription's recognition of it ended — a fraction of the sung note —
  * so the highlight raced ahead of the singing.
  *
- * Version 2 works per line instead:
+ * Since version 2 the engine works per line instead:
  *
  *  - Each top-level line owns a window: from its own stamp to the next
  *    top-level line's stamp (the last line ends at its stated end, the
@@ -150,6 +150,21 @@ private fun collapseRepeatedLetters(unit: String): String {
  * its stated end where it has one, capped at its window's end. Token
  * ends are used only for midpoints and candidacy, never copied out.
  *
+ * Version 3 sanitises the starts those ends hang off, using only the
+ * line's own bounds and the neighbouring measured starts — never an
+ * invented offset. A token admitted by the window's slack can start a
+ * hair before its line's own stamp; emitted there, its word would
+ * light during the previous line, so the start is held at the line's
+ * stamp (for a background line, at its window's opening, since an echo
+ * may honestly begin inside its lead-in). And transcriptions do emit
+ * tokens whose starts run backwards against the token before them;
+ * emitted as measured, the sweep would travel backwards and a word
+ * could end before it began, so each start is held at least a
+ * millisecond past the previous word's. Where the line still has room
+ * before its display end, starts are also kept early enough that
+ * every remaining word keeps a millisecond of its own. A measured
+ * start inside its line, in order, passes through untouched.
+ *
  * Background lines keep the version 1 shape — their own window around
  * their own stamp — except that they draw only on tokens no lead line
  * consumed: an echo is sung where it is sung, and it may not reuse the
@@ -178,7 +193,7 @@ object AiLyricAligner {
      * carry the version they were made with, and anything older than the
      * current version is recomputed rather than trusted.
      */
-    const val ALIGNMENT_VERSION: Int = 2
+    const val ALIGNMENT_VERSION: Int = 3
 
     /**
      * The full report of one [alignDetailed] run: the word-timed [lines]
@@ -305,6 +320,7 @@ object AiLyricAligner {
                         midpoint < windows[lineIndex].endMs + WINDOW_SLACK_MS
                 },
                 displayEndMs = displayEnd(line, windows[lineIndex].endMs),
+                lowerBoundMs = line.timeMs,
             )
             consumed += attempt.matchedTokenIndices
             val words = attempt.words ?: continue
@@ -484,6 +500,7 @@ object AiLyricAligner {
                 timed.token.startMs in windowStart..windowEnd
             },
             displayEndMs = displayEnd(background, windowEnd),
+            lowerBoundMs = windowStart,
         )
         consumed += attempt.matchedTokenIndices
         val words = attempt.words ?: return null
@@ -515,6 +532,7 @@ object AiLyricAligner {
         line: LyricLine,
         candidates: List<CandidateUnit>,
         displayEndMs: Long,
+        lowerBoundMs: Long,
     ): LineAttempt {
         val spans = wordSpansOf(line.text)
         if (spans.isEmpty()) {
@@ -549,7 +567,7 @@ object AiLyricAligner {
             return LineAttempt(words = null, matchedTokenIndices = matchedTokenIndices)
         }
         return LineAttempt(
-            words = buildWords(line, spans, startBySpan, displayEndMs),
+            words = buildWords(line, spans, startBySpan, displayEndMs, lowerBoundMs),
             matchedTokenIndices = matchedTokenIndices,
         )
     }
@@ -594,19 +612,38 @@ object AiLyricAligner {
      * emitted word starts, and the last word ends at the line's display
      * end. No end is ever a token's end. Every end is also kept strictly
      * after its start, so a word always has a span to be sung over.
+     *
+     * Starts are sanitised first — see the class doc's version 3 note:
+     * held at [lowerBoundMs] from below, kept strictly increasing, and
+     * squeezed no later than the point that still leaves every
+     * remaining word a millisecond before the display end, when the
+     * line has that room to give.
      */
     private fun buildWords(
         line: LyricLine,
         spans: List<WordSpan>,
         startBySpan: Map<Int, Long>,
         displayEndMs: Long,
+        lowerBoundMs: Long,
     ): List<LyricWord> {
         val anchors = startBySpan.keys.sorted()
+        val starts = ArrayList<Long>(anchors.size)
+        for (anchor in anchors) {
+            var start = maxOf(startBySpan.getValue(anchor), lowerBoundMs)
+            if (starts.isNotEmpty()) start = maxOf(start, starts.last() + 1)
+            val latest = displayEndMs - (anchors.size - starts.size)
+            if (start > latest && latest >= lowerBoundMs &&
+                (starts.isEmpty() || latest > starts.last())
+            ) {
+                start = latest
+            }
+            starts += start
+        }
         return anchors.mapIndexed { position, anchor ->
             val spanStart = if (position == 0) 0 else anchor
             val spanEnd = anchors.getOrNull(position + 1)?.minus(1) ?: spans.lastIndex
-            val start = startBySpan.getValue(anchor)
-            val nextStart = anchors.getOrNull(position + 1)?.let { startBySpan.getValue(it) }
+            val start = starts[position]
+            val nextStart = starts.getOrNull(position + 1)
             val end = maxOf(nextStart ?: displayEndMs, start + 1)
             LyricWord(
                 startMs = start,

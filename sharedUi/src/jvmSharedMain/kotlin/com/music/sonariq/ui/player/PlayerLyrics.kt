@@ -343,26 +343,39 @@ private val GAP_ROW_SPACING = 16.dp
  * depth model for the whole panel, so the list, the tests and the draw code
  * can never disagree about what a line at a given distance looks like.
  *
- * Depth is carried by dimming and a slight shrink alone — never by blur.
- * Lyric text renders fully sharp at every distance: the depth-of-field
- * text blur this model used to carry was removed at the owner's word,
- * because defocused words are words you cannot read. The softness lives
- * where it belongs, in the cached blurred artwork backdrop behind the
- * panel; the words themselves are native text, crisp on every row. The
- * playing line is full and full size; lines already sung dim at least as
- * fast as lines still to come, while upcoming lines brighten as they
- * approach the focus. Alpha never falls below its floor (0.45 for lines
- * still to come, 0.40 for lines already sung), so every line in the song
- * stays readable however far from the focus it sits, and nothing fades a
- * line out at the column's edges either.
+ * Depth is carried by dimming, a slight shrink, and a controlled
+ * cinematic blur. The blur ladder is deliberately gentle — the playing
+ * line is always perfectly sharp, one row away is a whisper, and the
+ * radius caps low — because defocused words are words you cannot read:
+ * an earlier, stronger blur was removed for exactly that, and this one
+ * returns only at the owner's renewed word, at these restrained values.
+ * The cached blurred artwork backdrop behind the panel is untouched.
+ * The playing line is full and full size; lines already sung dim at
+ * least as fast as lines still to come, while upcoming lines brighten
+ * as they approach the focus. Alpha never falls below its floor (0.45
+ * for lines still to come, 0.40 for lines already sung), so every line
+ * in the song stays readable however far from the focus it sits, and
+ * nothing fades a line out at the column's edges either.
  *
- * Both values are continuous functions of distance: the anchors below are
- * joined by smooth interpolation, so a line travelling toward or away
- * from the focus brightens and grows without a step, and the row's own
- * handover animation carries it between evaluations on the panel's one
- * curve. Nothing here is stepped.
+ * All three values are continuous functions of distance: the anchors
+ * below are joined by smooth interpolation, so a line travelling toward
+ * or away from the focus brightens, grows and sharpens without a step,
+ * and the row's own handover animation carries it between evaluations
+ * on the panel's one curve. Nothing here is stepped.
  */
 internal object LyricDepth {
+
+    /** Rows this far from the playing line, at most, carry a live blur. */
+    const val BLUR_WINDOW_DISTANCE = 4
+
+    /**
+     * Blur anchors by distance, 0 through 5, in dp — one ladder for both
+     * sides of the focus, because a line just sung and a line about to
+     * be sung sit the same distance away and should soften the same
+     * amount. Capped at the last anchor: distance softens a line, it
+     * never melts it.
+     */
+    private val BLUR = floatArrayOf(0f, 0.5f, 1.5f, 3.5f, 5f, 6f)
 
     /**
      * Alpha anchors by distance, upcoming lines, 0 through 5.
@@ -385,9 +398,12 @@ internal object LyricDepth {
     /** What one line looks like at a given distance from the playing one. */
     data class Depth(
         /**
-         * The blur on the words themselves, in dp. Always zero: lyric text
-         * is never blurred, at any distance — the field stays in the model
-         * so the tests can pin that guarantee where the panel reads it.
+         * The blur on the words themselves, in dp: zero on the playing
+         * line, rising gently with distance along [BLUR] and capped at
+         * its last anchor. The panel only applies it inside
+         * [BLUR_WINDOW_DISTANCE] — past the window a line recedes on
+         * dimming and scale alone, so the list never carries a blur
+         * layer on every row.
          */
         val blurRadiusDp: Float,
         val alpha: Float,
@@ -421,8 +437,7 @@ internal object LyricDepth {
         val alphaAnchors = if (sung) SUNG_ALPHA else UPCOMING_ALPHA
         val alphaFloor = if (sung) SUNG_ALPHA_FLOOR else UPCOMING_ALPHA_FLOOR
         return Depth(
-            // Sharp at every distance, by the owner's standing rule.
-            blurRadiusDp = 0f,
+            blurRadiusDp = at(distance, BLUR, BLUR.last()),
             alpha = at(distance, alphaAnchors, alphaFloor),
             scale = if (distance <= 0f) 1f
             else 1f - (1f - INACTIVE_SCALE) * smooth(distance.coerceAtMost(1f)),
@@ -2133,19 +2148,40 @@ internal fun LyricsPanel(
             val offset = if (scrollLine < 0) 0 else index - scrollLine
             val isActive = isSynced && index in activeRows
             // One depth for the row, off the pure model — see [LyricDepth].
-            // Dimming and shrink carry the distance, lines already sung
-            // fall faster than lines still to come, and the dimming has a
-            // floor, so a far line is quiet but still there to be read.
-            // The words themselves are never blurred — the text is native
-            // and sharp on every row; only the backdrop behind the panel
-            // carries any blur.
+            // Dimming, shrink and a gentle blur carry the distance
+            // together, lines already sung fall faster than lines still
+            // to come, and the dimming has a floor, so a far line is
+            // quiet but still there to be read. The blur only ever lives
+            // inside the model's window: past it the row carries no blur
+            // layer at all and recedes on dimming alone, which is what
+            // keeps the list cheap on weaker hardware.
             //
             // Position is read here as the *derived* active rows, which
             // change only when the singing crosses a line — never per
             // frame — so a position tick does not recompose the list; the
             // per-frame clock is read only inside each row's own draw and
-            // derived states.
+            // derived states. The blur below animates on the same handover
+            // curve as the dimming, so a line un-blurs and brightens as
+            // one movement when it comes into focus, and no radius is
+            // ever driven by a timer of its own.
             val depth = LyricDepth.forDistance(offset)
+            val blurInWindow = abs(offset) <= LyricDepth.BLUR_WINDOW_DISTANCE
+            val blurDp by animateFloatAsState(
+                targetValue = when {
+                    // Reading by hand is not following along: while the
+                    // reader is browsing, every row stays sharp so the
+                    // words they stopped to read are actually readable.
+                    !isSynced || browsing -> 0f
+                    blurInWindow -> depth.blurRadiusDp
+                    else -> 0f
+                },
+                animationSpec = if (panelReducedMotion) {
+                    snap()
+                } else {
+                    tween(LYRIC_SETTLE_MS, easing = LYRIC_EASING)
+                },
+                label = "lyricBlur",
+            )
             val lineAlpha by animateFloatAsState(
                 targetValue = when {
                     !isSynced -> 0.95f
@@ -2524,9 +2560,20 @@ internal fun LyricsPanel(
                         } else {
                             null
                         },
-                        // No blur modifier on any voice: lead, answering
-                        // voice and translation are all native sharp text.
-                        modifier = Modifier.fillMaxWidth(),
+                        // The depth blur lives on the lead voice alone:
+                        // the answering voice under it and the translation
+                        // under that stay sharp, so a row's second voice
+                        // never smears with the first. Past the window the
+                        // row carries no blur modifier at all — the
+                        // modifier only stays on while the animated radius
+                        // is still settling back to nothing.
+                        modifier = Modifier.fillMaxWidth().then(
+                            if (blurDp > 0.01f || blurInWindow) {
+                                Modifier.blur(blurDp.dp)
+                            } else {
+                                Modifier
+                            },
+                        ),
                     )
                     // A line the service handed back unchanged ("falling
                     // down" in a Korean song) gets no second copy of itself.

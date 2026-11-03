@@ -146,7 +146,7 @@ suspend fun loadAutoplayTracks(
                     .getOrDefault(emptyList())
             }
         }.getOrDefault(emptyList())
-        if (mixed.isNotEmpty()) return Result.success(mixed)
+        if (mixed.isNotEmpty()) return Result.success(freshSessionBatch(context, mixed, seedSong))
         // There is no radio fallback for a downloads-only batch: nothing else
         // is allowed to play, so an empty batch is the honest answer.
         if (downloadsOnly) return Result.success(emptyList())
@@ -155,7 +155,33 @@ suspend fun loadAutoplayTracks(
     val discovery = loadDiscoveryBatch(context, existing, seedSong, limit, bannedIds, bannedArtists)
         .getOrElse { return Result.failure(it) }
     if (discovery.isEmpty()) return Result.success(emptyList())
-    return Result.success(toQueueEntries(discovery, seedSong))
+    return Result.success(freshSessionBatch(context, toQueueEntries(discovery, seedSong), seedSong))
+}
+
+/**
+ * One delivered batch, made session-fresh and then remembered.
+ *
+ * The batch is re-ordered against the seed's remembered batches (see
+ * [AutoplayFreshness]) so a replayed seed does not get last session's
+ * sequence back in last session's order, and the delivered order is
+ * recorded as the seed's newest batch for the next session to demote.
+ * Without a context there is no store to read or write, and the batch
+ * passes through as built.
+ */
+private fun freshSessionBatch(
+    context: Context?,
+    batch: List<Song>,
+    seedSong: Song,
+): List<Song> {
+    if (context == null || batch.isEmpty()) return batch
+    val previous = AutoplayHistoryStore.recentBatches(context, seedSong.videoId)
+    val ordered = if (previous.isEmpty()) {
+        batch
+    } else {
+        AutoplayFreshness.freshOrder(batch, previous, batch.size)
+    }
+    AutoplayHistoryStore.recordBatch(context, seedSong.videoId, ordered.map { it.videoId })
+    return ordered
 }
 
 /**
@@ -199,7 +225,24 @@ private suspend fun loadDiscoveryBatch(
     val combined = (predicted + related)
         .filterNot { AutoplayPolicy.isBanned(it.videoId, it.artist, bannedIds, bannedArtists) }
         .distinctBy { it.videoId }
-    QueueBuilder.extend(existing, combined, limit)
+    // Session freshness is applied to the whole candidate pool, before
+    // the queue builder cuts it to the batch: demoting after the cut
+    // could only shuffle the same songs, while demoting here lets
+    // fresh candidates the radio ranked below the cut take the places
+    // of last session's picks. Learned predictions lead the pool, so
+    // they are demoted by exactly the same rule — the A-to-B transition
+    // the predictor learned from Autoplay's own last session no longer
+    // guarantees B leads this one.
+    val freshFirst = if (context != null) {
+        AutoplayFreshness.freshOrder(
+            combined,
+            AutoplayHistoryStore.recentBatches(context, seedSong.videoId),
+            combined.size,
+        )
+    } else {
+        combined
+    }
+    QueueBuilder.extend(existing, freshFirst, limit)
 }
 
 /** Tags one batch as autoplay queue entries inheriting the seed's source. */

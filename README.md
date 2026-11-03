@@ -74,7 +74,7 @@
 
 ### Synced lyrics
 - **Word-synced lyrics** — real per-word and per-syllable timings, never estimated or interpolated. TTML timings are hunted first for every track; if a song only has line timings at first, Sonariq keeps looking in the background and upgrades it the moment real word timings are found.
-- **Depth and motion** — every line stays sharp; lines dim and settle back as they leave the playing line, the playing line blooms as it settles in, and every sung word lands with a soft pop and glow.
+- **Depth and motion** — a cinematic depth of field: the playing line is perfectly sharp, nearby lines soften by a whisper and distant lines by a little more, while every line stays readable — lines dim and settle back as they leave the playing line, the playing line blooms as it settles in, and every sung word lands with a soft pop and glow.
 - **Fully automatic** — every provider is raced in parallel; the best sync wins with zero setup.
 - **Smart timing** — cross-checks providers so the first line never jumps the gun on instrumental intros.
 - **Clean UI** — no provider badges, no sync estimates. Just the words.
@@ -90,6 +90,7 @@
 ### Smart autoplay & AI radio
 - **Vibe autoplay engine** — detects the vibe of what you're playing (Last.fm listener tags + on-device tempo/key/energy analysis + your listening behaviour) and keeps the music flowing in that mood forever; the queue refills when 3 songs remain, skips teach it your taste, and a vibe badge on Now Playing shows what it's feeling.
 - **Smart Autoplay** — learns your song-to-song transitions and predicts what plays next.
+- **Fresh every session** — replaying a song starts a new discovery session: what autoplay recommended last time is demoted, never handed back as the same sequence, and nothing is banned for good — favourites return, just not on repeat.
 - **AI mood stations** — pick Chill, Party, Focus or Workout; Sonariq builds a ~25-track station from your taste.
 - **Autoplay mix control** — sliders for where autoplay pulls from: your library, downloads and new discoveries.
 - **Safe vs Adventurous** — choose how far autoplay may stray from what you know.
