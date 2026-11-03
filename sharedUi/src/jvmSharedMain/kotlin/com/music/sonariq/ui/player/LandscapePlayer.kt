@@ -80,6 +80,14 @@ import com.music.sonariq.data.model.Song
 private val LANDSCAPE_PLAYER_MAX_WIDTH = 1100.dp
 
 /**
+ * The two columns' shares of that width: the player keeps 48%, and the
+ * content column — lyrics most of the time — gets the wider 52%, so long
+ * lines have the room they need without squeezing the sleeve.
+ */
+private const val LANDSCAPE_PLAYER_COLUMN_WEIGHT = 0.48f
+private const val LANDSCAPE_CONTENT_COLUMN_WEIGHT = 0.52f
+
+/**
  * Below this height the landscape player tightens its right column — smaller
  * transport, shorter gaps — so a phone on its side fits the credits, the
  * scrubber, the transport and the volume bar between its status and
@@ -118,9 +126,10 @@ private val LANDSCAPE_HANDLE_STRIP = 24.dp
  * The player in a landscape window — a tablet, or a phone on its side. See
  * [landscapePlayerAvailable].
  *
- * Two columns of equal width. The left one is the same in every state: the
- * sleeve, and under it the lyrics / output / queue row with the output name —
- * the controls for *which* of the three the right column shows. The right one
+ * Two columns, 48% player to 52% content. The left one is the same in
+ * every state: the sleeve, and under it the lyrics / output / queue row
+ * with the output name — the controls for *which* of the three the right
+ * column shows. The right one
  * is that one thing: the credits and transport, the lyric sheet or the queue.
  * Nothing else is drawn twice and nothing moves between columns, so opening
  * the lyrics or the queue is only ever the right column's page being turned.
@@ -172,7 +181,7 @@ internal fun LandscapePlayerLayout(
             ) {
                 Column(
                     modifier = Modifier
-                        .weight(1f)
+                        .weight(LANDSCAPE_PLAYER_COLUMN_WEIGHT)
                         .fillMaxHeight()
                         .padding(horizontal = gutter),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -206,7 +215,7 @@ internal fun LandscapePlayerLayout(
                     },
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .weight(1f)
+                        .weight(LANDSCAPE_CONTENT_COLUMN_WEIGHT)
                         .fillMaxHeight(),
                     label = "landscapePane",
                 ) { shown ->

@@ -74,7 +74,7 @@
 
 ### Synced lyrics
 - **Word-synced lyrics** — real per-word and per-syllable timings, never estimated or interpolated. TTML timings are hunted first for every track; if a song only has line timings at first, Sonariq keeps looking in the background and upgrades it the moment real word timings are found.
-- **Depth and motion** — a cinematic depth of field: the playing line is perfectly sharp, nearby lines soften by a whisper and distant lines by a little more, while every line stays readable — lines dim and settle back as they leave the playing line, the playing line blooms as it settles in, and every sung word lands with a soft pop and glow.
+- **Depth and motion** — every line stays completely sharp; distance is carried by dimming and a slight settle-back, with readable floors so no line disappears — the playing line blooms as it settles in, and every sung word lands with a soft pop and glow.
 - **Fully automatic** — every provider is raced in parallel; the best sync wins with zero setup.
 - **Smart timing** — cross-checks providers so the first line never jumps the gun on instrumental intros.
 - **Clean UI** — no provider badges, no sync estimates. Just the words.
@@ -108,7 +108,7 @@
 - **Dynamic themes** — the UI accent follows your album artwork's colours (toggle in Settings).
 - **Liquid glass, buttery edition** — faster, smoother glass nav with a proper on/off toggle; animations stay on either way.
 - **Your logo everywhere** — the white Sonariq waveform mark replaces every leftover placeholder.
-- **Full-cover Now Playing** — the album artwork fills the whole player screen edge to edge; in landscape it rests behind the player as a softened, darkened backdrop with a slow zoom drift and smooth crossfades between tracks; toggle it in Settings (on by default).
+- **Full-cover Now Playing** — the album artwork fills the whole player screen edge to edge; behind the lyrics it becomes a strong, darkened blur of the cover's own colours — processed once and cached, crossfading between tracks — across the portrait player and both landscape columns, while the landscape sleeve itself stays sharp; toggle it in Settings (on by default).
 
 ### Widgets & sharing
 - **Share songs** — story cards, text share and Sonariq links. Tap "Share with lyrics" to pick your favourite lines (up to 5) and share the 1080×1920 lyrics card — the same theme as the lyrics screen, everywhere. Copy link gives a Sonariq link that opens the song straight in the app.

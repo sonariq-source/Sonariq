@@ -1609,7 +1609,7 @@ fun NowPlayingScreen(
     // backdrop behind the lyrics and queue panels are this same bitmap now
     // (see both call sites below), so it has to be ready in exactly the
     // states that used to skip it. The cost is the one the mesh decode used
-    // to pay — a 128px decode out of Coil's cache and a CPU blur off the
+    // to pay — an 80px decode out of Coil's cache and a CPU blur off the
     // main thread, once per artwork, cached by URL.
     val fullArtworkBlurImage = rememberFullArtworkBlurImage(
         imageUrl = remoteArt,

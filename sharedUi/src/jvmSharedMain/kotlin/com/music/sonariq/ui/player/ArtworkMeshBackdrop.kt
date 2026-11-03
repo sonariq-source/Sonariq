@@ -90,11 +90,18 @@ class ArtworkMesh internal constructor(internal val image: ImageBitmap)
  *
  * This deliberately does not use Compose's full-screen `Modifier.blur`: that is
  * a live RenderEffect and the first frame which makes it visible can pay for a
- * screen-sized blur while the player is already animating. Instead a 128px copy
+ * screen-sized blur while the player is already animating. Instead an 80px copy
  * is decoded from Coil's existing artwork request, blurred once on a worker
- * thread, and cached by URL. Drawing it thereafter is one bilinear image sample.
- * The small decode and CPU pass are staggered by the caller after a song change,
- * so they never land on the track hand-off itself.
+ * thread with five broad box passes (a close Gaussian approximation at this
+ * scale), given a small saturation lift so the cover's dominant colours
+ * survive the averaging, and cached by URL. Drawing it thereafter is one
+ * bilinear image sample, cover-cropped across the whole player.
+ *
+ * The last ready bitmap is held while the next cover is prepared, so a track
+ * change never flashes the fallback colour or an unblurred cover: the held
+ * bitmap stays up until the new one can crossfade over it in
+ * [FullArtworkBlurBackdrop]. Only a track with no artwork at all, or a read
+ * that fails every attempt, clears it.
  */
 @Composable
 fun rememberFullArtworkBlurImage(
@@ -103,10 +110,24 @@ fun rememberFullArtworkBlurImage(
     prepare: Boolean = true,
 ): ImageBitmap? {
     val context = LocalPlatformContext.current
-    var image by remember(imageUrl) { mutableStateOf(imageUrl?.let(fullBlurCache::get)) }
+    var image by remember { mutableStateOf(imageUrl?.let(fullBlurCache::get)) }
+    var readyUrl by remember {
+        mutableStateOf(imageUrl?.takeIf { fullBlurCache.containsKey(it) })
+    }
 
     LaunchedEffect(imageUrl, artPx, prepare) {
-        if (!prepare || imageUrl == null || image != null) return@LaunchedEffect
+        if (!prepare) return@LaunchedEffect
+        if (imageUrl == null) {
+            image = null
+            readyUrl = null
+            return@LaunchedEffect
+        }
+        fullBlurCache[imageUrl]?.let { cached ->
+            image = cached
+            readyUrl = imageUrl
+            return@LaunchedEffect
+        }
+        if (readyUrl == imageUrl) return@LaunchedEffect
         val request = ImageRequest.Builder(context)
             // Same URL as the player's 1200px sleeve, so this is a small decode
             // from Coil's shared fetch/disk result rather than another download.
@@ -114,12 +135,22 @@ fun rememberFullArtworkBlurImage(
             .size(FULL_BLUR_SOURCE_PX)
             .forPixelAccess()
             .build()
-        val result = SingletonImageLoader.get(context).execute(request)
-        val bitmap = (result as? SuccessResult)?.image?.toImageBitmap() ?: return@LaunchedEffect
-        val blurred = withContext(Dispatchers.Default) { bitmap.boxBlurred(FULL_BLUR_PASSES) }
-        val ready = blurred
-        fullBlurCache[imageUrl] = ready
-        image = ready
+        repeat(FULL_BLUR_ATTEMPTS) { attempt ->
+            if (attempt > 0) delay(FULL_BLUR_RETRY_DELAY_MS)
+            val result = SingletonImageLoader.get(context).execute(request)
+            val bitmap = (result as? SuccessResult)?.image?.toImageBitmap()
+            if (bitmap != null) {
+                val blurred = withContext(Dispatchers.Default) { bitmap.boxBlurred(FULL_BLUR_PASSES) }
+                fullBlurCache[imageUrl] = blurred
+                image = blurred
+                readyUrl = imageUrl
+                return@LaunchedEffect
+            }
+        }
+        // No cover could be read: fall back rather than leaving the previous
+        // track's colours standing behind this one indefinitely.
+        image = null
+        readyUrl = null
     }
     return image
 }
@@ -134,23 +165,19 @@ fun rememberFullArtworkBlurImage(
  * where the sleeve supplies the missing first half. Lyrics, queue, and a tablet
  * player have no such visual seam, so the same construction reads as a stretched
  * upper field followed by a reflection. These surfaces instead crop one copy of
- * the cover across their complete bounds and blur that copy in place.
+ * the cover across their complete bounds, using the strongly pre-blurred bitmap
+ * from [rememberFullArtworkBlurImage] — a separate background layer only, so
+ * no foreground text, control or boxed sleeve is ever blurred with it.
  *
- * The overscale keeps the clamped edge of the blur outside the viewport. When
- * blur is unavailable, or explicitly reduced in settings, the complete cover
- * remains in place under the same legibility scrim rather than falling back to
- * the reflected mesh this composable exists to avoid.
+ * Successive covers crossfade as bitmaps: the outgoing one stays drawable
+ * until the incoming one has faded over it, so a track change is a colour
+ * change rather than a cut or a flash of the fallback.
  */
 @Composable
 fun FullArtworkBlurBackdrop(
     image: ImageBitmap?,
     modifier: Modifier = Modifier,
 ) {
-    val imageAlpha by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (image != null) 1f else 0f,
-        animationSpec = tween(320, easing = FastOutSlowInEasing),
-        label = "preparedBackdropImage",
-    )
     // A slow Ken Burns drift so the backdrop feels alive rather than pasted
     // on: the blur breathes between a gentle zoom-in and zoom-out while
     // wandering a few percent across the frame. Skipped entirely when the
@@ -171,25 +198,63 @@ fun FullArtworkBlurBackdrop(
     val driftScale = if (reduceAnimation) 1f else 1.06f + 0.05f * driftT
     val driftX = if (reduceAnimation) 0f else (driftT - 0.5f) * 0.06f
     val driftY = if (reduceAnimation) 0f else (0.5f - driftT) * 0.04f
+
+    // The bitmap on screen, and the one fading in over it — the same pair
+    // arrangement as [ArtworkMeshBackdrop], for the same reason: what
+    // crossfades here is a pair of bitmaps, not a pair of colours.
+    var shown by remember { mutableStateOf(image) }
+    var incoming by remember { mutableStateOf<ImageBitmap?>(null) }
+    val fade = remember { Animatable(0f) }
+    LaunchedEffect(image) {
+        val next = image
+        if (next == null) {
+            shown = null
+            incoming = null
+            fade.snapTo(0f)
+            return@LaunchedEffect
+        }
+        // A change arriving mid-fade: whatever was fading in becomes the
+        // base the new one fades from, so rapid skips never restart the
+        // fade from a cover two tracks back.
+        incoming?.let { shown = it }
+        incoming = null
+        val current = shown
+        if (next === current) return@LaunchedEffect
+        if (current == null || reduceAnimation) {
+            shown = next
+            return@LaunchedEffect
+        }
+        incoming = next
+        fade.snapTo(0f)
+        fade.animateTo(1f, tween(FULL_BLUR_CROSSFADE_MS, easing = FastOutSlowInEasing))
+        shown = next
+        incoming = null
+    }
+
     Box(modifier = modifier.fillMaxSize().background(FallbackBackdrop)) {
-        image?.let { bitmap ->
-            val painter = remember(bitmap) { BitmapPainter(bitmap) }
-            Image(
-                painter = painter,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().graphicsLayer {
-                    alpha = imageAlpha
-                    scaleX = driftScale
-                    scaleY = driftScale
-                    translationX = size.width * driftX
-                    translationY = size.height * driftY
-                },
+        shown?.let { bitmap ->
+            FullBlurBackdropImage(
+                bitmap = bitmap,
+                alpha = { 1f },
+                driftScale = driftScale,
+                driftX = driftX,
+                driftY = driftY,
+            )
+        }
+        incoming?.let { bitmap ->
+            FullBlurBackdropImage(
+                bitmap = bitmap,
+                alpha = { fade.value },
+                driftScale = driftScale,
+                driftX = driftX,
+                driftY = driftY,
             )
         }
 
         // Lyrics and queue are dense white foregrounds. Preserve the cover's
-        // colour and layout, but keep bright sleeves from lowering contrast.
+        // dominant colours, but keep bright sleeves from lowering contrast:
+        // a bottom-weighted dark gradient, plus a soft vignette so the
+        // screen edges sit a little darker than the middle.
         Canvas(Modifier.fillMaxSize()) {
             drawRect(
                 brush = Brush.verticalGradient(
@@ -198,8 +263,40 @@ fun FullArtworkBlurBackdrop(
                     1f to Color.Black.copy(alpha = 0.64f),
                 ),
             )
+            drawRect(
+                brush = Brush.radialGradient(
+                    0.62f to Color.Transparent,
+                    1f to Color.Black.copy(alpha = 0.20f),
+                    center = center,
+                    radius = size.maxDimension * 0.78f,
+                ),
+            )
         }
     }
+}
+
+/** One layer of [FullArtworkBlurBackdrop]: the finished bitmap, cover-cropped and drifting. */
+@Composable
+private fun FullBlurBackdropImage(
+    bitmap: ImageBitmap,
+    alpha: () -> Float,
+    driftScale: Float,
+    driftX: Float,
+    driftY: Float,
+) {
+    val painter = remember(bitmap) { BitmapPainter(bitmap) }
+    Image(
+        painter = painter,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.fillMaxSize().graphicsLayer {
+            this.alpha = alpha()
+            scaleX = driftScale
+            scaleY = driftScale
+            translationX = size.width * driftX
+            translationY = size.height * driftY
+        },
+    )
 }
 
 /**
@@ -461,27 +558,53 @@ private fun DrawScope.drawMesh(mesh: ArtworkMesh, seamY: Float, alpha: Float) {
 /** Drawn only until an artwork has been read — never a colour anyone chose. */
 private val FallbackBackdrop = Color(0xFF050F15)
 
-/** A screen cannot recover detail discarded here; small is the performance feature. */
-private const val FULL_BLUR_SOURCE_PX = 128
-private const val FULL_BLUR_PASSES = 3
+/**
+ * A screen cannot recover detail discarded here; small is the performance
+ * feature. At 80px, five passes at a radius of an eighth of the frame give an
+ * effective spread of roughly a sixth of the picture's width once the bitmap
+ * is stretched back across the player — deep in the 35–55dp-and-beyond range
+ * on real screens, which is what makes faces, type and logos dissolve into
+ * colour instead of merely softening.
+ */
+private const val FULL_BLUR_SOURCE_PX = 80
+private const val FULL_BLUR_PASSES = 5
+private const val FULL_BLUR_RADIUS_DIVISOR = 8
 
-/** A handful of recent covers; each entry is only 64 KiB at 128x128 ARGB. */
+/** How long one cover's blurred backdrop takes to fade over the previous one. */
+private const val FULL_BLUR_CROSSFADE_MS = 450
+
+/** The saturation put back after averaging, so dominant colours stay dominant. */
+private const val FULL_BLUR_VIBRANCE = 1.28f
+
+/** Read attempts for the backdrop's small decode — see [MESH_ATTEMPTS]. */
+private const val FULL_BLUR_ATTEMPTS = 3
+private const val FULL_BLUR_RETRY_DELAY_MS = 750L
+
+/** A handful of recent covers; each entry is only 25 KiB at 80x80 ARGB. */
 private val fullBlurCache = object : LinkedHashMap<String, ImageBitmap>(0, 0.75f, true) {
     override fun removeEldestEntry(eldest: Map.Entry<String, ImageBitmap>) = size > 8
 }
 
-/** Three small box passes approximate a broad Gaussian blur at thumbnail scale. */
+/** Repeated box passes approximate a broad Gaussian blur at thumbnail scale. */
 private fun ImageBitmap.boxBlurred(passes: Int): ImageBitmap {
     val width = width
     val height = height
     if (width < 2 || height < 2) return this
     var source = argbPixels()
     var target = IntArray(source.size)
-    val radius = (minOf(width, height) / 12).coerceAtLeast(2)
+    val radius = (minOf(width, height) / FULL_BLUR_RADIUS_DIVISOR).coerceAtLeast(3)
 
     repeat(passes) {
         boxBlurPass(source, target, width, height, radius, horizontal = true)
         boxBlurPass(target, source, width, height, radius, horizontal = false)
+    }
+    // Averaging greys a cover out; put some of its colour back so the
+    // atmosphere keeps the artwork's dominant hues under the dark scrim.
+    val hsl = FloatArray(3)
+    for (index in source.indices) {
+        ColorUtils.colorToHSL(source[index], hsl)
+        hsl[1] = (hsl[1] * FULL_BLUR_VIBRANCE).coerceAtMost(1f)
+        source[index] = ColorUtils.HSLToColor(hsl)
     }
     return imageBitmapOf(source, width, height)
 }
