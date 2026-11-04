@@ -37,6 +37,7 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.rounded.AdminPanelSettings
 import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.ConfirmationNumber
@@ -476,6 +477,7 @@ fun SettingsScreen(
     var showStorageManager by rememberSaveable { mutableStateOf(false) }
     var showLibraryBackup by rememberSaveable { mutableStateOf(false) }
     var showLibraryCleanup by rememberSaveable { mutableStateOf(false) }
+    var showAdmin by rememberSaveable { mutableStateOf(false) }
     var showSectionReorder by rememberSaveable { mutableStateOf(false) }
     var showTicketmasterKeyDialog by remember { mutableStateOf(false) }
     var concertsRefreshing by remember { mutableStateOf(false) }
@@ -2385,6 +2387,26 @@ fun SettingsScreen(
                     onClick = { showLibraryCleanup = true },
                 )
             }
+            // The owner panel: before its one-time claim this row is the
+            // setup entry; after it, the same row opens the panel for the
+            // device owner. Sonariq has no account server, so the panel
+            // administers this installation only — see AdminScreen.
+            val adminOwnerLabel = remember(showAdmin) {
+                com.music.sonariq.data.admin.AdminStore.owner(context)?.label
+            }
+            row("Sonariq Admin", "admin", "owner", "control") {
+                SettingsRow(
+                    icon = Icons.Rounded.AdminPanelSettings,
+                    title = "Sonariq Admin",
+                    subtitle = if (adminOwnerLabel != null) {
+                        "Owner panel • $adminOwnerLabel"
+                    } else {
+                        "Owner setup — claim this device's admin panel"
+                    },
+                    trailing = { Chevron() },
+                    onClick = { showAdmin = true },
+                )
+            }
         }
 
         // No footer: it only restated the stop-on-close row's own subtitle,
@@ -3103,6 +3125,11 @@ fun SettingsScreen(
     if (showLibraryBackup) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             LibraryBackupScreen(onBack = { showLibraryBackup = false })
+        }
+    }
+    if (showAdmin) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            AdminScreen(onBack = { showAdmin = false })
         }
     }
     if (showLibraryCleanup) {

@@ -147,6 +147,14 @@ object AutoplayHistoryStore {
     fun recentBatches(context: Context, seedId: String): List<List<String>> =
         parseHistory(prefs(context).getString(KEY_HISTORY, null))[seedId] ?: emptyList()
 
+    /** How many seeds carry freshness history at all (admin diagnostics). */
+    fun seedCount(context: Context): Int =
+        parseHistory(prefs(context).getString(KEY_HISTORY, null)).size
+
+    /** How many delivered batches are remembered across every seed. */
+    fun batchCount(context: Context): Int =
+        parseHistory(prefs(context).getString(KEY_HISTORY, null)).values.sumOf { it.size }
+
     /** Records one delivered batch as this seed's newest session. */
     fun recordBatch(context: Context, seedId: String, batchIds: List<String>) {
         val store = prefs(context)

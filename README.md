@@ -145,6 +145,7 @@
 - **Per-device EQ profiles** — your EQ follows the output: one setting for earbuds, another for the speaker.
 - **Mono audio mix** — downmix to mono for single-ear listening.
 - **Vocal Remover** — turn the centre channel of a stereo mix down from Now Playing to soften the lead vocal; the level is yours, and the original is one reset away.
+- **Admin Control Center** — a one-time owner claim turns on a private control center for your installation: real listening totals and analytics from your own device, autoplay and lyrics-cache management with measured timing quality, vocal remover status, system health and storage, announcements, feature switches and a full audit log of every administrative action.
 - **EQ preset sharing** — send your sound to friends as a Sonariq link.
 - **Playback speed control** (0.5×–2.0×) and **skip silence**.
 - **Sleep timer** — fixed presets or "stop after this track", with gradual fade-out over the last 60 seconds.
