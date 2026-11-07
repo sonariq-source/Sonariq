@@ -616,7 +616,7 @@ private fun RecapCard(data: RecapCardData) {
                     text = it,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = Lime,
+                    color = EmeraldAccent,
                 )
             }
             Spacer(Modifier.height(20.dp))
