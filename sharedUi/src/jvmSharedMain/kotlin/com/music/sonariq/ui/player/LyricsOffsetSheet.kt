@@ -142,16 +142,17 @@ internal fun LyricsOffsetSheet(
                     .onSizeChanged { height = it.height }
                     .offset { IntOffset(0, drawerOffset.roundToInt()) }
                     .clip(DrawerShape)
+                    .glassEdge(DrawerShape)
                     .then(
                         if (reduceDynamicBlur) {
-                            Modifier.background(GlassTokens.surface)
+                            Modifier.background(GlassTokens.sheetSurface)
                         } else {
                             Modifier
                                 .optimizedHazeEffect(
                                     state = hazeState,
                                     style = HazeMaterials.regular(GlassTokens.hazeTint),
                                 )
-                                .background(GlassTokens.surface.copy(alpha = GlassTokens.surfaceAlpha))
+                                .background(GlassTokens.sheetSurface)
                         },
                     )
                     .clickable(
@@ -206,7 +207,8 @@ internal fun LyricsOffsetSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(ControlShape)
-                            .background(Color.White.copy(alpha = 0.05f))
+                            .background(GlassTokens.panelSurface)
+                            .glassEdge(ControlShape)
                             .clickable {
                                 haptics.play(Haptic.Select)
                                 perTrack = !perTrack
@@ -244,7 +246,8 @@ internal fun LyricsOffsetSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(ControlShape)
-                        .background(Color.White.copy(alpha = 0.05f))
+                        .background(GlassTokens.panelSurface)
+                        .glassEdge(ControlShape)
                         .padding(horizontal = 12.dp, vertical = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {

@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -37,6 +38,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import com.music.sonariq.ui.components.ShelfRow
+import com.music.sonariq.ui.components.EchoArtwork
+import com.music.sonariq.ui.components.LivingScreenHeader
+import com.music.sonariq.ui.components.LivingSectionHeader
+import com.music.sonariq.ui.components.SpineFeatureCard
+import com.music.sonariq.ui.player.GlassTokens
+import com.music.sonariq.ui.player.glassEdge
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -67,7 +74,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Cached
-import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.MoreVert
@@ -136,19 +142,14 @@ private fun ShelfItem.matchesCurrentlyPlaying(song: Song?): Boolean {
  * on every visit, so a greeting that crossed a boundary never survives long.
  */
 @Composable
-private fun GreetingLine(modifier: Modifier = Modifier) {
+private fun greetingText(): String {
     val hour = LocalTime.now().hour
-    Text(
-        text = stringResource(
-            when (hour) {
-                in 5..11 -> Res.string.greeting_morning
-                in 12..17 -> Res.string.greeting_afternoon
-                else -> Res.string.greeting_evening
-            },
-        ),
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = modifier,
+    return stringResource(
+        when (hour) {
+            in 5..11 -> Res.string.greeting_morning
+            in 12..17 -> Res.string.greeting_afternoon
+            else -> Res.string.greeting_evening
+        },
     )
 }
 
@@ -181,9 +182,8 @@ fun HomeScreen(
     loadingMore: Boolean = false,
     recentlyPlayedLoading: Boolean = false,
     /**
-     * Kept for call-site compatibility. The feed no longer gives its first
-     * shelf a hero treatment on any surface — every shelf is the ordinary
-     * card row — so this is read by nobody.
+     * Kept for call-site compatibility; read by nobody. The spotlight river
+     * in the shelf dispatcher is unconditional and does not consult it.
      */
     leadHero: Boolean = true,
     currentSong: Song? = null,
@@ -302,11 +302,42 @@ fun HomeScreen(
     }
 }
 
+private fun HomeShelf.isRecentsShelf(): Boolean =
+    title.equals(RECENTS_TITLE, ignoreCase = true)
+
+private fun HomeShelf.isQuickPicksShelf(): Boolean =
+    title.trim().equals("Quick picks", ignoreCase = true)
+
+private fun HomeShelf.isArtistsShelf(): Boolean =
+    title.trim().equals("Artists", ignoreCase = true)
+
+/**
+ * Mood / discovery shelves, identified from the shelf title the feed already
+ * carries. These are the shelves presented as wide bands instead of card rows.
+ */
+private fun HomeShelf.isMoodDiscoveryShelf(): Boolean {
+    val t = title.trim().lowercase(Locale.ROOT)
+    return t.contains("mood") || t.contains("discover") ||
+        t == "mixed for you" || t == "for you"
+}
+
+/** The short chrome eyebrow word for a shelf title (hardcoded English chrome). */
+private fun shelfEyebrow(title: String): String {
+    val t = title.trim().lowercase(Locale.ROOT)
+    return when {
+        t == "artists" || t.contains("artist") -> "Artists"
+        t.contains("mood") || t.contains("discover") || t == "mixed for you" || t == "for you" -> "Discovery"
+        t == "playlists" || t == "albums" || t.contains("playlist") || t.contains("album") -> "Collection"
+        else -> "Shelf"
+    }
+}
+
 /**
  * The feed's shelf dispatcher: Recents keeps its list/grid pager, Quick picks
- * becomes the two-column quick-pick grid under the heading, artist shelves
- * use circular cards, and every other shelf is the standard card row. There
- * is no hero treatment any more — the first shelf reads like the rest.
+ * becomes a single column of spine feature rows, the first ordinary content
+ * shelf lends its first item to the spotlight river, mood / discovery shelves
+ * become wide bands, artist shelves use circular cards, and every other shelf
+ * is the standard card row.
  */
 private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
     shelves: List<HomeShelf>,
@@ -317,11 +348,17 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
     recentsViewType: LibraryViewType,
     onRecentsViewTypeToggle: () -> Unit,
 ) {
+    // Spotlight river: the first ordinary content shelf (not Recents, not
+    // Quick picks, which keep their own compositions) lends its first item
+    // to the large spotlight; the rest of that shelf follows as a normal row.
+    val spotlightIndex = shelves.indexOfFirst { shelf ->
+        !shelf.isRecentsShelf() && !shelf.isQuickPicksShelf() && shelf.items.isNotEmpty()
+    }
     shelves.forEachIndexed { index, shelf ->
         item(key = shelf.title + index) {
             val openItem: (ShelfItem) -> Unit = { item -> onItemClick(item, shelf.title) }
             when {
-                index == 0 && shelf.title.equals(RECENTS_TITLE, ignoreCase = true) -> {
+                index == 0 && shelf.isRecentsShelf() -> {
                     RecentShelf(
                         shelf = shelf,
                         onItemClick = openItem,
@@ -332,8 +369,26 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
                         onViewTypeToggle = onRecentsViewTypeToggle,
                     )
                 }
-                shelf.title.trim().equals("Quick picks", ignoreCase = true) -> {
+                shelf.isQuickPicksShelf() -> {
                     QuickPicksShelf(
+                        shelf = shelf,
+                        onItemClick = openItem,
+                        onItemLongPress = onItemLongPress,
+                        currentSong = currentSong,
+                        isPlaying = isPlaying,
+                    )
+                }
+                index == spotlightIndex -> {
+                    SpotlightShelf(
+                        shelf = shelf,
+                        onItemClick = openItem,
+                        onItemLongPress = onItemLongPress,
+                        currentSong = currentSong,
+                        isPlaying = isPlaying,
+                    )
+                }
+                shelf.isMoodDiscoveryShelf() -> {
+                    WideBandShelf(
                         shelf = shelf,
                         onItemClick = openItem,
                         onItemLongPress = onItemLongPress,
@@ -428,19 +483,14 @@ private fun RecentSectionHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            // Same title/subtitle styles as [SectionHeader], so the Recents
-            // heading lines up with every other section heading on the feed
-            // instead of sitting one type step larger.
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            LivingSectionHeader(
+                title = localizeShelfTitle(title),
+                eyebrow = shelfEyebrow(title),
             )
-            if (subtitle.isNotBlank()) {
+            val displaySubtitle = localizeShelfSubtitle(subtitle)
+            if (displaySubtitle.isNotBlank()) {
                 Text(
-                    text = subtitle,
+                    text = displaySubtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -558,22 +608,18 @@ fun CompactTrackRow(
 }
 
 /**
- * The home heading: a compact bar — the time-aware greeting over a large
- * bold sans page title. No decoration competes with the feed below it.
+ * The home heading in Living Sound form: the eyebrow over the page title,
+ * with the time-aware greeting demoted to the quiet subtitle line. The
+ * greeting string itself is unchanged — only its rank in the header moved.
  */
 @Composable
 private fun HomeTitle(title: String, modifier: Modifier = Modifier) {
-    Column(
+    LivingScreenHeader(
+        eyebrow = "Sonariq",
+        title = title,
+        subtitle = greetingText(),
         modifier = modifier.fillMaxWidth().padding(horizontal = PAGE_GUTTER).padding(top = 10.dp, bottom = 24.dp),
-    ) {
-        GreetingLine()
-        Spacer(Modifier.height(4.dp))
-        Text(
-            title,
-            style = MaterialTheme.typography.displayMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-    }
+    )
 }
 
 /**
@@ -587,39 +633,22 @@ private fun HomeTitle(title: String, modifier: Modifier = Modifier) {
 internal fun SectionHeader(title: String, subtitle: String = "", onShowAll: (() -> Unit)? = null) {
     val displayTitle = localizeShelfTitle(title)
     val displaySubtitle = localizeShelfSubtitle(subtitle)
-    Row(
+    // Living Sound form: eyebrow + title via the shared section header, the
+    // subtitle kept as a quiet line underneath, and Show all carried by the
+    // header's own action slot (same callback, same label).
+    Column(
         modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 12.dp).fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                displayTitle,
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (displaySubtitle.isNotBlank()) {
-                Text(displaySubtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-        if (onShowAll != null) {
-            Row(
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onShowAll).padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(Res.string.show_all),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
+        LivingSectionHeader(
+            title = displayTitle,
+            eyebrow = shelfEyebrow(title),
+            actionLabel = if (onShowAll != null) stringResource(Res.string.show_all) else null,
+            onAction = onShowAll,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (displaySubtitle.isNotBlank()) {
+            Spacer(Modifier.height(2.dp))
+            Text(displaySubtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -794,6 +823,240 @@ internal fun localizeCardSubtitle(subtitle: String): String {
 }
 
 /**
+ * The spotlight river's hero: one shelf item at full width in echo artwork
+ * (about 16:10), with a glass caption panel overlapping its lower edge. The
+ * caption carries the title, subtitle and the play affordance; the whole
+ * hero answers tap and long-press with the shelf's own callbacks.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun SpotlightCard(
+    item: ShelfItem,
+    onClick: () -> Unit,
+    onLongPress: (() -> Unit)?,
+    isCurrent: Boolean,
+    isPlaying: Boolean,
+) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = PAGE_GUTTER)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
+                .contextClick(onLongPress),
+        ) {
+            EchoArtwork(modifier = Modifier.fillMaxWidth().aspectRatio(1.6f)) {
+                AsyncImage(
+                    model = item.thumbnailUrl.artworkAt(HEADER_ART_PX),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+                    .offset(y = 20.dp)
+                    .clip(GlassTokens.panelShape)
+                    .background(GlassTokens.panelSurface)
+                    .glassEdge(GlassTokens.panelShape)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = item.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = if (isCurrent) PlayingAccent else MaterialTheme.colorScheme.onBackground,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    val displaySubtitle = localizeCardSubtitle(item.subtitle)
+                    if (displaySubtitle.isNotBlank()) {
+                        Text(
+                            text = displaySubtitle,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(GlassTokens.accent),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = if (isCurrent && isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            }
+        }
+        // Room for the caption panel's 20 dp overlap plus breathing space.
+        Spacer(Modifier.height(32.dp))
+    }
+}
+
+/**
+ * A shelf whose first item rides the spotlight river: the hero on top, the
+ * remaining items continuing as the ordinary shelf row underneath.
+ */
+@Composable
+private fun SpotlightShelf(
+    shelf: HomeShelf,
+    onItemClick: (ShelfItem) -> Unit,
+    onItemLongPress: ((ShelfItem) -> Unit)?,
+    currentSong: Song?,
+    isPlaying: Boolean,
+) {
+    val spotlight = shelf.items.firstOrNull() ?: return
+    val rest = shelf.items.drop(1)
+    val artistsShelf = shelf.isArtistsShelf()
+    Column(Modifier.padding(bottom = SECTION_BOTTOM_PADDING)) {
+        SectionHeader(shelf.title, shelf.subtitle)
+        SpotlightCard(
+            item = spotlight,
+            onClick = { onItemClick(spotlight) },
+            onLongPress = onItemLongPress?.let { { it(spotlight) } },
+            isCurrent = spotlight.matchesCurrentlyPlaying(currentSong),
+            isPlaying = spotlight.matchesCurrentlyPlaying(currentSong) && isPlaying,
+        )
+        if (rest.isNotEmpty()) {
+            ShelfRow(
+                contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
+                horizontalArrangement = Arrangement.spacedBy(SHELF_GAP),
+            ) {
+                items(rest) { item ->
+                    if (artistsShelf) {
+                        ArtistCircleCard(
+                            item = item,
+                            onClick = { onItemClick(item) },
+                            onLongPress = onItemLongPress?.let { { it(item) } },
+                        )
+                    } else {
+                        ShelfCard(
+                            item = item,
+                            onClick = { onItemClick(item) },
+                            onLongPress = onItemLongPress?.let { { it(item) } },
+                            isCurrent = item.matchesCurrentlyPlaying(currentSong),
+                            isPlaying = item.matchesCurrentlyPlaying(currentSong) && isPlaying,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * One mood / discovery item as a wide band: full-width artwork with the
+ * title set over it on a glass strip at the foot of the band.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun WideBandCard(
+    item: ShelfItem,
+    onClick: () -> Unit,
+    onLongPress: (() -> Unit)?,
+    isCurrent: Boolean,
+    isPlaying: Boolean,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(132.dp)
+            .clip(GlassTokens.heroShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .glassEdge(GlassTokens.heroShape)
+            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
+            .contextClick(onLongPress),
+    ) {
+        AsyncImage(
+            model = item.thumbnailUrl.artworkAt(HEADER_ART_PX),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Box(
+            Modifier.matchParentSize().background(
+                Brush.verticalGradient(
+                    listOf(Color.Transparent, Color.Black.copy(alpha = 0.45f)),
+                ),
+            ),
+        )
+        if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(12.dp)
+                .clip(GlassTokens.panelShape)
+                .background(GlassTokens.panelSurface)
+                .glassEdge(GlassTokens.panelShape)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (isCurrent) PlayingAccent else MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val displaySubtitle = localizeCardSubtitle(item.subtitle)
+                if (displaySubtitle.isNotBlank()) {
+                    Text(
+                        text = displaySubtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** A mood / discovery shelf as a stack of wide bands instead of a card row. */
+@Composable
+private fun WideBandShelf(
+    shelf: HomeShelf,
+    onItemClick: (ShelfItem) -> Unit,
+    onItemLongPress: ((ShelfItem) -> Unit)?,
+    currentSong: Song?,
+    isPlaying: Boolean,
+) {
+    Column(Modifier.padding(bottom = SECTION_BOTTOM_PADDING)) {
+        SectionHeader(shelf.title, shelf.subtitle)
+        Column(
+            modifier = Modifier.padding(horizontal = PAGE_GUTTER),
+            verticalArrangement = Arrangement.spacedBy(SHELF_GAP),
+        ) {
+            shelf.items.forEach { item ->
+                WideBandCard(
+                    item = item,
+                    onClick = { onItemClick(item) },
+                    onLongPress = onItemLongPress?.let { { it(item) } },
+                    isCurrent = item.matchesCurrentlyPlaying(currentSong),
+                    isPlaying = item.matchesCurrentlyPlaying(currentSong) && isPlaying,
+                )
+            }
+        }
+    }
+}
+
+/**
  * [leadingCard] rides at the head of the row, ahead of the content — the
  * Library tab's "New playlist" tile, which belongs among the playlists rather
  * than in a bar somewhere above them. [onItemLongPress] opens the album /
@@ -840,10 +1103,9 @@ internal fun Shelf(
 }
 
 /**
- * The Quick picks shelf as the reconstruction's entry grid: two columns of
- * small horizontal cards — artwork left, title beside it — up to three rows,
- * drawn from the same shelf data the feed already fetched. A tap opens the
- * item exactly as a shelf-card tap would.
+ * The Quick picks shelf in Living Sound form: a single column of spine
+ * feature rows, each carrying the shared compact track row. A tap opens
+ * the item exactly as a shelf-card tap would; a long-press opens its menu.
  */
 @Composable
 private fun QuickPicksShelf(
@@ -855,70 +1117,29 @@ private fun QuickPicksShelf(
 ) {
     Column(Modifier.padding(bottom = SECTION_BOTTOM_PADDING)) {
         SectionHeader(shelf.title, shelf.subtitle)
+        // Living Sound form: no uniform tile grid — each pick is a full-width
+        // spine feature row carrying the shared compact track row, so taps
+        // and long-presses land exactly where the grid's tiles put them.
         Column(
             modifier = Modifier.padding(horizontal = PAGE_GUTTER),
-            verticalArrangement = Arrangement.spacedBy(SHELF_GAP),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            shelf.items.take(6).chunked(2).forEach { rowItems ->
-                Row(horizontalArrangement = Arrangement.spacedBy(SHELF_GAP)) {
-                    rowItems.forEach { item ->
-                        QuickPickCard(
-                            item = item,
+            shelf.items.take(6).forEach { item ->
+                SpineFeatureCard(modifier = Modifier.fillMaxWidth()) {
+                    Box(Modifier.padding(horizontal = 12.dp)) {
+                        CompactTrackRow(
+                            title = item.title,
+                            subtitle = item.subtitle,
+                            thumbnailUrl = item.thumbnailUrl,
                             onClick = { onItemClick(item) },
                             onLongPress = onItemLongPress?.let { { it(item) } },
                             isCurrent = item.matchesCurrentlyPlaying(currentSong),
                             isPlaying = item.matchesCurrentlyPlaying(currentSong) && isPlaying,
-                            modifier = Modifier.weight(1f),
                         )
-                    }
-                    if (rowItems.size == 1) {
-                        Spacer(Modifier.weight(1f))
                     }
                 }
             }
         }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun QuickPickCard(
-    item: ShelfItem,
-    onClick: () -> Unit,
-    onLongPress: (() -> Unit)?,
-    isCurrent: Boolean,
-    isPlaying: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    // The tile's height is the shared track-row artwork size (56 dp), so a
-    // quick pick lines up with the rows and cards around it, and its title
-    // uses the same style as a track row's title.
-    Row(
-        modifier = modifier
-            .height(56.dp)
-            .clip(UniformCardShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
-            .contextClick(onLongPress),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(56.dp)) {
-            AsyncImage(
-                model = item.thumbnailUrl.artworkAt(ROW_ART_PX),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
-            )
-            if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
-        }
-        Text(
-            text = item.title,
-            style = MaterialTheme.typography.titleMedium,
-            color = if (isCurrent) PlayingAccent else MaterialTheme.colorScheme.onBackground,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 12.dp),
-        )
     }
 }
 
@@ -1089,7 +1310,8 @@ internal fun ShelfCard(
                         .fillMaxWidth()
                         .aspectRatio(1f)
                         .clip(UniformCardShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .glassEdge(UniformCardShape),
                 ) {
                     AsyncImage(
                         model = item.thumbnailUrl.artworkAt(CARD_ART_PX),

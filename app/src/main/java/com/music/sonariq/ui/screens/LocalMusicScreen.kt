@@ -12,6 +12,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import com.music.sonariq.ui.components.longPressMenuClickable
+import com.music.sonariq.ui.components.EchoArtwork
+import com.music.sonariq.ui.components.Eyebrow
+import com.music.sonariq.ui.player.GlassTokens
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -1244,16 +1247,15 @@ private fun DrillDownHeader(
                 }
             }
         }
-        Box(
-            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 4.dp).size(188.dp)
-                .clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.secondaryContainer),
-            contentAlignment = Alignment.Center,
+        EchoArtwork(
+            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 4.dp).size(188.dp),
+            shape = GlassTokens.heroShape,
         ) {
             Icon(
                 imageVector = if (artworkUrl == null) Icons.Rounded.Person else Icons.Rounded.Album,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.size(64.dp),
+                modifier = Modifier.size(64.dp).align(Alignment.Center),
             )
             artworkUrl?.let { artwork ->
                 AsyncImage(
@@ -1265,6 +1267,11 @@ private fun DrillDownHeader(
             }
         }
         Spacer(Modifier.height(14.dp))
+        Eyebrow(
+            text = if (artworkUrl == null) "Artist" else "Album",
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+        )
+        Spacer(Modifier.height(6.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.headlineMedium,

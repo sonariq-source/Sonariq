@@ -28,6 +28,9 @@ import com.music.sonariq.data.model.Song
 import com.music.sonariq.data.model.UiState
 import com.music.sonariq.data.model.isSameTrackAs
 import com.music.sonariq.ui.components.MessageState
+import com.music.sonariq.ui.components.LivingScreenHeader
+import com.music.sonariq.ui.player.GlassTokens
+import com.music.sonariq.ui.player.glassEdge
 import com.music.sonariq.ui.components.PlayingAccent
 import com.music.sonariq.ui.components.SongRow
 import com.music.sonariq.ui.components.songListSkeleton
@@ -69,15 +72,15 @@ fun HistoryScreen(
                 Modifier
                     .padding(horizontal = PAGE_GUTTER, vertical = 12.dp)
                     .clip(headerShape)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, headerShape)
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), headerShape)
+                    .background(GlassTokens.panelSurface, headerShape)
+                    .glassEdge(headerShape)
                     .padding(horizontal = 18.dp, vertical = 16.dp),
             ) {
-                Text("Your listening", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.height(5.dp))
-                Text(stringResource(R.string.history), style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onBackground)
-                Spacer(Modifier.height(3.dp))
-                Text("Pick up where you left off.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                LivingScreenHeader(
+                    eyebrow = "Your listening",
+                    title = stringResource(R.string.history),
+                    subtitle = "Pick up where you left off.",
+                )
             }
         }
         when (state) {
@@ -131,8 +134,8 @@ private fun HistoryRow(
         modifier = Modifier
             .padding(horizontal = 12.dp, vertical = 5.dp)
             .clip(tileShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh, tileShape)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), tileShape),
+            .background(GlassTokens.panelSurface, tileShape)
+            .glassEdge(tileShape),
     ) {
         SongRow(
             song = song,

@@ -38,6 +38,8 @@ import com.halilibo.richtext.ui.material3.RichText
 import com.music.sonariq.R
 import com.music.sonariq.data.AppUpdateChecker
 import com.music.sonariq.data.settings.AppSettings
+import com.music.sonariq.ui.player.GlassTokens
+import com.music.sonariq.ui.player.glassEdge
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
@@ -116,7 +118,7 @@ fun UpdateAvailableDialog(
                 .clip(shape)
                 .then(
                     if (reduceDynamicBlur) {
-                        Modifier.background(MaterialTheme.colorScheme.surface)
+                        Modifier.background(GlassTokens.sheetSurface)
                     } else {
                         Modifier.optimizedHazeEffect(
                             state = hazeState,
@@ -124,6 +126,7 @@ fun UpdateAvailableDialog(
                         )
                     },
                 )
+                .glassEdge(shape)
                 // Swallows the tap before it reaches the scrim behind, so
                 // touching the card itself never dismisses it.
                 .clickable(

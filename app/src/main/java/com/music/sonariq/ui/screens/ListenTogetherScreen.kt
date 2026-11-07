@@ -96,6 +96,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.music.sonariq.R
+import com.music.sonariq.ui.components.LivingScreenHeader
+import com.music.sonariq.ui.player.GlassTokens
 import com.music.sonariq.data.SonariqLinks
 import com.music.sonariq.data.collab.CollabPlaylistStore
 import com.music.sonariq.data.listentogether.ListenTogether
@@ -397,7 +399,7 @@ fun ListenTogetherScreen(
                     Text(stringResource(R.string.cancel))
                 }
             },
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = GlassTokens.sheetSurface,
         )
     }
 
@@ -411,7 +413,7 @@ fun ListenTogetherScreen(
                 failure = null
             },
             sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.background,
+            containerColor = GlassTokens.sheetSurface,
         ) {
             when (open) {
                 PartySheet.Create -> CreatePartySheet(
@@ -573,13 +575,12 @@ fun ListenTogetherScreen(
             .verticalScroll(rememberScrollState())
             .padding(contentPadding),
     ) {
-        Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp)) {
-            Text("Shared listening", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(5.dp))
-            Text(stringResource(R.string.listen_together), style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.onBackground)
-            Spacer(Modifier.height(3.dp))
-            Text("Press play together, wherever you are.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        LivingScreenHeader(
+            eyebrow = "Shared listening",
+            title = stringResource(R.string.listen_together),
+            subtitle = "Press play together, wherever you are.",
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp),
+        )
 
         HandoffSection(
             inParty = state.inParty,
@@ -1318,7 +1319,7 @@ private fun PartyQueueSection(
                     Text(stringResource(R.string.cancel))
                 }
             },
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = GlassTokens.sheetSurface,
         )
     }
 }

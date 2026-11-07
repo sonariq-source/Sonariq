@@ -177,6 +177,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
 import com.music.sonariq.ui.components.isGlassSupported
+import com.music.sonariq.ui.components.Eyebrow
+import com.music.sonariq.ui.player.GlassTokens
+import com.music.sonariq.ui.player.glassEdge
 import com.music.sonariq.ui.components.languageDisplayNameRes
 import com.music.sonariq.ui.components.MessageState
 import com.music.sonariq.ui.components.SearchField
@@ -570,14 +573,20 @@ fun SettingsScreen(
                         contentDescription = stringResource(R.string.settings),
                     )
                 }
-                Text(
-                    text = settingsCategoryTitle(activeSettingsCategory),
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
+                Column {
+                    Eyebrow(text = "Settings")
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = settingsCategoryTitle(activeSettingsCategory),
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
             }
         } else {
             Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp)) {
+                Eyebrow(text = "Settings")
+                Spacer(Modifier.height(6.dp))
                 Text(
                     text = stringResource(R.string.settings),
                     style = MaterialTheme.typography.displayLarge,
@@ -3837,8 +3846,8 @@ private fun SettingsCategoryCard(
             .fillMaxWidth()
             .padding(horizontal = GROUP_INSET, vertical = 5.dp)
             .clip(GroupShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), GroupShape)
+            .background(GlassTokens.panelSurface)
+            .glassEdge(GroupShape)
             .clickable(onClick = onClick)
             .padding(horizontal = ROW_INSET, vertical = 14.dp),
     ) {

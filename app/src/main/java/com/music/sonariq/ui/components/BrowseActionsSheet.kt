@@ -50,6 +50,7 @@ import com.music.sonariq.data.model.artworkAt
 import com.music.sonariq.download.DownloadState
 import com.music.sonariq.download.Downloads
 import com.music.sonariq.ui.icons.SonariqIcons
+import com.music.sonariq.ui.player.GlassTokens
 import java.util.Locale
 
 /**
@@ -211,7 +212,7 @@ fun BrowseActionsSheet(
         Column(
             modifier
                 .fillMaxWidth()
-                .then(if (menu) Modifier.verticalScroll(rememberScrollState()) else Modifier),
+                .then(if (menu) Modifier.verticalScroll(rememberScrollState()) else Modifier.background(GlassTokens.sheetSurface)),
         ) {
             if (!menu) {
                 BrowseSheetHeader(target)

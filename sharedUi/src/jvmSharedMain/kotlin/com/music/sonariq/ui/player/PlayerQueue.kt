@@ -6,7 +6,6 @@ import com.music.sonariq.ui.components.ExplicitSongTitle
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.draw.alpha
 import kotlin.math.abs
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -77,6 +78,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Velocity
 import coil3.compose.AsyncImage
+import com.music.sonariq.ui.components.EchoArtwork
+import com.music.sonariq.ui.components.LivingSectionHeader
+import com.music.sonariq.ui.components.SpineFeatureCard
 import com.music.sonariq.ui.components.thumbnailBorder
 import com.music.sonariq.ui.icons.SonariqIcons
 import com.music.sonariq.data.model.QueueTier
@@ -289,8 +293,8 @@ internal fun InlineQueue(
                 .fillMaxWidth()
                 .padding(top = 12.dp)
                 .clip(GlassTokens.rowShape)
-                .background(GlassTokens.surface.copy(alpha = 0.85f))
-                .border(GlassTokens.hairlineWidth, GlassTokens.hairline, GlassTokens.rowShape)
+                .background(GlassTokens.panelSurface)
+                .glassEdge(GlassTokens.rowShape)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -337,37 +341,30 @@ internal fun InlineQueue(
             ) {
                 if (nowPlaying != null) {
                     item(key = "header-now-playing") {
-                        QueueHeading(
+                        LivingSectionHeader(
                             title = stringResource(Res.string.now_playing),
                             modifier = Modifier.padding(top = 12.dp, bottom = 6.dp),
                         )
                     }
                     item(key = nowPlaying.key) {
-                        // The current track rides in its own glass card, set
-                        // apart from the rows that follow it: the larger
-                        // panel shape, a denser fill than the autoplay panel
-                        // above it, and an emerald edge, so "playing now"
-                        // reads at a glance rather than on inspection.
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(GlassTokens.panelShape)
-                                .background(GlassTokens.surface.copy(alpha = 0.92f))
-                                .border(
-                                    GlassTokens.hairlineWidth,
-                                    GlassTokens.accent.copy(alpha = 0.45f),
-                                    GlassTokens.panelShape,
+                        // The current track rides in the Living Sound spine
+                        // card, set apart from the rows that follow it: panel
+                        // glass with the glass edge and the emerald spine, and
+                        // its thumbnail carries the echo treatment, so
+                        // "playing now" reads at a glance rather than on
+                        // inspection.
+                        SpineFeatureCard(modifier = Modifier.fillMaxWidth()) {
+                            Box(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+                                InlineQueueRow(
+                                    song = nowPlaying.song,
+                                    isCurrent = true,
+                                    echoArtwork = true,
+                                    onClick = { onJumpTo(nowPlaying.timelineIndex) },
+                                    onRemove = { onRemove(nowPlaying.timelineIndex) },
+                                    locked = controlsLocked,
+                                    modifier = queueMotion(),
                                 )
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
-                        ) {
-                            InlineQueueRow(
-                                song = nowPlaying.song,
-                                isCurrent = true,
-                                onClick = { onJumpTo(nowPlaying.timelineIndex) },
-                                onRemove = { onRemove(nowPlaying.timelineIndex) },
-                                locked = controlsLocked,
-                                modifier = queueMotion(),
-                            )
+                            }
                         }
                     }
                 }
@@ -384,7 +381,7 @@ internal fun InlineQueue(
                 }
                 if (tracks.context.isNotEmpty()) {
                     item(key = "header-context") {
-                        QueueHeading(
+                        LivingSectionHeader(
                             title = if (contextTitle != null) {
                                 stringResource(Res.string.next_from, contextTitle)
                             } else {
@@ -401,6 +398,40 @@ internal fun InlineQueue(
                     }
                     queueSection(tracks.autoplay, QueueSection.AUTOPLAY, drag, controlsLocked, onJumpTo, onRemove)
                 }
+            }
+            // The soundline rail: a quiet vertical line down the list's
+            // leading gutter, with an emerald node on the current track's
+            // row. Pure decoration drawn over the list — it takes no touch
+            // and changes no row, drag or callback. The node's place is read
+            // in the draw phase off the list's own layout, so scrolling
+            // costs a redraw of this overlay and nothing else.
+            if (nowPlaying != null) {
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .drawWithContent {
+                            drawContent()
+                            val railX = (PLAYER_GUTTER / 2).toPx()
+                            drawLine(
+                                color = Color.White.copy(alpha = 0.08f),
+                                start = Offset(railX, 0f),
+                                end = Offset(railX, size.height),
+                                strokeWidth = 2.dp.toPx(),
+                            )
+                            val current = listState.layoutInfo.visibleItemsInfo
+                                .firstOrNull { it.key == nowPlaying.key }
+                            if (current != null) {
+                                drawCircle(
+                                    color = GlassTokens.accent,
+                                    radius = 3.dp.toPx(),
+                                    center = Offset(
+                                        railX,
+                                        current.offset + current.size / 2f,
+                                    ),
+                                )
+                            }
+                        },
+                )
             }
             // The held row, drawn over the list where the finger is. Positioned
             // from the finger alone, so nothing the list does underneath — a
@@ -817,6 +848,8 @@ private fun InlineQueueRow(
     lifted: Boolean = false,
     /** Marks the row as an autoplay pick in its own right. */
     showAutoplayBadge: Boolean = false,
+    /** Gives the thumbnail the Living Sound echo treatment (the queue's current track). */
+    echoArtwork: Boolean = false,
     onDragStart: () -> Unit = {},
     onDrag: (Float) -> Unit = {},
     onDragEnd: () -> Unit = {},
@@ -856,15 +889,31 @@ private fun InlineQueueRow(
             )
             Spacer(Modifier.width(4.dp))
         }
-        AsyncImage(
-            model = rememberRemoteArtworkUrl(song),
-            contentDescription = null,
-            modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .thumbnailBorder(RoundedCornerShape(8.dp))
-                .background(Color.White.copy(alpha = 0.08f)),
-        )
+        val rowArt = rememberRemoteArtworkUrl(song)
+        if (echoArtwork) {
+            EchoArtwork(
+                modifier = Modifier.size(48.dp),
+                shape = RoundedCornerShape(8.dp),
+                echoOffset = 4.dp,
+            ) {
+                AsyncImage(
+                    model = rowArt,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        } else {
+            AsyncImage(
+                model = rowArt,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .thumbnailBorder(RoundedCornerShape(8.dp))
+                    .background(Color.White.copy(alpha = 0.08f)),
+            )
+        }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             ExplicitSongTitle(

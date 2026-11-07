@@ -50,6 +50,7 @@ import com.music.sonariq.data.model.SearchResult
 import com.music.sonariq.data.model.Song
 import com.music.sonariq.data.model.artworkAt
 import com.music.sonariq.playback.playSongs
+import com.music.sonariq.ui.components.Eyebrow
 import com.music.sonariq.util.DeviceInfo
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -123,13 +124,16 @@ fun TvHomeScreen(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(
-                text = "Sonariq TV",
-                style = MaterialTheme.typography.headlineLarge.copy(fontSize = 40.sp),
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f),
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Eyebrow(text = "Sonariq")
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "Sonariq TV",
+                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = 40.sp),
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
             val partyState by ListenTogether.state.collectAsStateWithLifecycle()
             TvTextButton(
                 label = partyState.code?.let { "Party $it" } ?: "Listen Together",

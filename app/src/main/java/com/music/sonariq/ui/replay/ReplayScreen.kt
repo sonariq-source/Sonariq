@@ -67,6 +67,7 @@ import com.music.sonariq.data.stats.MilestoneKind
 import com.music.sonariq.data.stats.ReplayPeriod
 import com.music.sonariq.data.stats.ReplaySummary
 import com.music.sonariq.ui.components.PAGE_GUTTER
+import com.music.sonariq.ui.components.Eyebrow
 import com.music.sonariq.ui.icons.SonariqIcons
 import com.music.sonariq.ui.player.MeshGradientBackground
 import com.music.sonariq.ui.player.rememberArtworkColors
@@ -297,6 +298,8 @@ private fun Heading(state: ReplayState, onPeriodChange: (ReplayPeriod) -> Unit, 
     val textColor = if (dark) Color.White else Color.Black
     Column(Modifier.padding(horizontal = PAGE_GUTTER + 4.dp)) {
         Spacer(Modifier.height(48.dp))
+        Eyebrow(text = "Replay")
+        Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(

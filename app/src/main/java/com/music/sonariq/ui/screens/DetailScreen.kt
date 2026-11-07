@@ -142,6 +142,9 @@ import com.music.sonariq.playback.AutoplaySeeds
 import com.music.sonariq.playback.launchSeededAutoplay
 import com.music.sonariq.playback.rememberMediaController
 import com.music.sonariq.ui.components.DownloadedBadge
+import com.music.sonariq.ui.components.Eyebrow
+import com.music.sonariq.ui.player.GlassTokens
+import com.music.sonariq.ui.player.glassEdge
 import com.music.sonariq.ui.components.ExplicitSongTitle
 import com.music.sonariq.ui.components.LIBRARY_GRID_SPACING
 import com.music.sonariq.ui.components.MessageState
@@ -683,15 +686,8 @@ fun DetailScreen(
                                     .fillMaxWidth()
                                     .padding(horizontal = ARTIST_CONTENT_GUTTER)
                                     .clip(panelShape)
-                                    .background(
-                                        MaterialTheme.colorScheme.surfaceContainerHigh,
-                                        panelShape,
-                                    )
-                                    .border(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.7f),
-                                        panelShape,
-                                    )
+                                    .background(GlassTokens.panelSurface, panelShape)
+                                    .glassEdge(panelShape)
                                     .padding(vertical = 6.dp),
                             ) {
                                 visible.forEachIndexed { index, song ->
@@ -947,6 +943,10 @@ private fun ReleaseHeader(
                 .padding(bottom = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            page.type.localizedLabel()?.let { label ->
+                Eyebrow(text = label)
+                Spacer(Modifier.height(6.dp))
+            }
             Text(
                 text = page.title,
                 style = MaterialTheme.typography.headlineLarge,
@@ -1098,8 +1098,8 @@ private fun SecondaryPill(
         modifier = modifier
             .height(50.dp)
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), CircleShape)
+            .background(GlassTokens.panelSurface)
+            .glassEdge(CircleShape)
             .clickable {
                 haptics.play(Haptic.Resume)
                 onClick()
@@ -1141,8 +1141,8 @@ private fun DetailTabBar(
             .fillMaxWidth()
             .padding(horizontal = ARTIST_CONTENT_GUTTER, vertical = 4.dp)
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f), shape)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), shape)
+            .background(GlassTokens.panelSurface, shape)
+            .glassEdge(shape)
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -1413,20 +1413,26 @@ private fun ArtistHeader(
                     },
             )
         }
-        if (!logoShown) Text(
-            text = page.title,
-            style = MaterialTheme.typography.displayLarge,
-            color = palette.onBackground,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+        if (!logoShown) Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 // Bottom is half the top inset — the stats pills (or, absent
                 // those, the action row) sit closer under the name than the
                 // name sits under the artwork.
                 .padding(start = HEADER_GUTTER, end = HEADER_GUTTER, top = 14.dp, bottom = 7.dp),
-        )
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Eyebrow(text = "Artist")
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = page.title,
+                style = MaterialTheme.typography.displayLarge,
+                color = palette.onBackground,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -1820,8 +1826,8 @@ private fun CircleIconButton(
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f), CircleShape)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), CircleShape)
+            .background(GlassTokens.playbackSurface, CircleShape)
+            .glassEdge(CircleShape)
             .clickable {
                 haptics.play(haptic)
                 onClick()
@@ -2268,8 +2274,8 @@ private fun TopReleaseCard(
             // light veil: the page is dark, and a dark panel reads as a
             // surface rather than a hole cut out of it.
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f), shape)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), shape)
+            .background(GlassTokens.panelSurface, shape)
+            .glassEdge(shape)
             .clip(shape)
             .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
             .padding(16.dp),
@@ -2313,8 +2319,8 @@ private fun TopReleaseCard(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f), CircleShape)
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), CircleShape)
+                    .background(GlassTokens.playbackSurface, CircleShape)
+                    .glassEdge(CircleShape)
                     .clickable {
                         haptics.play(if (saved) Haptic.ToggleOff else Haptic.ToggleOn)
                         onToggleSaved()

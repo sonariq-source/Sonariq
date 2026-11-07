@@ -113,11 +113,11 @@ private const val LANDSCAPE_PANE_FADE_OUT_MS = 140
 /** Which of its three things the player's content column is showing. */
 internal enum class PlayerPane { Main, Lyrics, Queue }
 
-/** The landscape sleeve's corner radius, at rest. */
-internal val LANDSCAPE_ART_CORNER = 10.dp
+/** The landscape sleeve's corner radius, at rest: the Living Sound hero corner. */
+internal val LANDSCAPE_ART_CORNER = 24.dp
 
 /** The landscape sleeve's shape at rest, for a caller with no docking to do. */
-private val LandscapeArtShape = RoundedCornerShape(LANDSCAPE_ART_CORNER)
+private val LandscapeArtShape = GlassTokens.heroShape
 
 /** Room above the landscape columns for the sheet's drag handle. */
 private val LANDSCAPE_HANDLE_STRIP = 24.dp
@@ -302,6 +302,37 @@ internal fun LandscapeArtwork(
 ) {
     val casts = artLoaded || canvasRendered
     Box(modifier = modifier) {
+        // The echo: an offset, faded duplicate of the still cover behind the
+        // sleeve, the portrait player's Living Sound treatment carried across.
+        // Still art only — the clip, when there is one, plays in front of it
+        // exactly as it plays in front of the cover itself.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .offset(x = GlassTokens.echoOffset, y = GlassTokens.echoOffset)
+                .graphicsLayer {
+                    scaleX = 0.97f
+                    scaleY = 0.97f
+                    alpha = 0.38f
+                    // Asked in the layer, as the sleeve's own shape is: a
+                    // docking player can move it without recomposing.
+                    shape = sleeveShape()
+                    clip = true
+                }
+                .background(GlassTokens.panelGlass),
+        ) {
+            AsyncImage(
+                model = artRequest,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(GlassTokens.accent.copy(alpha = 0.22f)),
+            )
+        }
         Box(
             modifier = Modifier
                 .fillMaxSize()

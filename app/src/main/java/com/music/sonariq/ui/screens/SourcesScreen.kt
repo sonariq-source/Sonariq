@@ -78,6 +78,7 @@ import com.music.sonariq.data.sources.SourceHealth
 import com.music.sonariq.data.sources.SourceKind
 import com.music.sonariq.data.sources.SourceRegistry
 import com.music.sonariq.ui.components.AddonEditorAlert
+import com.music.sonariq.ui.components.LivingScreenHeader
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -194,13 +195,12 @@ fun SourcesScreen(
             .verticalScroll(rememberScrollState())
             .padding(contentPadding),
     ) {
-        Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp)) {
-            Text("Music pipeline", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(5.dp))
-            Text(stringResource(R.string.source), style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.onBackground)
-            Spacer(Modifier.height(3.dp))
-            Text("Choose how Sonariq finds and plays your music.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        LivingScreenHeader(
+            eyebrow = "Music pipeline",
+            title = stringResource(R.string.source),
+            subtitle = "Choose how Sonariq finds and plays your music.",
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp),
+        )
 
         SettingsGroup(
             header = stringResource(R.string.sources_order_header),

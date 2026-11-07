@@ -140,7 +140,8 @@ private fun AudioPipelineRow(onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(ROW_SHAPE)
-            .background(Color.White.copy(alpha = 0.05f))
+            .background(GlassTokens.panelSurface)
+            .glassEdge(ROW_SHAPE)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -205,7 +206,8 @@ private fun CastRow(cast: CastUi, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(ROW_SHAPE)
-            .background(Color.White.copy(alpha = if (casting) 0.10f else 0.05f))
+            .background(GlassTokens.panelSurface)
+            .then(if (casting) Modifier.glassEdge(ROW_SHAPE) else Modifier)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -281,7 +283,8 @@ private fun OutputRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(ROW_SHAPE)
-            .background(Color.White.copy(alpha = if (active) 0.10f else 0.05f))
+            .background(GlassTokens.panelSurface)
+            .then(if (active) Modifier.glassEdge(ROW_SHAPE) else Modifier)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -377,7 +380,8 @@ private fun VolumeRow(routeKey: Any) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(ROW_SHAPE)
-            .background(Color.White.copy(alpha = 0.05f))
+            .background(GlassTokens.panelSurface)
+            .glassEdge(ROW_SHAPE)
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

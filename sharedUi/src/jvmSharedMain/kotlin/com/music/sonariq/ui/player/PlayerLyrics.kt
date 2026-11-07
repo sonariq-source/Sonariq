@@ -21,7 +21,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.animateScrollBy
@@ -151,6 +150,7 @@ import com.music.sonariq.data.lyrics.LyricLine
 import com.music.sonariq.data.lyrics.LyricWord
 import com.music.sonariq.data.lyrics.LyricsSource
 import com.music.sonariq.data.lyrics.translationLanguageName
+import com.music.sonariq.ui.components.Eyebrow
 import com.music.sonariq.ui.haptics.Haptic
 import com.music.sonariq.ui.haptics.Haptics
 import com.music.sonariq.ui.haptics.rememberHaptics
@@ -1456,7 +1456,9 @@ internal fun TranslationToggleButton(
         modifier = Modifier
             .size(34.dp)
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = discAlpha))
+            .background(GlassTokens.playbackSurface)
+            .background(Color.White.copy(alpha = discAlpha * 0.35f))
+            .glassEdge(CircleShape)
             .clickable(
                 enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },
@@ -1507,7 +1509,9 @@ internal fun RomanizationToggleButton(
         modifier = Modifier
             .size(34.dp)
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = discAlpha))
+            .background(GlassTokens.playbackSurface)
+            .background(Color.White.copy(alpha = discAlpha * 0.35f))
+            .glassEdge(CircleShape)
             .clickable(
                 enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },
@@ -1552,7 +1556,8 @@ internal fun LyricsShareButton(
         modifier = Modifier
             .size(34.dp)
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.18f))
+            .background(GlassTokens.playbackSurface)
+            .glassEdge(CircleShape)
             .clickable(
                 enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },
@@ -2624,6 +2629,18 @@ internal fun LyricsPanel(
         }
     }
 
+    // The panel's chrome header: the Living Sound eyebrow, centred in the
+    // panel's top padding between the appearance and search pills. Chrome
+    // only — no line rendering, highlighting, scroll or timing is touched.
+    if (!picking) {
+        Eyebrow(
+            text = "Lyrics",
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 14.dp),
+        )
+    }
+
     // The floating in-lyrics search, top-end over the lines. Hidden while
     // picking: the pick bar owns the panel's chrome then, and a search that
     // jumped the scroll would fight the choosing.
@@ -2706,8 +2723,8 @@ private fun LyricsSearchOverlay(
         modifier = modifier
             .then(if (open) Modifier.fillMaxWidth() else Modifier)
             .clip(pill)
-            .background(GlassTokens.surface.copy(alpha = GlassTokens.surfaceAlpha))
-            .border(GlassTokens.hairlineWidth, GlassTokens.hairline, pill),
+            .background(GlassTokens.playbackSurface)
+            .glassEdge(pill),
         contentAlignment = Alignment.CenterEnd,
     ) {
         if (!open) {
@@ -2834,8 +2851,8 @@ private fun LyricsAppearanceOverlay(modifier: Modifier = Modifier) {
         Box(
             modifier = Modifier
                 .clip(pill)
-                .background(GlassTokens.surface.copy(alpha = GlassTokens.surfaceAlpha))
-                .border(GlassTokens.hairlineWidth, GlassTokens.hairline, pill),
+                .background(GlassTokens.playbackSurface)
+                .glassEdge(pill),
             contentAlignment = Alignment.Center,
         ) {
             IconButton(

@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.sonariq.R
 import com.music.sonariq.data.listentogether.ListenTogether
+import com.music.sonariq.ui.components.Eyebrow
 import kotlinx.coroutines.launch
 
 /**
@@ -99,12 +100,16 @@ fun TvListenTogetherScreen(onBack: () -> Unit) {
                 )
             }
             Spacer(Modifier.width(24.dp))
-            Text(
-                text = "Listen Together",
-                style = MaterialTheme.typography.headlineLarge.copy(fontSize = 40.sp),
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-            )
+            Column {
+                Eyebrow(text = "Sonariq")
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Listen Together",
+                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = 40.sp),
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
         Spacer(Modifier.height(32.dp))
 

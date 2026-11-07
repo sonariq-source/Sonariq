@@ -1,9 +1,12 @@
 package com.music.sonariq.desktop
 
 import androidx.compose.foundation.lazy.LazyListState
+import com.music.sonariq.ui.components.Eyebrow
 import com.music.sonariq.ui.components.LocalShelfRowChrome
+import com.music.sonariq.ui.components.NavWaveIndicator
 import com.music.sonariq.ui.components.ShelfRowChrome
 import com.music.sonariq.ui.components.ShelfRow
+import com.music.sonariq.ui.components.SoundlineGlyph
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.pointer.isBackPressed
@@ -35,8 +38,10 @@ import com.music.sonariq.playback.QueueTimeline
 import com.music.sonariq.playback.QueueTimeline.asQueueEntry
 import com.music.sonariq.data.listentogether.partyQueueIndexOf
 import com.music.sonariq.data.listentogether.partyUpcomingAfter
+import com.music.sonariq.ui.player.GlassTokens
 import com.music.sonariq.ui.player.LyricsSidePanel
 import com.music.sonariq.ui.player.NowPlayingScreen
+import com.music.sonariq.ui.player.glassEdge
 import com.music.sonariq.ui.player.QueueSidePanel
 import com.music.sonariq.ui.player.PlayerBack
 import com.music.sonariq.ui.player.RepeatModes
@@ -432,12 +437,12 @@ internal fun desktopTypography(): Typography {
     )
     val defaults = Typography()
     return defaults.copy(
-        displayLarge = defaults.displayLarge.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W800, fontSize = 34.sp, letterSpacing = (-0.8).sp),
-        displayMedium = defaults.displayMedium.copy(fontFamily = sfProDisplay),
-        displaySmall = defaults.displaySmall.copy(fontFamily = sfProDisplay),
-        headlineLarge = defaults.headlineLarge.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W800, fontSize = 30.sp, letterSpacing = (-0.7).sp),
-        headlineMedium = defaults.headlineMedium.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W700, fontSize = 22.sp, letterSpacing = (-0.4).sp),
-        headlineSmall = defaults.headlineSmall.copy(fontFamily = sfProDisplay),
+        displayLarge = defaults.displayLarge.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W800, fontSize = 44.sp, letterSpacing = (-1.2).sp),
+        displayMedium = defaults.displayMedium.copy(fontFamily = sfProDisplay, fontSize = 36.sp, letterSpacing = (-0.9).sp),
+        displaySmall = defaults.displaySmall.copy(fontFamily = sfProDisplay, fontSize = 29.sp, letterSpacing = (-0.6).sp),
+        headlineLarge = defaults.headlineLarge.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W800, fontSize = 32.sp, letterSpacing = (-0.7).sp),
+        headlineMedium = defaults.headlineMedium.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W700, fontSize = 26.sp, letterSpacing = (-0.45).sp),
+        headlineSmall = defaults.headlineSmall.copy(fontFamily = sfProDisplay, fontSize = 21.sp, letterSpacing = (-0.25).sp),
         titleLarge = defaults.titleLarge.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W700, fontSize = 20.sp, letterSpacing = (-0.3).sp),
         titleMedium = defaults.titleMedium.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W600, fontSize = 16.sp, letterSpacing = (-0.2).sp),
         titleSmall = defaults.titleSmall.copy(fontFamily = sfProDisplay),
@@ -3934,6 +3939,8 @@ private fun DesktopTopBar(
                     contentDescription = "Sonariq",
                     modifier = Modifier.size(width = 28.dp, height = 18.dp),
                 )
+                Spacer(Modifier.width(8.dp))
+                SoundlineGlyph()
                 Spacer(Modifier.width(14.dp))
                 DesktopToolbarButton(onClick = onBack, enabled = canGoBack, size = 32.dp) {
                     Icon(
@@ -3991,7 +3998,8 @@ private fun DesktopPlaybackBar(
     Column(
         Modifier
             .fillMaxWidth()
-            .background(DesktopSurfaceRaised.copy(alpha = 0.72f)),
+            .background(GlassTokens.navSurface)
+            .glassEdge(RectangleShape),
     ) {
         HorizontalDivider(
             modifier = Modifier.fillMaxWidth(),
@@ -4293,9 +4301,9 @@ private fun DesktopSidebar(
             .fillMaxHeight()
             .desktopWindowGlass(DesktopChromeEdge.END, fade = 0.07f),
     ) {
-        // The sidebar's own surface: the emerald Liquid Glass tone at partial alpha over the
+        // The sidebar's own surface: the Living Sound navigation glass over the
         // window glass, set off from the page by the hairline along its end edge below.
-        Box(Modifier.matchParentSize().background(DesktopSurfaceRaised.copy(alpha = 0.45f)))
+        Box(Modifier.matchParentSize().background(GlassTokens.navSurface))
         Column(Modifier.fillMaxSize()) {
             // The sidebar runs to the top of the window, so its head is the window's caption: the
             // three buttons, and room to take hold of the window by.
@@ -4371,13 +4379,9 @@ private fun DesktopSidebar(
             Spacer(Modifier.height(12.dp))
             // The library section: the account's and the local playlists the sidebar has
             // always listed, now under their own heading.
-            Text(
+            Eyebrow(
                 "Playlists",
                 modifier = Modifier.padding(start = 12.dp),
-                color = DesktopSecondary,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
             )
             Spacer(Modifier.height(8.dp))
             LazyColumn(
@@ -4463,7 +4467,12 @@ private fun DesktopSidebarItem(
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
         )
+        if (selected) {
+            Spacer(Modifier.width(8.dp))
+            NavWaveIndicator()
+        }
     }
 }
 

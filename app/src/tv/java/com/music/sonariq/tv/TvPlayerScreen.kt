@@ -72,6 +72,7 @@ import com.music.sonariq.data.lyrics.LyricsSource
 import com.music.sonariq.data.model.Song
 import com.music.sonariq.data.model.artworkAt
 import com.music.sonariq.data.settings.AppSettings
+import com.music.sonariq.ui.player.GlassTokens
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
@@ -234,7 +235,7 @@ fun TvPlayerScreen(
                         .size(56.dp)
                         .scale(if (backFocused) 1.06f else 1f)
                         .background(
-                            MaterialTheme.colorScheme.surfaceContainerHigh,
+                            GlassTokens.playbackSurface,
                             CircleShape,
                         )
                         .border(
@@ -252,7 +253,7 @@ fun TvPlayerScreen(
                     )
                 }
                 Spacer(Modifier.height(24.dp))
-                // Large sleeve artwork: uniform 16dp corners, one static
+                // Large sleeve artwork: the Living Sound hero corner, one static
                 // soft shadow (no blur, no per-frame cost).
                 AsyncImage(
                     model = sleeveArtwork,
@@ -262,10 +263,10 @@ fun TvPlayerScreen(
                         .size(280.dp)
                         .shadow(
                             elevation = 24.dp,
-                            shape = RoundedCornerShape(16.dp),
+                            shape = GlassTokens.heroShape,
                             clip = false,
                         )
-                        .clip(RoundedCornerShape(16.dp)),
+                        .clip(GlassTokens.heroShape),
                 )
                 Spacer(Modifier.height(24.dp))
                 Text(
@@ -299,7 +300,7 @@ fun TvPlayerScreen(
                             .size(64.dp)
                             .scale(if (prevFocused) 1.06f else 1f)
                             .background(
-                                MaterialTheme.colorScheme.surfaceContainerHigh,
+                                GlassTokens.playbackSurface,
                                 CircleShape,
                             )
                             .border(
@@ -349,7 +350,7 @@ fun TvPlayerScreen(
                             .size(64.dp)
                             .scale(if (nextFocused) 1.06f else 1f)
                             .background(
-                                MaterialTheme.colorScheme.surfaceContainerHigh,
+                                GlassTokens.playbackSurface,
                                 CircleShape,
                             )
                             .border(

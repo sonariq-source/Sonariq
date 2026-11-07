@@ -62,6 +62,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.music.sonariq.BuildConfig
 import com.music.sonariq.data.admin.AdminStats
+import com.music.sonariq.ui.components.Eyebrow
+import com.music.sonariq.ui.components.SoundlineGlyph
+import com.music.sonariq.ui.player.GlassTokens
+import com.music.sonariq.ui.player.glassEdge
 import com.music.sonariq.data.admin.AdminStore
 import com.music.sonariq.data.admin.OwnerClaim
 import com.music.sonariq.data.admin.OwnerRecord
@@ -99,13 +103,17 @@ fun AdminScreen(onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        when {
-                            owner == null -> "Sonariq Admin setup"
-                            section != null -> section!!.title
-                            else -> "Sonariq Admin"
-                        },
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SoundlineGlyph()
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            when {
+                                owner == null -> "Sonariq Admin setup"
+                                section != null -> section!!.title
+                                else -> "Sonariq Admin"
+                            },
+                        )
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = { if (section != null) section = null else onBack() }) {
@@ -142,12 +150,8 @@ fun AdminScreen(onBack: () -> Unit) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(rowShape)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh, rowShape)
-                            .border(
-                                1.dp,
-                                MaterialTheme.colorScheme.outline.copy(alpha = 0.7f),
-                                rowShape,
-                            )
+                            .background(GlassTokens.panelSurface, rowShape)
+                            .glassEdge(rowShape)
                             .clickable { section = entry }
                             .padding(horizontal = 14.dp, vertical = 13.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -213,13 +217,15 @@ enum class AdminSection(val title: String, val subtitle: String, val icon: Image
 @Composable
 private fun AdminOwnerHeader(owner: OwnerRecord) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 16.dp).glassEdge(RoundedCornerShape(20.dp)),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            containerColor = GlassTokens.panelSurface,
         ),
     ) {
         Column(Modifier.padding(18.dp)) {
+            Eyebrow(text = "Admin")
+            Spacer(Modifier.height(6.dp))
             Text("Sonariq Admin", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(4.dp))
             Text(
@@ -258,6 +264,7 @@ private fun AdminClaimView(modifier: Modifier = Modifier, onClaimed: (OwnerRecor
         modifier = modifier.padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        Eyebrow(text = "Admin")
         Text("Claim ownership of this device", style = MaterialTheme.typography.titleLarge)
         Text(
             "Sonariq has no account server, so the admin panel belongs to this " +
@@ -413,10 +420,10 @@ internal fun AdminInfoCard(
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().glassEdge(RoundedCornerShape(20.dp)),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            containerColor = GlassTokens.panelSurface,
         ),
     ) {
         Column(Modifier.padding(16.dp)) {

@@ -85,7 +85,8 @@ private fun MemberDrawerRow(member: PartyMember, isYou: Boolean) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(ROW_SHAPE)
-            .background(Color.White.copy(alpha = if (isYou) 0.10f else 0.05f))
+            .background(GlassTokens.panelSurface)
+            .then(if (isYou) Modifier.glassEdge(ROW_SHAPE) else Modifier)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -151,7 +152,8 @@ private fun ManageRow(code: String?, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(ROW_SHAPE)
-            .background(Color.White.copy(alpha = 0.05f))
+            .background(GlassTokens.panelSurface)
+            .glassEdge(ROW_SHAPE)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,

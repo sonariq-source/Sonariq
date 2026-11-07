@@ -88,6 +88,7 @@ import com.music.sonariq.download.DownloadState
 import com.music.sonariq.download.Downloads
 import com.music.sonariq.playback.SleepTimer
 import com.music.sonariq.ui.components.thumbnailBorder
+import com.music.sonariq.ui.player.glassEdge
 import com.music.sonariq.ui.icons.SonariqIcons
 import com.music.sonariq.ui.theme.ArtworkPalette
 import com.music.sonariq.ui.theme.rememberArtworkPalette
@@ -483,7 +484,8 @@ private fun TintedSheet(
     Box(
         modifier
             .fillMaxWidth()
-            .clip(SHEET_SHAPE),
+            .clip(SHEET_SHAPE)
+            .glassEdge(SHEET_SHAPE),
     ) {
         ArtworkBackdrop(
             palette = palette,

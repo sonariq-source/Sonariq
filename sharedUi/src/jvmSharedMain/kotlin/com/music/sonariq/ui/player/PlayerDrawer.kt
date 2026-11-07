@@ -207,16 +207,17 @@ fun PlayerDrawer(
                 .onSizeChanged { height = it.height }
                 .offset { IntOffset(0, offset.roundToInt()) }
                 .clip(DRAWER_SHAPE)
+                .glassEdge(DRAWER_SHAPE)
                 .then(
                     if (reduceDynamicBlur) {
-                        Modifier.background(GlassTokens.surface)
+                        Modifier.background(GlassTokens.sheetSurface)
                     } else {
                         Modifier
                             .optimizedHazeEffect(
                                 state = hazeState,
                                 style = HazeMaterials.regular(GlassTokens.hazeTint),
                             )
-                            .background(GlassTokens.surface.copy(alpha = GlassTokens.surfaceAlpha))
+                            .background(GlassTokens.sheetSurface)
                     }
                 )
                 .clickable(

@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.music.sonariq.R
+import com.music.sonariq.ui.components.Eyebrow
 import com.music.sonariq.data.model.ROW_ART_PX
 import com.music.sonariq.data.model.artworkAt
 import com.music.sonariq.data.stats.ListeningStats
@@ -156,12 +157,7 @@ private fun WrappedEmpty(year: Int, onClose: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(
-            text = stringResource(R.string.wrapped),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.W700,
-            color = Color.White.copy(alpha = 0.55f),
-        )
+        Eyebrow(text = stringResource(R.string.wrapped))
         Spacer(Modifier.height(8.dp))
         Text(
             text = year.toString(),

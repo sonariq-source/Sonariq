@@ -28,7 +28,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -543,8 +542,8 @@ private fun VibeBadge(
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier
             .clip(pill)
-            .background(primary.copy(alpha = 0.16f))
-            .border(1.dp, primary.copy(alpha = 0.45f), pill)
+            .background(GlassTokens.playbackSurface)
+            .glassEdge(pill)
             .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -2914,6 +2913,56 @@ fun NowPlayingScreen(
                     return if (dock == null || t >= 1f) corner else lerp(dock.miniArtCorner(), corner, t)
                 }
 
+                // The echo, behind the sleeve: an offset, faded duplicate of
+                // the still cover, drawn as its own layer rather than by
+                // wrapping the sleeve in EchoArtwork — the sleeve's layout,
+                // docking portal, haze source and gesture slot are one
+                // inseparable unit (see the sleeve below and the card's slot
+                // further down, which owns the artwork's taps), so the echo
+                // is layered behind it here, in the card's own place and
+                // size, and fades away as the sleeve collapses, banners or
+                // docks. It carries no gestures of its own: every artwork
+                // gesture still lands on the sleeve and its slot exactly as
+                // before.
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            IntOffset(
+                                (artStart() + GlassTokens.echoOffset).roundToPx(),
+                                (artTop() + GlassTokens.echoOffset).roundToPx(),
+                            )
+                        }
+                        .layout { measurable, constraints ->
+                            val side = artSize().roundToPx()
+                            val placeable = measurable.measure(
+                                constraints.constrain(Constraints.fixed(side, side)),
+                            )
+                            layout(placeable.width, placeable.height) {
+                                placeable.placeRelative(0, 0)
+                            }
+                        }
+                        .graphicsLayer {
+                            val scale = cardScale()
+                            scaleX = scale
+                            scaleY = scale
+                            alpha = 0.38f * (1f - p()) * (1f - bannerShare()) * dockT()
+                        }
+                        .clip(GlassTokens.heroShape)
+                        .background(GlassTokens.panelGlass),
+                ) {
+                    AsyncImage(
+                        model = art.request,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    Box(
+                        Modifier
+                            .matchParentSize()
+                            .background(GlassTokens.accent.copy(alpha = 0.22f)),
+                    )
+                }
+
                 // The sleeve proper — card, banner and thumbnail in turn, see
                 // [sleeveRect]. Separate from the slot below, which keeps the
                 // card's place for the stats line and the gestures: a banner
@@ -3412,9 +3461,8 @@ fun NowPlayingScreen(
                             Column {
                                 MarqueeText(
                                     text = song.title,
-                                    style = MaterialTheme.typography.titleLarge.copy(
+                                    style = MaterialTheme.typography.headlineMedium.copy(
                                         fontWeight = FontWeight.SemiBold,
-                                        fontSize = 22.sp,
                                     ),
                                     color = Color.White,
                                     enabled = scrolling,
@@ -3433,11 +3481,8 @@ fun NowPlayingScreen(
                                     credits = remember(song.artist, song.artists, song.artistId) {
                                         artistCredits(song.artist, song.artists, song.artistId)
                                     },
-                                    style = MaterialTheme.typography.titleLarge.copy(
-                                        fontWeight = FontWeight.W400,
-                                        fontSize = 18.sp,
-                                    ),
-                                    color = Color.White.copy(alpha = 0.62f),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     enabled = scrolling,
                                     // A title that's also scrolling gets to go first —
                                     // starting together reads as clutter, so the artist

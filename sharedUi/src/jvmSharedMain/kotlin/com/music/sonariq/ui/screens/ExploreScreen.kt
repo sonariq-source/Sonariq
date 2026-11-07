@@ -3,7 +3,6 @@ package com.music.sonariq.ui.screens
 import com.music.sonariq.sharedui.resources.*
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyRow
@@ -50,7 +49,10 @@ import com.music.sonariq.data.model.MoodGenre
 import com.music.sonariq.data.model.MoodGenreSection
 import com.music.sonariq.data.model.ShelfItem
 import com.music.sonariq.data.model.UiState
+import com.music.sonariq.ui.components.LivingScreenHeader
+import com.music.sonariq.ui.components.LivingSectionHeader
 import com.music.sonariq.ui.components.MessageState
+import com.music.sonariq.ui.player.glassEdge
 import com.music.sonariq.ui.components.PAGE_GUTTER
 import com.music.sonariq.ui.components.PullToRefresh
 import com.music.sonariq.ui.components.ShimmerBox
@@ -99,22 +101,17 @@ fun ExploreScreen(
             ) {
                 if (showTitle) {
                     item {
-                        Column(
-                            Modifier.fillMaxWidth().padding(
+                        LivingScreenHeader(
+                            eyebrow = "Explore",
+                            title = stringResource(Res.string.explore),
+                            subtitle = "Find a mood. Find your next favorite.",
+                            modifier = Modifier.fillMaxWidth().padding(
                                 start = PAGE_GUTTER,
                                 end = PAGE_GUTTER,
                                 top = 8.dp,
                                 bottom = 16.dp,
                             ),
-                        ) {
-                            Text(
-                                text = stringResource(Res.string.explore),
-                                style = MaterialTheme.typography.displayMedium,
-                                color = MaterialTheme.colorScheme.onBackground,
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text("Find a mood. Find your next favorite.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                        )
                     }
                 }
                 if (onEraAutoplay != null) {
@@ -158,10 +155,9 @@ private fun EraAutoplayRow(onEraAutoplay: (String) -> Unit) {
             .padding(horizontal = PAGE_GUTTER)
             .padding(bottom = 16.dp),
     ) {
-        Text(
-            text = stringResource(Res.string.era),
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground,
+        LivingSectionHeader(
+            title = stringResource(Res.string.era),
+            eyebrow = "Discovery",
             modifier = Modifier.padding(bottom = 8.dp),
         )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -209,6 +205,7 @@ private fun MoodGenreRow(
                 item = item,
                 onClick = { onCategoryClick(item) },
                 onAutoplay = onCategoryAutoplay?.let { start -> { start(item) } },
+                cardHeight = if (rowIndex == 0) MOOD_LEAD_CARD_HEIGHT else MOOD_CARD_HEIGHT,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -233,14 +230,15 @@ private fun MoodGenreCard(
     item: MoodGenre,
     onClick: () -> Unit,
     onAutoplay: (() -> Unit)? = null,
+    cardHeight: Dp = MOOD_CARD_HEIGHT,
     modifier: Modifier = Modifier,
 ) {
     val shape = UniformCardShape
     var menuOpen by remember { mutableStateOf(false) }
     Box(
-        modifier = modifier.height(MOOD_CARD_HEIGHT).clip(shape)
+        modifier = modifier.height(cardHeight).clip(shape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(1.dp, Color.White.copy(alpha = 0.10f), shape)
+            .glassEdge(shape)
             .then(
                 if (onAutoplay != null) {
                     Modifier.combinedClickable(
@@ -309,6 +307,9 @@ private val MOOD_SPACING = 12.dp
 /** Every mood card is the same height; the row's columns share the width equally. */
 private val MOOD_CARD_HEIGHT = 104.dp
 
+/** The lead row's cards ride taller, so the grid opens with a wide band instead of a uniform mosaic. */
+private val MOOD_LEAD_CARD_HEIGHT = 148.dp
+
 /**
  * The narrowest a mood card is let get before the row drops a column.
  *
@@ -360,12 +361,9 @@ fun MoodGenrePlaylistsScreen(
         modifier = modifier.fillMaxSize(),
     ) {
         item {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.displayMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            LivingScreenHeader(
+                eyebrow = "Explore",
+                title = title,
                 modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
             )
         }

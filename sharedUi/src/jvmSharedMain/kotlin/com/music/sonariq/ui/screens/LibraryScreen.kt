@@ -72,6 +72,9 @@ import com.music.sonariq.ui.components.SHELF_CARD_WIDTH
 import com.music.sonariq.ui.components.libraryGrid
 import com.music.sonariq.ui.components.librarySkeleton
 import com.music.sonariq.ui.components.longPressMenuClickable
+import com.music.sonariq.ui.components.LivingScreenHeader
+import com.music.sonariq.ui.components.LivingSectionHeader
+import com.music.sonariq.ui.components.SpineFeatureCard
 
 /**
  * The signed-in library: the saved collections, as shelves of cards.
@@ -159,10 +162,9 @@ fun LibraryScreen(
                 item {
                     Column(Modifier.fillMaxWidth().padding(horizontal = PAGE_GUTTER, vertical = 12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                stringResource(Res.string.library),
-                                style = MaterialTheme.typography.displayMedium,
-                                color = MaterialTheme.colorScheme.onBackground,
+                            LivingScreenHeader(
+                                eyebrow = "Library",
+                                title = stringResource(Res.string.library),
                                 modifier = Modifier.weight(1f),
                             )
                             if (onSearchLibrary != null) {
@@ -406,8 +408,12 @@ private fun LibraryLinkList(links: List<LibraryLink>, onClick: (ShelfItem) -> Un
         modifier = Modifier.padding(top = 6.dp, bottom = SECTION_BOTTOM_PADDING).fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SectionHeader("Quick access")
-        links.forEach { link ->
+        LivingSectionHeader(
+            title = "Quick access",
+            eyebrow = "Collection",
+            modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 12.dp),
+        )
+        links.forEachIndexed { index, link ->
             val isLiked = link.item.browseId == YtMusicRepository.LIKED_MUSIC
             val cardShape = RoundedCornerShape(16.dp)
             val titleColor = if (isLiked) {
@@ -420,14 +426,18 @@ private fun LibraryLinkList(links: List<LibraryLink>, onClick: (ShelfItem) -> Un
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
             }
+            val featured = index == 0 && !isLiked
+            val linkRow: @Composable () -> Unit = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .padding(horizontal = PAGE_GUTTER)
+                    .padding(horizontal = if (featured) 0.dp else PAGE_GUTTER)
                     .fillMaxWidth()
                     .clip(cardShape)
                     .then(
-                        if (isLiked) {
+                        if (featured) {
+                            Modifier
+                        } else if (isLiked) {
                             Modifier.background(
                                 Brush.horizontalGradient(
                                     listOf(
@@ -501,6 +511,15 @@ private fun LibraryLinkList(links: List<LibraryLink>, onClick: (ShelfItem) -> Un
                     modifier = Modifier.size(20.dp),
                 )
             }
+            }
+            if (featured) {
+                SpineFeatureCard(
+                    modifier = Modifier.padding(horizontal = PAGE_GUTTER).fillMaxWidth(),
+                    onClick = { onClick(link.item) },
+                ) { linkRow() }
+            } else {
+                linkRow()
+            }
         }
     }
 }
@@ -527,7 +546,11 @@ private fun FeaturedSection(
     Column(Modifier.padding(bottom = SECTION_BOTTOM_PADDING)) {
         // The shared section header, so Featured's heading matches every
         // other shelf heading on this page and on Home.
-        SectionHeader(title = stringResource(Res.string.featured))
+        LivingSectionHeader(
+            title = stringResource(Res.string.featured),
+            eyebrow = "Featured",
+            modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 12.dp),
+        )
         ShelfRow(
             contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
             horizontalArrangement = Arrangement.spacedBy(LIBRARY_GRID_SPACING),
@@ -554,13 +577,14 @@ private fun FeaturedCard(
     // (the same as the Quick access cards above), 12 dp for the artwork.
     val tileShape = RoundedCornerShape(16.dp)
     val artShape = UniformCardShape
+    SpineFeatureCard(
+        modifier = Modifier.width(FEATURED_CARD_WIDTH),
+        onClick = onClick,
+    ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
-            .width(FEATURED_CARD_WIDTH)
-            .clip(tileShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), tileShape)
+            .fillMaxWidth()
             .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
             .padding(12.dp),
     ) {
@@ -604,6 +628,7 @@ private fun FeaturedCard(
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .6f),
             modifier = Modifier.size(20.dp),
         )
+    }
     }
 }
 
@@ -677,11 +702,24 @@ internal fun LibraryGridShelf(
     val leadingCount = if (leadingCard != null) 1 else 0
     val visibleItems = shelf.items.take((LIBRARY_ROW_MAX_ITEMS - leadingCount).coerceAtLeast(0))
     Column(Modifier.padding(bottom = SECTION_BOTTOM_PADDING)) {
-        SectionHeader(
-            title = shelf.title,
-            subtitle = shelf.subtitle,
-            onShowAll = onShowAll.takeIf { shelf.items.size + leadingCount > LIBRARY_ROW_MAX_ITEMS },
-        )
+        Column(Modifier.fillMaxWidth().padding(horizontal = PAGE_GUTTER, vertical = 12.dp)) {
+            LivingSectionHeader(
+                title = localizeShelfTitle(shelf.title),
+                actionLabel = stringResource(Res.string.show_all)
+                    .takeIf { shelf.items.size + leadingCount > LIBRARY_ROW_MAX_ITEMS },
+                onAction = onShowAll.takeIf { shelf.items.size + leadingCount > LIBRARY_ROW_MAX_ITEMS },
+            )
+            val shelfSubtitle = localizeShelfSubtitle(shelf.subtitle)
+            if (shelfSubtitle.isNotBlank()) {
+                Text(
+                    shelfSubtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
         ShelfRow(
             contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
             horizontalArrangement = Arrangement.spacedBy(LIBRARY_GRID_SPACING),

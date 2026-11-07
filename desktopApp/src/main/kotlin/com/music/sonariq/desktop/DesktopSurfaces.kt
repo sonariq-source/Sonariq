@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.border
@@ -27,23 +26,24 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.music.sonariq.ui.player.GlassTokens
 
 // The look every modal card in the app shares.
 
-/** The card fill. */
-internal val DesktopCardFill = Color(0xFA121D17)
+/** The card fill: the Living Sound sheet tier, for dialogs and menus. */
+internal val DesktopCardFill = GlassTokens.sheetSurface
 
 /** A block inside a card — a settings group — lifted just off the fill. */
 internal val DesktopCardInsetFill = Color(0x14FFFFFF)
 
 /** The hairline that bounds a card, and separates one row from the next. */
-internal val DesktopCardEdge = Color(0x1FFFFFFF)
+internal val DesktopCardEdge = GlassTokens.hairline
 
 /** What a row reads at while the pointer is on it. */
 internal val DesktopRowHover = Color(0x1AFFFFFF)
 
 /** The scrim a modal card sits on. */
-internal val DesktopScrim = Color(0x8C000000)
+internal val DesktopScrim = GlassTokens.scrim
 
 /** Card, hairline and all. */
 internal fun Modifier.desktopCard(shape: Shape): Modifier =
@@ -161,7 +161,7 @@ internal fun DesktopDialogPanel(
                     onClick = onDismiss,
                 ),
         )
-        val shape = RoundedCornerShape(20.dp)
+        val shape = GlassTokens.panelShape
         Box(
             Modifier
                 .widthIn(max = maxWidth.dp)

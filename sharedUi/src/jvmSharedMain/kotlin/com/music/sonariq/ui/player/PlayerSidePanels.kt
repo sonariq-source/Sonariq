@@ -1,5 +1,6 @@
 package com.music.sonariq.ui.player
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -72,7 +73,7 @@ fun LyricsSidePanel(
     // The provider drawer frosts this column, not the page beside it.
     val haze = remember { HazeState() }
 
-    Box(modifier) {
+    Box(modifier.background(GlassTokens.panelSurface)) {
         Box(Modifier.fillMaxSize().hazeSource(haze)) {
             LandscapeLyricsPane(
                 hasLyrics = lyricsTranslation.displayedLyrics.isNotEmpty(),
@@ -152,6 +153,6 @@ fun QueueSidePanel(
         onMove = onMove,
         onClear = onClear,
         onToggleAutoplay = onToggleAutoplay,
-        modifier = modifier,
+        modifier = modifier.background(GlassTokens.panelSurface),
     )
 }

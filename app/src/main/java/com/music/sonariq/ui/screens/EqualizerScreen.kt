@@ -85,6 +85,8 @@ import com.music.sonariq.playback.EqLayout
 import com.music.sonariq.playback.EqualizerPreset
 import com.music.sonariq.playback.dspEffectAvailability
 import com.music.sonariq.ui.haptics.Haptic
+import com.music.sonariq.ui.components.LivingScreenHeader
+import com.music.sonariq.ui.player.GlassTokens
 import com.music.sonariq.ui.haptics.rememberHaptics
 import com.music.sonariq.ui.theme.SonariqGreen
 import com.music.sonariq.ui.theme.SonariqLime
@@ -141,13 +143,12 @@ fun EqualizerScreen(
             .verticalScroll(rememberScrollState())
             .padding(contentPadding),
     ) {
-        Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp)) {
-            Text("Shape your sound", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(5.dp))
-            Text(stringResource(R.string.equalizer), style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.onBackground)
-            Spacer(Modifier.height(3.dp))
-            Text("Fine-tune the details of your listening experience.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        LivingScreenHeader(
+            eyebrow = "Shape your sound",
+            title = stringResource(R.string.equalizer),
+            subtitle = "Fine-tune the details of your listening experience.",
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp),
+        )
         SettingsGroup(
             footer = stringResource(R.string.equalizer_footer),
             topSpacing = 8.dp,
@@ -367,7 +368,7 @@ fun EqualizerScreen(
     if (pickingPreset) {
         ModalBottomSheet(
             onDismissRequest = { pickingPreset = false },
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = GlassTokens.sheetSurface,
         ) {
             PresetSheet(
                 selected = preset,

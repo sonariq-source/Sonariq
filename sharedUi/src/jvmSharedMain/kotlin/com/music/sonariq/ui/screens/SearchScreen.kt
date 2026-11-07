@@ -80,6 +80,8 @@ import com.music.sonariq.data.model.isSameTrackAs
 import com.music.sonariq.data.model.UiState
 import com.music.sonariq.data.model.SearchHistoryEntity
 import com.music.sonariq.data.model.EntityType
+import com.music.sonariq.ui.components.LivingScreenHeader
+import com.music.sonariq.ui.components.LivingSectionHeader
 import com.music.sonariq.ui.components.MessageState
 import com.music.sonariq.ui.components.PAGE_GUTTER
 import com.music.sonariq.ui.components.RowMoreButton
@@ -208,13 +210,12 @@ fun SearchScreen(
         val successSections = (results as? UiState.Success<List<SearchResult>>)?.data?.let { uiSearchSections(it, filter) }.orEmpty()
         Column(modifier = Modifier.padding(top = topPadding)) {
             if (showField && query.isBlank() && !searchingLibrary) {
-                Column(
+                LivingScreenHeader(
+                    eyebrow = "Search",
+                    title = "What sounds good?",
+                    subtitle = "Songs, artists, albums and playlists — all in one place.",
                     modifier = Modifier.fillMaxWidth().padding(start = PAGE_GUTTER, end = PAGE_GUTTER, top = 8.dp, bottom = 16.dp),
-                ) {
-                    Text("What sounds good?", style = MaterialTheme.typography.displayMedium, color = MaterialTheme.colorScheme.onBackground)
-                    Spacer(Modifier.height(4.dp))
-                    Text("Songs, artists, albums and playlists — all in one place.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                )
             }
             if (showField) {
                 SearchField(
@@ -775,30 +776,17 @@ private fun LazyListScope.recentSearches(
     onClear: () -> Unit,
 ) {
     item(key = "recent:header") {
-        Row(
+        // Living Sound section header; Clear rides its action slot with the
+        // same callback, so the history heading matches the results state's.
+        LivingSectionHeader(
+            title = stringResource(Res.string.recent_searches),
+            eyebrow = "Search",
+            actionLabel = stringResource(Res.string.clear),
+            onAction = onClear,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = PAGE_GUTTER, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Same heading style and action treatment as SectionHeader, so
-            // the history state's heading matches the results state's.
-            Text(
-                text = stringResource(Res.string.recent_searches),
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                text = stringResource(Res.string.clear),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onClear)
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-            )
-        }
+        )
     }
     items(history, key = { "recent:${it.id}" }) { entity ->
         RecentSearchEntityRow(

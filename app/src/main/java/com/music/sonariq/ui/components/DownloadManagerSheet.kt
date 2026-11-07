@@ -61,6 +61,7 @@ import com.music.sonariq.download.DownloadProgress
 import com.music.sonariq.download.DownloadSession
 import com.music.sonariq.download.Downloads
 import com.music.sonariq.ui.haptics.Haptic
+import com.music.sonariq.ui.player.GlassTokens
 import com.music.sonariq.ui.haptics.rememberHaptics
 
 /**
@@ -197,7 +198,7 @@ fun DownloadManagerSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
     // Newest ask last, the order the queue will actually reach them in.
     val items = remember(session.items) { session.items.sortedBy { it.sequence } }
 
-    Column(modifier.fillMaxWidth()) {
+    Column(modifier.fillMaxWidth().background(GlassTokens.sheetSurface)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()

@@ -33,6 +33,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.sonariq.R
+import com.music.sonariq.ui.components.LivingScreenHeader
 import com.music.sonariq.data.model.Account
 import com.music.sonariq.data.scrobbling.PrivateSession
 import com.music.sonariq.data.settings.AppSettings
@@ -77,13 +78,12 @@ fun AccountAndScrobblingScreen(
             .verticalScroll(rememberScrollState())
             .padding(contentPadding),
     ) {
-        Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp)) {
-            Text("Connected accounts", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(5.dp))
-            Text(stringResource(R.string.account_integrations), style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.onBackground)
-            Spacer(Modifier.height(3.dp))
-            Text("Manage accounts and listening history services.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        LivingScreenHeader(
+            eyebrow = "Connected accounts",
+            title = stringResource(R.string.account_integrations),
+            subtitle = "Manage accounts and listening history services.",
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp),
+        )
 
         // One card: who is signed in, which profile is listening, and the way
         // out, with the explanation of profiles underneath.

@@ -60,7 +60,8 @@ internal fun VocalRemoverSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(GlassTokens.rowShape)
-                .background(GlassTokens.controlTint)
+                .background(GlassTokens.panelSurface)
+                .glassEdge(GlassTokens.rowShape)
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),

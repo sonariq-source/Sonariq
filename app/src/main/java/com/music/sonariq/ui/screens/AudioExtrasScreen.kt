@@ -40,6 +40,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.sonariq.R
 import com.music.sonariq.data.settings.AppSettings
+import com.music.sonariq.ui.components.Eyebrow
+import com.music.sonariq.ui.player.GlassTokens
+import com.music.sonariq.ui.player.glassEdge
 import com.music.sonariq.data.settings.AudioQuality
 import com.music.sonariq.playback.AudioOutputStatus
 import com.music.sonariq.playback.AudioRouting
@@ -96,11 +99,14 @@ fun AudioExtrasScreen(onBack: () -> Unit) {
                     contentDescription = stringResource(R.string.back),
                 )
             }
-            Text(
-                text = stringResource(R.string.sound_and_data),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
+            Column {
+                Eyebrow(text = "Sound")
+                Text(
+                    text = stringResource(R.string.sound_and_data),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+            }
         }
 
         Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -273,8 +279,8 @@ private fun ExtrasPanel(title: String, content: @Composable ColumnScope.() -> Un
             .padding(horizontal = 16.dp)
             .padding(top = 14.dp)
             .clip(panelShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh, panelShape)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), panelShape)
+            .background(GlassTokens.panelSurface, panelShape)
+            .glassEdge(panelShape)
             .padding(vertical = 6.dp),
     ) {
         ExtrasSectionTitle(title)

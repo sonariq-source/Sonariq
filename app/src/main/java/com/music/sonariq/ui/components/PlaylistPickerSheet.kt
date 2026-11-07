@@ -63,6 +63,7 @@ import com.music.sonariq.data.model.Song
 import com.music.sonariq.data.model.UserPlaylist
 import com.music.sonariq.data.model.artworkAt
 import com.music.sonariq.ui.components.thumbnailBorder
+import com.music.sonariq.ui.player.GlassTokens
 import com.music.sonariq.ui.icons.SonariqIcons
 import java.util.Locale
 
@@ -109,7 +110,7 @@ fun PlaylistPickerSheet(
         return
     }
 
-    Column(modifier.fillMaxWidth()) {
+    Column(modifier.fillMaxWidth().background(GlassTokens.sheetSurface)) {
         if (song != null) {
             SheetTrackHeader(song)
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)

@@ -64,6 +64,9 @@ import com.music.sonariq.data.model.Song
 import com.music.sonariq.data.model.artworkAt
 import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.ui.components.ChoiceAlert
+import com.music.sonariq.ui.components.LivingScreenHeader
+import com.music.sonariq.ui.player.GlassTokens
+import com.music.sonariq.ui.player.glassEdge
 import com.music.sonariq.ui.components.DiscordTokenAlert
 import com.music.sonariq.ui.components.TextValueAlert
 import com.music.sonariq.ui.components.thumbnailBorder
@@ -211,13 +214,12 @@ fun DiscordScreen(
             .verticalScroll(rememberScrollState())
             .padding(contentPadding),
     ) {
-        Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp)) {
-            Text("STATUS & PRESENCE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(5.dp))
-            Text(stringResource(R.string.discord), style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.onBackground)
-            Spacer(Modifier.height(3.dp))
-            Text("Share what you are listening to.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        LivingScreenHeader(
+            eyebrow = "Status & Presence",
+            title = stringResource(R.string.discord),
+            subtitle = "Share what you are listening to.",
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp),
+        )
 
         DiscordAccountCard(
             connected = connected,
@@ -439,13 +441,13 @@ private fun DiscordAccountCard(
     icon: ImageVector,
     onConnect: () -> Unit,
 ) {
-    val cardColor = MaterialTheme.colorScheme.surfaceVariant
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = GROUP_INSET)
             .clip(GroupShape)
-            .background(cardColor)
+            .background(GlassTokens.panelSurface)
+            .glassEdge(GroupShape)
             .then(if (connected) Modifier else Modifier.clickable(onClick = onConnect))
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -481,7 +483,7 @@ private fun DiscordAccountCard(
                         .align(Alignment.BottomEnd)
                         // Discord rings the dot in the card's own colour so it
                         // reads as punched out of the avatar rather than on it.
-                        .border(2.5.dp, cardColor, CircleShape)
+                        .border(2.5.dp, GlassTokens.panelSurface, CircleShape)
                         .padding(2.5.dp)
                         .clip(CircleShape)
                         .background(
@@ -538,7 +540,8 @@ private fun NoticeCard(text: String, onDismiss: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(GroupShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .background(GlassTokens.panelSurface)
+                .glassEdge(GroupShape)
                 .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 4.dp),
         ) {
             Text(
