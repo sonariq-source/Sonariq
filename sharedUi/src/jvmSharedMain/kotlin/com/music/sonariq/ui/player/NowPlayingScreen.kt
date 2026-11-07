@@ -1964,6 +1964,7 @@ fun NowPlayingScreen(
                             PlayerScrubber(
                                 shown = shown,
                                 durationMs = durationMs,
+                                seedKey = song.videoId,
                                 loading = versionAligning || audioVersionSwitching,
                                 mixing = mixing && !scrub.scrubbing,
                                 transitionWindow = transitionWindow
@@ -3772,6 +3773,7 @@ fun NowPlayingScreen(
             PlayerScrubber(
                 shown = shown,
                 durationMs = durationMs,
+                seedKey = song.videoId,
                 loading = versionSwitching,
                 mixing = mixing && !scrub.scrubbing,
                 // Hidden while scrubbing: the planner is still describing

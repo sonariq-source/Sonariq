@@ -98,12 +98,16 @@ val SonariqDisplay = Inter
 val SpaceGrotesk = SonariqDisplay
 
 private val SonariqTypography = Typography(
-    displayLarge = TextStyle(fontFamily = SonariqDisplay, fontWeight = FontWeight.W700, fontSize = 40.sp, lineHeight = 44.sp, letterSpacing = (-0.8).sp),
-    displayMedium = TextStyle(fontFamily = SonariqDisplay, fontWeight = FontWeight.W700, fontSize = 34.sp, lineHeight = 38.sp, letterSpacing = (-0.6).sp),
-    displaySmall = TextStyle(fontFamily = SonariqDisplay, fontWeight = FontWeight.W700, fontSize = 28.sp, lineHeight = 32.sp, letterSpacing = (-0.4).sp),
-    headlineLarge = TextStyle(fontFamily = SonariqDisplay, fontWeight = FontWeight.W700, fontSize = 32.sp, lineHeight = 36.sp, letterSpacing = (-0.5).sp),
-    headlineMedium = TextStyle(fontFamily = SonariqDisplay, fontWeight = FontWeight.W700, fontSize = 26.sp, lineHeight = 30.sp, letterSpacing = (-0.3).sp),
-    headlineSmall = TextStyle(fontFamily = SonariqDisplay, fontWeight = FontWeight.W700, fontSize = 21.sp, lineHeight = 25.sp, letterSpacing = (-0.15).sp),
+    // Living Sound scale: display sizes run large and tight — negative
+    // tracking pulls the big titles together — while metadata drops to
+    // controlled medium weights so a screen's hierarchy is carried by size
+    // and spacing, not by boldness everywhere.
+    displayLarge = TextStyle(fontFamily = SonariqDisplay, fontWeight = FontWeight.W700, fontSize = 44.sp, lineHeight = 46.sp, letterSpacing = (-1.2).sp),
+    displayMedium = TextStyle(fontFamily = SonariqDisplay, fontWeight = FontWeight.W700, fontSize = 36.sp, lineHeight = 39.sp, letterSpacing = (-0.9).sp),
+    displaySmall = TextStyle(fontFamily = SonariqDisplay, fontWeight = FontWeight.W700, fontSize = 29.sp, lineHeight = 33.sp, letterSpacing = (-0.6).sp),
+    headlineLarge = TextStyle(fontFamily = SonariqDisplay, fontWeight = FontWeight.W700, fontSize = 32.sp, lineHeight = 35.sp, letterSpacing = (-0.7).sp),
+    headlineMedium = TextStyle(fontFamily = SonariqDisplay, fontWeight = FontWeight.W700, fontSize = 26.sp, lineHeight = 30.sp, letterSpacing = (-0.45).sp),
+    headlineSmall = TextStyle(fontFamily = SonariqDisplay, fontWeight = FontWeight.W700, fontSize = 21.sp, lineHeight = 25.sp, letterSpacing = (-0.25).sp),
     titleLarge = TextStyle(fontFamily = SonariqDisplay, fontWeight = FontWeight.W700, fontSize = 22.sp, lineHeight = 26.sp),
     titleMedium = TextStyle(fontFamily = Inter, fontWeight = FontWeight.W600, fontSize = 15.sp, letterSpacing = (-0.1).sp),
     titleSmall = TextStyle(fontFamily = Inter, fontWeight = FontWeight.W600, fontSize = 13.sp),

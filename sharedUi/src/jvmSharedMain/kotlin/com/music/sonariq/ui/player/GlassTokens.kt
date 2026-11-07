@@ -1,7 +1,15 @@
 package com.music.sonariq.ui.player
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Stable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 
 /**
@@ -71,4 +79,97 @@ object GlassTokens {
 
     /** A sheet's grab handle. */
     val handle = Color.White.copy(alpha = 0.25f)
+
+    // ------------------------------------------------------------------
+    // Living Sound material tiers.
+    //
+    // One glass recipe at four depths, so a surface's transparency says
+    // what it is before anything is read: navigation is the most solid
+    // thing on screen, playback controls floating over artwork are the
+    // lightest, and sheets sit between. Each tier is a tint plus the
+    // alpha that tint is laid at — the tiers are colours, not blur:
+    // nothing here samples or blurs a backdrop per frame, so the tiers
+    // cost the same to draw as the flat tints they replace.
+    // ------------------------------------------------------------------
+
+    /** Navigation glass: the docked bar and the desktop rails. Most opaque. */
+    val navGlass = Color(0xFF0D1511)
+    const val navGlassAlpha = 0.96f
+
+    /** Panel glass: cards, panels, section surfaces. */
+    val panelGlass = Color(0xFF121D17)
+    const val panelGlassAlpha = 0.88f
+
+    /** Playback glass: transport and pills floating over artwork. Most translucent. */
+    val playbackGlass = Color(0xFF17251D)
+    const val playbackGlassAlpha = 0.58f
+
+    /** Sheet glass: dialogs, menus and bottom sheets. Nearly solid. */
+    val sheetGlass = Color(0xFF17251D)
+    const val sheetGlassAlpha = 0.94f
+
+    /** The tier colours at their tier alphas, ready to paint with. */
+    val navSurface: Color get() = navGlass.copy(alpha = navGlassAlpha)
+    val panelSurface: Color get() = panelGlass.copy(alpha = panelGlassAlpha)
+    val playbackSurface: Color get() = playbackGlass.copy(alpha = playbackGlassAlpha)
+    val sheetSurface: Color get() = sheetGlass.copy(alpha = sheetGlassAlpha)
+
+    /**
+     * The edge light every glass surface carries on its top edge: a 1 dp
+     * line of white at low alpha, brighter than the hairline around the
+     * rest of the outline, so the surface reads as a physical sheet with
+     * light falling on it rather than a translucent rectangle.
+     */
+    val edgeLight = Color.White.copy(alpha = 0.16f)
+
+    /** The edge light at the strength used on the smallest controls. */
+    val edgeLightSoft = Color.White.copy(alpha = 0.10f)
+
+    /** Feature and hero artwork: the large Living Sound corner. */
+    val heroShape = RoundedCornerShape(24.dp)
+
+    /** The echo offset: how far a hero artwork's echo layer sits behind it. */
+    val echoOffset = 12.dp
+
+    /** The feature-card spine: a thin emerald rule on a card's leading edge. */
+    val spineWidth = 3.dp
+    val spineColor: Color get() = accent
 }
+
+/**
+ * The Living Sound glass edge: a hairline border whose top edge carries
+ * the tier's edge light. Implemented as a vertical-gradient border plus
+ * a single drawn top line — static geometry, drawn once per layout, no
+ * backdrop sampling and nothing per frame.
+ */
+@Stable
+fun Modifier.glassEdge(
+    shape: Shape,
+    topAlpha: Float = 0.16f,
+    restAlpha: Float = 0.08f,
+): Modifier = this
+    .border(
+        BorderStroke(
+            GlassTokens.hairlineWidth,
+            Brush.verticalGradient(
+                listOf(
+                    Color.White.copy(alpha = topAlpha),
+                    Color.White.copy(alpha = restAlpha),
+                ),
+            ),
+        ),
+        shape,
+    )
+    .drawWithContent {
+        drawContent()
+        // The gradient border alone rounds its bright segment into the
+        // corners; a straight 1 dp line across the top keeps the light
+        // reading as an edge, not a glow.
+        val y = GlassTokens.hairlineWidth.toPx() / 2f
+        drawLine(
+            color = Color.White.copy(alpha = topAlpha),
+            start = Offset(size.width * 0.08f, y),
+            end = Offset(size.width * 0.92f, y),
+            strokeWidth = GlassTokens.hairlineWidth.toPx(),
+        )
+    }

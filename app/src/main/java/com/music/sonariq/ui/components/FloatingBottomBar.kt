@@ -62,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.ui.haptics.Haptic
 import com.music.sonariq.ui.haptics.rememberHaptics
+import com.music.sonariq.ui.player.GlassTokens
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
@@ -159,10 +160,11 @@ internal const val SQUASH = 0.5f
 /**
  * Sonariq's navigation: a docked, full-width glass bar flush with the bottom
  * of the screen. Every destination shows its icon over its label; the
- * selected one carries an emerald pill behind the icon and an emerald label.
- * The bar itself is glass — the theme's elevated surface with a hairline
- * along its top edge — and it pads itself by the navigation-bar inset so it
- * sits correctly over gesture and three-button navigation alike.
+ * selected one is marked by the soundline — a five-bar mini waveform under
+ * its label — instead of a pill. The bar itself is navigation-tier glass
+ * with the edge light along its top edge, and it pads itself by the
+ * navigation-bar inset so it sits correctly over gesture and three-button
+ * navigation alike.
  */
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
@@ -177,7 +179,7 @@ fun FloatingBottomBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .background(GlassTokens.navSurface)
             .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
         Box(
@@ -185,7 +187,7 @@ fun FloatingBottomBar(
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(Color.White.copy(alpha = 0.10f)),
+                .background(GlassTokens.edgeLight),
         )
         Row(
             modifier = Modifier
@@ -215,11 +217,6 @@ private fun DockedTab(
     modifier: Modifier = Modifier,
 ) {
     val haptics = rememberHaptics()
-    val pillFill by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Color.Transparent,
-        animationSpec = if (animate) tween(220) else snap(),
-        label = "tabPillFill",
-    )
     val tint by animateColorAsState(
         targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         animationSpec = if (animate) tween(220) else snap(),
@@ -241,9 +238,7 @@ private fun DockedTab(
         Box(
             modifier = Modifier
                 .width(52.dp)
-                .height(30.dp)
-                .clip(RoundedCornerShape(percent = 50))
-                .background(pillFill),
+                .height(30.dp),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -261,5 +256,16 @@ private fun DockedTab(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        // The selection marker's slot is always present so the bar's height
+        // never breathes as selection moves; the soundline itself only
+        // sounds under the selected tab.
+        Box(
+            modifier = Modifier.height(12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) {
+                NavWaveIndicator(color = tint)
+            }
+        }
     }
 }

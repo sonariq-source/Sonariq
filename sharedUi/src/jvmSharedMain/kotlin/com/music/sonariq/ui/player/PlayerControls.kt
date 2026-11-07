@@ -189,13 +189,15 @@ internal fun PlayerScrubber(
      */
     shown: () -> Float,
     durationMs: Long,
-    /** A version switch's wait, drawn along the bar — see [ThinSlider.loading]. */
+    /** A version switch's wait, drawn along the bar — see [WaveformSeekBar]. */
     loading: Boolean,
     /** An analysed Automix handoff, drawn as a travelling sheen. */
     mixing: Boolean,
     transitionWindow: ClosedFloatingPointRange<Float>?,
     onScrub: (Float) -> Unit,
     onScrubFinished: () -> Unit,
+    /** The track id the waveform bar's heights are hashed from. */
+    seedKey: String = "",
     centerLabel: @Composable BoxScope.() -> Unit = {},
 ) {
     val shown = shown()
@@ -208,21 +210,21 @@ internal fun PlayerScrubber(
     // One clock for the bar and the "Mixing" label, so they breathe on the same beat.
     val mixPulse = rememberMixPulse({ mixBlend.value }, enabled = !reduceAnimation)
     Column(Modifier.fillMaxWidth()) {
-        ThinSlider(
+        WaveformSeekBar(
             value = shown,
             onValueChange = onScrub,
             onValueChangeFinished = onScrubFinished,
-            loading = loading,
-            mixing = mixing,
+            seedKey = seedKey,
+            loading = loading || mixing,
             mixPulse = mixPulse,
             transitionWindow = transitionWindow,
         )
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                // The slider's touch target extends well past the drawn bar,
-                // so pull the labels back up under it.
-                .offset(y = (-9).dp),
+                // The waveform bar is drawn at its full touch height, so the
+                // labels sit just under it with a small breathing gap.
+                .offset(y = 2.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
