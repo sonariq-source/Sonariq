@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -40,15 +38,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -120,7 +112,7 @@ fun ExploreScreen(
                                 style = MaterialTheme.typography.displayMedium,
                                 color = MaterialTheme.colorScheme.onBackground,
                             )
-                            Spacer(Modifier.height(3.dp))
+                            Spacer(Modifier.height(4.dp))
                             Text("Find a mood. Find your next favorite.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -168,18 +160,21 @@ private fun EraAutoplayRow(onEraAutoplay: (String) -> Unit) {
     ) {
         Text(
             text = stringResource(Res.string.era),
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.padding(bottom = 8.dp),
         )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(ERA_DECADES, key = { it }) { decade ->
+                // Same chip geometry as the Search filter row and the
+                // Library chips — 12 dp corner, 14 by 8 dp padding, 8 dp
+                // gaps — so tappable chips read as one system app-wide.
                 Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(50))
+                        .clip(RoundedCornerShape(12.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable { onEraAutoplay(decade) }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -223,9 +218,11 @@ private fun MoodGenreRow(
 }
 
 /**
- * A solid stripe down the left and the category's cover filling the rest,
- * redrawn as a duotone of the stripe's colour so every card reads as one
- * tinted sleeve rather than a photo pasted onto a swatch.
+ * The category's cover filling the whole card at the uniform 12 dp corner,
+ * a dark gradient rising from the foot so the title stays legible over any
+ * artwork, and the title set at the card's bottom-left on the grid's own
+ * 12 dp inset. Every card is the same height and shape, so the discovery
+ * grid reads as one regular grid rather than a mosaic.
  *
  * [onAutoplay] is the card's held-press menu: "Start Autoplay" builds this
  * category's autoplay queue through the host. Null where the host offers no
@@ -273,7 +270,7 @@ private fun MoodGenreCard(
             ),
         )
         Column(
-            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
+            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
         ) {
             Text(
                 item.title,
@@ -306,66 +303,11 @@ private fun MoodGenreCard(
     }
 }
 
-private class MoodTone(val stripe: Color, val placeholder: Color, val duotone: ColorFilter)
-
-private fun moodTone(item: MoodGenre): MoodTone {
-    val base = item.stripeColor?.let { Color(it.toInt()) } ?: fallbackMoodColor(item.title)
-    // YouTube's palette is already pastel; a touch of black keeps it from
-    // glowing against the black page.
-    val stripe = lerp(base, Color.Black, .08f)
-    val shadow = lerp(base, Color.Black, .68f)
-    val highlight = lerp(base, Color.White, .32f)
-    return MoodTone(
-        stripe = stripe,
-        placeholder = lerp(shadow, highlight, .45f),
-        duotone = duotone(shadow, highlight),
-    )
-}
-
-/**
- * Maps each pixel's luminance onto the ramp [shadow] to [highlight]. Offsets
- * are in 0..255, which Compose honours on Skia too (it rescales them).
- */
-private fun duotone(shadow: Color, highlight: Color): ColorFilter {
-    fun channel(from: Float, to: Float): FloatArray {
-        val span = to - from
-        return floatArrayOf(span * .299f, span * .587f, span * .114f, 0f, from * 255f)
-    }
-    return ColorFilter.colorMatrix(
-        ColorMatrix(
-            channel(shadow.red, highlight.red) +
-                channel(shadow.green, highlight.green) +
-                channel(shadow.blue, highlight.blue) +
-                floatArrayOf(0f, 0f, 0f, 1f, 0f),
-        ),
-    )
-}
-
-/** For a button that came without YouTube's colour: muted, never neon. */
-private fun fallbackMoodColor(title: String): Color = when ((title.hashCode() and Int.MAX_VALUE) % 8) {
-    0 -> Color(0xFFC98A1E)
-    1 -> Color(0xFFC07A92)
-    2 -> Color(0xFF4A9C8C)
-    3 -> Color(0xFF8090C8)
-    4 -> Color(0xFFD0A060)
-    5 -> Color(0xFF6A88B0)
-    6 -> Color(0xFF7AAED0)
-    else -> Color(0xFF86B890)
-}
-
-/** Gap between mood cards, in both directions. */
+/** Gap between mood cards, in both directions — the same 12 dp card gap the shelves and the Library grid use. */
 private val MOOD_SPACING = 12.dp
 
-/** Every mood card is the same height; the mosaic varies width instead. */
+/** Every mood card is the same height; the row's columns share the width equally. */
 private val MOOD_CARD_HEIGHT = 104.dp
-
-private val MOOD_CARD_SHAPE = RoundedCornerShape(18.dp)
-
-/** Width over height; a two-column phone row lands at about 100dp tall. */
-private const val MOOD_CARD_ASPECT = 1.72f
-
-/** How much of the card the solid stripe covers before the artwork starts. */
-private const val MOOD_STRIPE_FRACTION = .28f
 
 /**
  * The narrowest a mood card is let get before the row drops a column.
@@ -392,7 +334,9 @@ private fun ExploreSkeletonRows(columns: Int) {
                 modifier = Modifier.padding(bottom = MOOD_SPACING),
             ) {
                 repeat(columns) {
-                    ShimmerBox(Modifier.weight(1f).aspectRatio(MOOD_CARD_ASPECT), MOOD_CARD_SHAPE)
+                    // Same height and shape as the real MoodGenreCard, so
+                    // the grid does not jump when the data lands.
+                    ShimmerBox(Modifier.weight(1f).height(MOOD_CARD_HEIGHT), UniformCardShape)
                 }
             }
         }
@@ -418,7 +362,7 @@ fun MoodGenrePlaylistsScreen(
         item {
             Text(
                 text = title,
-                style = MaterialTheme.typography.displayLarge,
+                style = MaterialTheme.typography.displayMedium,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

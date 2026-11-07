@@ -109,7 +109,8 @@ private fun SectionHeaderSkeleton(index: Int = 0) {
 }
 
 /**
- * Stands in for one `SongRow`, down to the 52dp of artwork and the 20dp gutter.
+ * Stands in for one `SongRow`, down to its 56dp of artwork, the artwork's
+ * 12dp corner and the page gutter, so the row lands at the real row's height.
  * [circular] matches the browse rows, where artists are drawn as circles.
  */
 @Composable
@@ -117,10 +118,10 @@ fun SongRowSkeleton(index: Int = 0, circular: Boolean = false, modifier: Modifie
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
+            .padding(horizontal = PAGE_GUTTER, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ShimmerBox(Modifier.size(52.dp), if (circular) CircleShape else RoundedCornerShape(8.dp))
+        ShimmerBox(Modifier.size(56.dp), if (circular) CircleShape else RoundedCornerShape(12.dp))
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             SkeletonLine(fraction = TitleWidths[index % TitleWidths.size], height = 14.dp)

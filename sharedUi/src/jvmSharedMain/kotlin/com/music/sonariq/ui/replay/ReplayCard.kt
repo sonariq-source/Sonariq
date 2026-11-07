@@ -1,6 +1,7 @@
 package com.music.sonariq.ui.replay
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,11 +9,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -38,7 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.music.sonariq.sharedui.resources.*
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
-import com.music.sonariq.ui.player.MeshGradientBackground
+import com.music.sonariq.ui.player.GlassTokens
 import com.music.sonariq.ui.player.rememberArtworkColors
 import java.util.Locale
 
@@ -76,15 +77,23 @@ import java.util.Locale
  *    corners of the head each carry one fact and neither is a caption for the
  *    other.
  *
- * ## Why the background is the player's own mesh
+ * ## Why the background is glass
  *
- * Sampled from the artwork this card is about, so no two people's cards look
- * alike and each one is lit by the record it is describing. It is drawn once
- * and held still — [MeshGradientBackground]'s `animated = false` — rather
- * than crossfading or drifting, since a row of these redrawing a blurred
- * layer every time a card is opened or swiped past is the expensive case the
- * class note there warns about, multiplied by however many cards are on
- * screen.
+ * The card sits on the same material as the rest of the app: a layered
+ * translucent glass surface — the theme's `surfaceContainerHigh` (the
+ * [GlassTokens] surface) under a restrained emerald wash, closed by the
+ * tokens' hairline border and the soft top highlight every glass panel
+ * carries. The wash is tinted, faintly, by the lead colour sampled from the
+ * artwork this card is about, so no two people's cards are quite the same
+ * shade — but the tint stays a whisper over the emerald, never the artwork
+ * palette at full strength, so the card reads as one of this app's glass
+ * surfaces rather than as a picture of the record.
+ *
+ * It is also drawn once and held still: plain layered gradients, with no
+ * blurred backdrop layer to redraw, which keeps a row of these cheap to
+ * scroll past. The dark scrim deepening towards the foot is kept from the
+ * earlier composition — the embossed lines are pale, and the scrim is what
+ * guarantees they stay legible whatever tint the wash picks up.
  */
 @Composable
 fun ReplayCreditCard(
@@ -100,22 +109,42 @@ fun ReplayCreditCard(
     modifier: Modifier = Modifier,
 ) {
     val palette = rememberArtworkColors(artworkUrl)
+    // The artwork's lead colour, used only as a faint tint inside the emerald
+    // wash below; an empty palette leaves the wash purely emerald.
+    val artworkTint = palette.colors.firstOrNull()
     Box(
         modifier = modifier
             .aspectRatio(CARD_RATIO)
             .shadow(16.dp, CardShape, clip = false)
             .clip(CardShape)
+            .border(GlassTokens.hairlineWidth, GlassTokens.hairline, CardShape)
             .clickable(onClick = onClick),
     ) {
-        MeshGradientBackground(
-            palette = palette,
-            trackKey = artworkUrl ?: label,
-            blurRadius = 34.dp,
-            animated = false,
+        // The glass stack, back to front: the translucent glass surface, the
+        // emerald wash over it, the legibility scrim, and the top highlight.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
         )
-        // Deepened towards the foot, where the embossed lines are: the mesh is
-        // built to be bright and those lines are pale, and without this the
-        // cardholder name lands on whichever blob happened to drift under it.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            GlassTokens.accent.copy(alpha = 0.20f),
+                            (artworkTint ?: GlassTokens.accent).copy(alpha = 0.10f),
+                            GlassTokens.mint.copy(alpha = 0.06f),
+                        ),
+                    ),
+                ),
+        )
+        // Deepened towards the foot, where the embossed lines are: those
+        // lines are pale, and without this the cardholder name lands on
+        // whatever the wash happened to leave under it. The stops are the
+        // ones the earlier composition used, over a darker and steadier
+        // base, so the embossed lines keep at least the legibility they had.
         Box(
             Modifier
                 .fillMaxSize()
@@ -124,6 +153,18 @@ fun ReplayCreditCard(
                         0.0f to Color.Black.copy(alpha = 0.18f),
                         0.55f to Color.Black.copy(alpha = 0.30f),
                         1.0f to Color.Black.copy(alpha = 0.55f),
+                    ),
+                ),
+        )
+        // Top highlight: the same short white gradient the shared glass
+        // panel lays across its upper edge.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(28.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.06f), Color.Transparent),
                     ),
                 ),
         )
@@ -304,7 +345,8 @@ private val EmbossShadow = Shadow(
     blurRadius = 4f,
 )
 
-private val CardShape = RoundedCornerShape(20.dp)
+/** The shared large-panel shape: the card is a glass panel, so it wears it. */
+private val CardShape = GlassTokens.panelShape
 
 /** Whose card it is when there is no signed-in account to name. */
 

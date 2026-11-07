@@ -282,14 +282,16 @@ internal fun InlineQueue(
         }
         // Autoplay's control as its own glass panel under the heading: the
         // label, its state, and the toggle that was in the heading row.
+        // Built from the shared glass tokens, at the row shape the rest of
+        // the player's inset rows use.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 10.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .padding(top = 12.dp)
+                .clip(GlassTokens.rowShape)
                 .background(GlassTokens.surface.copy(alpha = 0.85f))
-                .border(1.dp, GlassTokens.hairline, RoundedCornerShape(16.dp))
-                .padding(horizontal = 14.dp, vertical = 6.dp),
+                .border(GlassTokens.hairlineWidth, GlassTokens.hairline, GlassTokens.rowShape)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -308,7 +310,7 @@ internal fun InlineQueue(
             Text(
                 text = stringResource(if (autoplayEnabled) Res.string.autoplay_on else Res.string.autoplay_off),
                 style = MaterialTheme.typography.labelMedium,
-                color = Color.White.copy(alpha = 0.55f),
+                color = Color.White.copy(alpha = 0.65f),
             )
             Spacer(Modifier.width(6.dp))
             AutoplayToggleButton(
@@ -316,7 +318,7 @@ internal fun InlineQueue(
                 onToggle = onToggleAutoplay,
             )
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(8.dp))
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -342,14 +344,21 @@ internal fun InlineQueue(
                     }
                     item(key = nowPlaying.key) {
                         // The current track rides in its own glass card, set
-                        // apart from the rows that follow it.
+                        // apart from the rows that follow it: the larger
+                        // panel shape, a denser fill than the autoplay panel
+                        // above it, and an emerald edge, so "playing now"
+                        // reads at a glance rather than on inspection.
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(GlassTokens.surface.copy(alpha = 0.85f))
-                                .border(1.dp, GlassTokens.hairline, RoundedCornerShape(16.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                                .clip(GlassTokens.panelShape)
+                                .background(GlassTokens.surface.copy(alpha = 0.92f))
+                                .border(
+                                    GlassTokens.hairlineWidth,
+                                    GlassTokens.accent.copy(alpha = 0.45f),
+                                    GlassTokens.panelShape,
+                                )
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
                         ) {
                             InlineQueueRow(
                                 song = nowPlaying.song,
@@ -366,7 +375,7 @@ internal fun InlineQueue(
                     item(key = "header-user-queue") {
                         QueueHeading(
                             title = stringResource(Res.string.next_in_queue),
-                            modifier = Modifier.padding(top = 16.dp, bottom = 6.dp).then(queueMotion()),
+                            modifier = Modifier.padding(top = 20.dp, bottom = 6.dp).then(queueMotion()),
                         ) {
                             QueueClearButton(MaterialTheme.typography.labelLarge, controlsLocked, onClear)
                         }
@@ -381,7 +390,7 @@ internal fun InlineQueue(
                             } else {
                                 stringResource(Res.string.queue)
                             },
-                            modifier = Modifier.padding(top = 16.dp, bottom = 6.dp).then(queueMotion()),
+                            modifier = Modifier.padding(top = 20.dp, bottom = 6.dp).then(queueMotion()),
                         )
                     }
                     queueSection(tracks.context, QueueSection.CONTEXT, drag, controlsLocked, onJumpTo, onRemove)
@@ -463,7 +472,7 @@ private fun QueueHeading(
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
-            color = Color.White.copy(alpha = 0.75f),
+            color = Color.White.copy(alpha = 0.85f),
             modifier = Modifier.weight(1f),
         )
         trailing()
@@ -475,7 +484,7 @@ private fun QueueClearButton(style: TextStyle, locked: Boolean, onClear: () -> U
     Text(
         text = stringResource(Res.string.clear),
         style = style,
-        color = Color.White.copy(alpha = if (locked) 0.25f else 0.75f),
+        color = Color.White.copy(alpha = if (locked) 0.25f else 0.85f),
         modifier = Modifier
             .clip(RoundedCornerShape(percent = 50))
             .clickable(enabled = !locked, onClick = onClear)
@@ -497,9 +506,8 @@ private fun AutoplayToggleButton(
     modifier: Modifier = Modifier,
 ) {
     val haptics = rememberHaptics()
-    // SonariqLime, mirrored here because sharedUi cannot see the app
-    // module's theme.
-    val lime = Color(0xFF1DB954)
+    // The shared glass accent: the same emerald every glass surface uses.
+    val lime = GlassTokens.accent
     val description = stringResource(
         if (enabled) Res.string.autoplay_on else Res.string.autoplay_off,
     )
@@ -532,14 +540,14 @@ private fun AutoplayHeading(hasTracks: Boolean, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 14.dp),
+            .padding(top = 20.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             SonariqIcons.Infinity,
             contentDescription = null,
-            tint = Color.White.copy(alpha = 0.75f),
-            modifier = Modifier.size(18.dp),
+            tint = Color.White.copy(alpha = 0.85f),
+            modifier = Modifier.size(20.dp),
         )
         Spacer(Modifier.width(8.dp))
         Column {
@@ -553,7 +561,7 @@ private fun AutoplayHeading(hasTracks: Boolean, modifier: Modifier = Modifier) {
                     if (hasTracks) Res.string.autoplay_queue_description else Res.string.autoplay_empty_description,
                 ),
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.55f),
+                color = Color.White.copy(alpha = 0.65f),
             )
         }
     }
@@ -816,8 +824,8 @@ private fun InlineQueueRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (lifted) Color.White.copy(alpha = 0.06f) else Color.Transparent)
+            .clip(GlassTokens.cardShape)
+            .background(if (lifted) Color.White.copy(alpha = 0.08f) else Color.Transparent)
             // Disabled rather than ignored: a tap that ripples and then does
             // nothing reads as the app having missed it.
             .clickable(enabled = !locked, onClick = onClick)
@@ -828,9 +836,9 @@ private fun InlineQueueRow(
             Icon(
                 Icons.Rounded.DragHandle,
                 contentDescription = stringResource(Res.string.drag_to_reorder),
-                tint = Color.White.copy(alpha = 0.4f),
+                tint = Color.White.copy(alpha = 0.55f),
                 modifier = Modifier
-                    .size(20.dp)
+                    .size(22.dp)
                     // The glyph sits well inset in its own box; this pulls it
                     // back to the row's edge.
                     .offset(x = (-4).dp)
@@ -853,8 +861,8 @@ private fun InlineQueueRow(
             contentDescription = null,
             modifier = Modifier
                 .size(44.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .thumbnailBorder(RoundedCornerShape(6.dp))
+                .clip(RoundedCornerShape(8.dp))
+                .thumbnailBorder(RoundedCornerShape(8.dp))
                 .background(Color.White.copy(alpha = 0.08f)),
         )
         Spacer(Modifier.width(12.dp))
@@ -862,12 +870,12 @@ private fun InlineQueueRow(
             ExplicitSongTitle(
                 song = song,
                 style = MaterialTheme.typography.titleMedium,
-                color = if (isCurrent) Color.White else Color.White.copy(alpha = 0.92f),
+                color = if (isCurrent) Color.White else Color.White.copy(alpha = 0.95f),
             )
             Text(
                 text = song.artist,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.55f),
+                color = Color.White.copy(alpha = 0.62f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -878,7 +886,7 @@ private fun InlineQueueRow(
                 Text(
                     text = stringResource(Res.string.autoplay),
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.45f),
+                    color = Color.White.copy(alpha = 0.55f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -888,7 +896,7 @@ private fun InlineQueueRow(
             Icon(
                 Icons.Rounded.GraphicEq,
                 contentDescription = stringResource(Res.string.now_playing),
-                tint = Color.White,
+                tint = GlassTokens.accent,
                 modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(10.dp))
@@ -898,13 +906,14 @@ private fun InlineQueueRow(
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.06f))
                     .clickable(onClick = onRemove),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Rounded.Close,
                     contentDescription = stringResource(Res.string.remove_from_queue),
-                    tint = Color.White.copy(alpha = 0.55f),
+                    tint = Color.White.copy(alpha = 0.7f),
                     modifier = Modifier.size(18.dp),
                 )
             }

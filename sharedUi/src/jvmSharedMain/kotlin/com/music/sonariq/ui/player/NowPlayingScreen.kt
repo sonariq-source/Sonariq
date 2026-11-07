@@ -223,7 +223,7 @@ internal const val SEEK_SETTLE_TIMEOUT_MS = 4_000L
 
 private val THUMB_SIZE = 54.dp
 private val HEADER_HEIGHT = 60.dp
-private val ART_TITLE_GAP = 20.dp
+private val ART_TITLE_GAP = 24.dp
 /**
  * How long the sleeve takes to travel the whole way between the full player and
  * the queue's header.
@@ -445,8 +445,9 @@ private class DockFrame {
 private class LandscapeDockPose(val left: Float, val top: Float, val scale: Float)
 
 /** The placeholder tile's corners — one shape, not a new one every frame it moves. */
-// Sonariq shape language: generous 20dp radii on artwork tiles and cards.
-private val TileShape = RoundedCornerShape(28.dp)
+// Sonariq shape language: one 24dp radius on the artwork sleeve and its
+// placeholder tile, so the empty tile and the loaded cover share a frame.
+private val TileShape = RoundedCornerShape(24.dp)
 
 /**
  * [content], for as long as [shown] says so.
@@ -542,20 +543,20 @@ private fun VibeBadge(
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier
             .clip(pill)
-            .background(primary.copy(alpha = 0.14f))
-            .border(1.dp, primary.copy(alpha = 0.4f), pill)
+            .background(primary.copy(alpha = 0.16f))
+            .border(1.dp, primary.copy(alpha = 0.45f), pill)
             .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = {},
                 onLongClick = onLongPress,
             )
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
     )
 }
 
 /**
- * Sonariq Now Playing: artwork that shrinks when paused, a coral
+ * Sonariq Now Playing: artwork that shrinks when paused, an emerald
  * scrubber with elapsed / remaining either side, oversized transport glyphs,
  * a volume capsule flanked by speaker icons, and lyrics / output / queue
  * along the bottom — all over the artwork-driven mesh backdrop.
@@ -1475,8 +1476,9 @@ fun NowPlayingScreen(
             onListenTogether = onListenTogether,
             onOpenListenTogetherMembers = openListenTogetherMembers,
         )
-        // Keep the current output caption visible in every state.
-        Spacer(Modifier.height(18.dp))
+        // Keep the current output caption visible in every state, grouped
+        // tight under the pill-bar it belongs to rather than floating free.
+        Spacer(Modifier.height(12.dp))
         Box(
             modifier = Modifier.fillMaxWidth().height(20.dp),
             contentAlignment = Alignment.TopCenter,
@@ -1506,8 +1508,9 @@ fun NowPlayingScreen(
             onOpenOutput = openAudioOutput,
             onOpenVocalRemover = { showVocalRemover = true },
         )
-        // Keep the current output caption visible in every state.
-        Spacer(Modifier.height(18.dp))
+        // Keep the current output caption visible in every state, grouped
+        // tight under the pill-bar it belongs to rather than floating free.
+        Spacer(Modifier.height(12.dp))
         Box(
             modifier = Modifier.fillMaxWidth().height(20.dp),
             contentAlignment = Alignment.TopCenter,
@@ -2905,7 +2908,7 @@ fun NowPlayingScreen(
                 // it docks.
                 fun sleeveShown(): Float = bannerShown() * dockT()
                 fun sleeveCorner(): Dp {
-                    val corner = 20.dp * (1f - sleeveShown())
+                    val corner = 24.dp * (1f - sleeveShown())
                     val t = dockT()
                     return if (dock == null || t >= 1f) corner else lerp(dock.miniArtCorner(), corner, t)
                 }
@@ -2992,7 +2995,7 @@ fun NowPlayingScreen(
                             // go of on the way to the mini player, whose cover
                             // sits flat in its bar.
                             shadowElevation = if (art.loaded) {
-                                10.dp.toPx() * (1f - 2f * shown).coerceAtLeast(0f) * dockT()
+                                14.dp.toPx() * (1f - 2f * shown).coerceAtLeast(0f) * dockT()
                             } else {
                                 0f
                             }
@@ -3109,9 +3112,9 @@ fun NowPlayingScreen(
                             Icon(
                                 imageVector = SonariqIcons.MusicNote,
                                 contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.35f),
+                                tint = Color.White.copy(alpha = 0.40f),
                                 modifier = Modifier
-                                    .size(40.dp)
+                                    .size(48.dp)
                                     .graphicsLayer {
                                         val scale = 1f - 0.5f * p()
                                         scaleX = scale
@@ -3431,9 +3434,9 @@ fun NowPlayingScreen(
                                     },
                                     style = MaterialTheme.typography.titleLarge.copy(
                                         fontWeight = FontWeight.W400,
-                                        fontSize = 20.sp,
+                                        fontSize = 18.sp,
                                     ),
-                                    color = Color.White.copy(alpha = 0.55f),
+                                    color = Color.White.copy(alpha = 0.62f),
                                     enabled = scrolling,
                                     // A title that's also scrolling gets to go first —
                                     // starting together reads as clutter, so the artist
@@ -3456,7 +3459,7 @@ fun NowPlayingScreen(
                             }
                         }
                     }
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(8.dp))
                     // Beside the credits rather than down in the toggle row:
                     // liking is about *this song*, and the row below is about
                     // how the queue plays. Guests get nothing to tap, since
@@ -3794,8 +3797,10 @@ fun NowPlayingScreen(
             // the scrubber above it, and the volume bar and utility row below,
             // which sit close enough together to read as one. Both of its own
             // gaps take half the spread, so on a tall screen it holds the
-            // centre rather than drifting up under the seek bar.
-            Spacer(Modifier.height(8.dp + controlSpread / 2))
+            // centre rather than drifting up under the seek bar. The two
+            // gaps are equal, so the transport reads as one centred group
+            // between the scrubber and the volume row at every spread.
+            Spacer(Modifier.height(10.dp + controlSpread / 2))
 
             // Apple-style five-up: shuffle and repeat flank the trio, all in
             // one row. The live visualizer left the deck for the artwork —
@@ -3820,7 +3825,7 @@ fun NowPlayingScreen(
             // hidden. Removing the slot itself shortened the controls by 50dp
             // and moved every control below it. A display preference should not
             // change the half-player's geometry.
-            Spacer(Modifier.height(12.dp + controlSpread / 2))
+            Spacer(Modifier.height(10.dp + controlSpread / 2))
 
             if (!hideVolumeBar) {
                 VolumeRow(
@@ -3834,10 +3839,10 @@ fun NowPlayingScreen(
 
             // The volume slider already has 13dp below its drawn track.
             // Balance that invisible inset with the caption gap below the icons.
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
 
             applePlayerActions()
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(20.dp))
             }
             }
             }

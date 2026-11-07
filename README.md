@@ -122,6 +122,7 @@
 - **Custom theme colour picker** — hue/saturation/hex picker for the app accent.
 - **Emerald Liquid Glass design system** — deep green-black surfaces, emerald primary, bright green and mint accents, and translucent glass panels with fine light borders throughout.
 - **Reconstructed layout** — a modern streaming composition rebuilt screen by screen: a docked glass navigation bar with the mini player as its own glass card above it, a quick-picks grid and uniform artwork cards on Home, a regular discovery grid, a card-based Library with category chips, and one clean sans type hierarchy throughout.
+- **Reorganised Settings** — seven clear categories (Playback & audio, Lyrics, Appearance, Library & downloads, Accounts & services, Your data & privacy, App & updates), each with its own page, on phone and desktop alike; search still finds every setting across all of them.
 - **Redesigned Now Playing** — large centred artwork on an ambient backdrop, a big emerald circular play button, a glass action pill-bar, live audio visualiser, and a gently drifting animated backdrop. The caption under the player shows your phone's real model, and the lyrics screen has a one-tap share button for story cards.
 - **Mini-player progress** — a slim progress line along the mini player card's bottom edge follows the song.
 - **Animated album canvas** — motion artwork on the now-playing screen.

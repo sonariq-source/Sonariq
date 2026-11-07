@@ -233,7 +233,7 @@ private val GLOW_RADIUS = 6.dp
  * out identically, and the list gives the width back by taking it off its own
  * padding and row spacing.
  */
-private val GLOW_ROOM = 10.dp
+private val GLOW_ROOM = 12.dp
 
 /**
  * How the answering vocal is drawn: smaller than the lead and a shade behind
@@ -244,7 +244,7 @@ private val GLOW_ROOM = 10.dp
  */
 private val BACKING_FONT_SIZE = 23.sp
 private val BACKING_LINE_HEIGHT = 29.sp
-private const val BACKING_ALPHA = 0.60f
+private const val BACKING_ALPHA = 0.65f
 
 /**
  * How the answering voice comes and goes; see [revealBacking]. am-lyrics opens
@@ -280,7 +280,7 @@ private const val BACKING_FADE_LEAD = 1.6f
 private val SUB_LYRIC_FONT_SIZE = 20.sp
 private val SUB_LYRIC_LINE_HEIGHT = 25.sp
 private val SUB_BACKING_FONT_SIZE = 16.sp
-private val SUB_BACKING_LINE_HEIGHT = 21.sp
+private val SUB_BACKING_LINE_HEIGHT = 20.sp
 private const val SUB_LYRIC_ALPHA = 0.85f
 private val SUB_LYRIC_TUCK = 6.dp
 private const val SUB_LYRIC_OPEN_MS = 460
@@ -2043,7 +2043,7 @@ internal fun LyricsPanel(
                 Text(
                     text = stringResource(Res.string.no_lyrics_for_track),
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color.White.copy(alpha = 0.6f),
+                    color = Color.White.copy(alpha = 0.7f),
                 )
             }
         }
@@ -2241,17 +2241,20 @@ internal fun LyricsPanel(
                 // long-standing look: the default reads exactly as before,
                 // and the slider moves every voice together.
                 val fontScale = lyricsFontSizeSp / DEFAULT_LYRICS_FONT_SIZE_SP
+                // One leading ratio (~1.24) for both styles, and for the
+                // backing and sub voices below, so wrapped lines breathe at
+                // the same rhythm whatever voice or sync the source carries.
                 val style = if (isSynced) {
                     MaterialTheme.typography.headlineLarge.copy(
                         fontSize = (34 * fontScale).sp,
-                        lineHeight = (41 * fontScale).sp,
+                        lineHeight = (42 * fontScale).sp,
                         fontWeight = FontWeight.ExtraBold,
                         textAlign = if (alignEnd) TextAlign.End else TextAlign.Start,
                     )
                 } else {
                     MaterialTheme.typography.headlineMedium.copy(
                         fontSize = (30 * fontScale).sp,
-                        lineHeight = (38 * fontScale).sp,
+                        lineHeight = (37 * fontScale).sp,
                         fontWeight = FontWeight.ExtraBold,
                         textAlign = if (alignEnd) TextAlign.End else TextAlign.Start,
                     )
@@ -2373,7 +2376,7 @@ internal fun LyricsPanel(
                         }
                         translationY = stagger + (1f - arrival) * arrivalRisePx
                     }
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(GlassTokens.cardShape)
                     // The chosen lines are marked on the row itself rather
                     // than with a mark beside it: a lane down the side would
                     // have to be reserved for every line whether or not
@@ -2703,8 +2706,8 @@ private fun LyricsSearchOverlay(
         modifier = modifier
             .then(if (open) Modifier.fillMaxWidth() else Modifier)
             .clip(pill)
-            .background(GlassTokens.surface.copy(alpha = 0.88f))
-            .border(1.dp, GlassTokens.hairline, pill),
+            .background(GlassTokens.surface.copy(alpha = GlassTokens.surfaceAlpha))
+            .border(GlassTokens.hairlineWidth, GlassTokens.hairline, pill),
         contentAlignment = Alignment.CenterEnd,
     ) {
         if (!open) {
@@ -2717,7 +2720,7 @@ private fun LyricsSearchOverlay(
                 Icon(
                     imageVector = Icons.Rounded.Search,
                     contentDescription = stringResource(Res.string.lyrics_search_hint),
-                    tint = Color.White.copy(alpha = 0.85f),
+                    tint = Color.White.copy(alpha = 0.92f),
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -2831,8 +2834,8 @@ private fun LyricsAppearanceOverlay(modifier: Modifier = Modifier) {
         Box(
             modifier = Modifier
                 .clip(pill)
-                .background(GlassTokens.surface.copy(alpha = 0.88f))
-                .border(1.dp, GlassTokens.hairline, pill),
+                .background(GlassTokens.surface.copy(alpha = GlassTokens.surfaceAlpha))
+                .border(GlassTokens.hairlineWidth, GlassTokens.hairline, pill),
             contentAlignment = Alignment.Center,
         ) {
             IconButton(
@@ -2844,7 +2847,7 @@ private fun LyricsAppearanceOverlay(modifier: Modifier = Modifier) {
                 Icon(
                     imageVector = Icons.Rounded.Tune,
                     contentDescription = stringResource(Res.string.lyrics_appearance),
-                    tint = Color.White.copy(alpha = 0.85f),
+                    tint = Color.White.copy(alpha = 0.92f),
                     modifier = Modifier.size(20.dp),
                 )
             }

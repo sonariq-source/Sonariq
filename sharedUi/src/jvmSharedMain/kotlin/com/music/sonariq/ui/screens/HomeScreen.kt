@@ -111,6 +111,16 @@ private val HOME_TITLE_LIFT = 28.dp
  */
 internal val UniformCardShape = RoundedCornerShape(12.dp)
 
+/**
+ * The feed's one spacing rhythm: the gap between cards in every shelf row
+ * and grid, and the space a section leaves beneath itself. Every section
+ * on Home — Recents, Quick picks and the ordinary shelves alike — is set
+ * on this scale so the feed reads as one page rather than three layouts
+ * stitched together. The card gap matches the Library grid's own spacing.
+ */
+internal val SHELF_GAP = 12.dp
+internal val SECTION_BOTTOM_PADDING = 28.dp
+
 private const val RECENTS_TITLE = "Recents"
 private const val RECENT_TRACKS_PER_COLUMN = 4
 
@@ -356,7 +366,7 @@ private fun RecentShelf(
     viewType: LibraryViewType,
     onViewTypeToggle: () -> Unit,
 ) {
-    Column(Modifier.padding(bottom = 28.dp)) {
+    Column(Modifier.padding(bottom = SECTION_BOTTOM_PADDING)) {
         RecentSectionHeader(
             title = shelf.title,
             subtitle = shelf.subtitle,
@@ -368,7 +378,7 @@ private fun RecentShelf(
                 val columnWidth = trackColumnWidth(maxWidth)
                 ShelfRow(
                     contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(SHELF_GAP),
                 ) {
                     items(shelf.items.chunked(RECENT_TRACKS_PER_COLUMN)) { column ->
                         Column(Modifier.width(columnWidth)) {
@@ -388,7 +398,7 @@ private fun RecentShelf(
         } else {
             ShelfRow(
                 contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(SHELF_GAP),
             ) {
                 items(shelf.items) { item ->
                     ShelfCard(
@@ -418,9 +428,12 @@ private fun RecentSectionHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
+            // Same title/subtitle styles as [SectionHeader], so the Recents
+            // heading lines up with every other section heading on the feed
+            // instead of sitting one type step larger.
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -428,7 +441,7 @@ private fun RecentSectionHeader(
             if (subtitle.isNotBlank()) {
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -505,20 +518,23 @@ fun CompactTrackRow(
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(48.dp)) {
+        // Same geometry as the shared SongRow — 56 dp artwork at the uniform
+        // 12 dp corner, a 14 dp gap before the text — so a track row reads
+        // identically wherever it appears (Recents here, results in Search).
+        Box(Modifier.size(56.dp)) {
             AsyncImage(
                 model = thumbnailUrl.artworkAt(ROW_ART_PX),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .thumbnailBorder(RoundedCornerShape(12.dp))
+                    .size(56.dp)
+                    .clip(UniformCardShape)
+                    .thumbnailBorder(UniformCardShape)
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             )
             if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 text = title,
@@ -551,7 +567,7 @@ private fun HomeTitle(title: String, modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxWidth().padding(horizontal = PAGE_GUTTER).padding(top = 10.dp, bottom = 24.dp),
     ) {
         GreetingLine()
-        Spacer(Modifier.height(2.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
             title,
             style = MaterialTheme.typography.displayMedium,
@@ -795,11 +811,11 @@ internal fun Shelf(
     isPlaying: Boolean = false,
 ) {
     val artistsShelf = shelf.title.trim().equals("Artists", ignoreCase = true)
-    Column(Modifier.padding(bottom = 28.dp)) {
+    Column(Modifier.padding(bottom = SECTION_BOTTOM_PADDING)) {
         SectionHeader(shelf.title, shelf.subtitle)
         ShelfRow(
             contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(SHELF_GAP),
         ) {
             leadingCard?.let { card -> item(key = "leading") { card() } }
             items(shelf.items) { item ->
@@ -837,14 +853,14 @@ private fun QuickPicksShelf(
     currentSong: Song?,
     isPlaying: Boolean,
 ) {
-    Column(Modifier.padding(bottom = 28.dp)) {
+    Column(Modifier.padding(bottom = SECTION_BOTTOM_PADDING)) {
         SectionHeader(shelf.title, shelf.subtitle)
         Column(
             modifier = Modifier.padding(horizontal = PAGE_GUTTER),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(SHELF_GAP),
         ) {
             shelf.items.take(6).chunked(2).forEach { rowItems ->
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(SHELF_GAP)) {
                     rowItems.forEach { item ->
                         QuickPickCard(
                             item = item,
@@ -874,16 +890,19 @@ private fun QuickPickCard(
     isPlaying: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    // The tile's height is the shared track-row artwork size (56 dp), so a
+    // quick pick lines up with the rows and cards around it, and its title
+    // uses the same style as a track row's title.
     Row(
         modifier = modifier
-            .height(58.dp)
+            .height(56.dp)
             .clip(UniformCardShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
             .contextClick(onLongPress),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(58.dp)) {
+        Box(Modifier.size(56.dp)) {
             AsyncImage(
                 model = item.thumbnailUrl.artworkAt(ROW_ART_PX),
                 contentDescription = null,
@@ -894,11 +913,11 @@ private fun QuickPickCard(
         }
         Text(
             text = item.title,
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.titleMedium,
             color = if (isCurrent) PlayingAccent else MaterialTheme.colorScheme.onBackground,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 10.dp),
+            modifier = Modifier.padding(horizontal = 12.dp),
         )
     }
 }
@@ -927,7 +946,7 @@ internal fun ArtistCircleCard(
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         )
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(12.dp))
         Text(
             text = item.title,
             style = MaterialTheme.typography.titleMedium,
@@ -1015,10 +1034,10 @@ internal fun NewShelfCard(
 }
 
 /**
- * A device-folder card as frosted opaque with a coral glyph — one composable
- * for local music, downloads, the cache, WebDAV and SMB rather than five
- * copies of the same box. The old per-folder mesh gradients (blue, purple)
- * predated the green retheme and are gone.
+ * A device-folder card as frosted opaque with an emerald glyph — one
+ * composable for local music, downloads, the cache, WebDAV and SMB rather
+ * than five copies of the same box. The old per-folder mesh gradients
+ * predated the emerald retheme and are gone.
  */
 @Composable
 private fun DeviceFolderTile(icon: ImageVector) {
@@ -1070,7 +1089,6 @@ internal fun ShelfCard(
                         .fillMaxWidth()
                         .aspectRatio(1f)
                         .clip(UniformCardShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                 ) {
                     AsyncImage(

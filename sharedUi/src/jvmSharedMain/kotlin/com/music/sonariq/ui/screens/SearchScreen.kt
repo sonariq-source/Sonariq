@@ -209,9 +209,9 @@ fun SearchScreen(
         Column(modifier = Modifier.padding(top = topPadding)) {
             if (showField && query.isBlank() && !searchingLibrary) {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(start = PAGE_GUTTER, end = PAGE_GUTTER, top = 8.dp, bottom = 14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(start = PAGE_GUTTER, end = PAGE_GUTTER, top = 8.dp, bottom = 16.dp),
                 ) {
-                    Text("What sounds good?", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.onBackground)
+                    Text("What sounds good?", style = MaterialTheme.typography.displayMedium, color = MaterialTheme.colorScheme.onBackground)
                     Spacer(Modifier.height(4.dp))
                     Text("Songs, artists, albums and playlists — all in one place.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -329,17 +329,10 @@ fun SearchScreen(
                         successSections.forEach { section ->
                             section.title?.let { title ->
                                 item(key = "search-section:${section.key}") {
-                                    Text(
-                                        text = title,
-                                        modifier = Modifier.padding(
-                                            start = PAGE_GUTTER,
-                                            end = PAGE_GUTTER,
-                                            top = 16.dp,
-                                            bottom = 6.dp,
-                                        ),
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                    )
+                                    // The shared section header, so a results
+                                    // group heading lines up with the section
+                                    // headings on Home and Library.
+                                    SectionHeader(title = title)
                                 }
                             }
                             itemsIndexed(
@@ -472,8 +465,8 @@ private fun LazyListScope.librarySearchResults(
 
 /**
  * The All response carries its highest-confidence music hit as a promoted
- * card — frosted opaque with a coral hairline and a breath of lime glow, so
- * the top result reads as the page's hero rather than another row.
+ * card — frosted opaque with an emerald hairline and a breath of emerald
+ * glow, so the top result reads as the page's hero rather than another row.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -483,18 +476,18 @@ private fun TopResultCard(
     onPlaylist: () -> Unit,
     onLongPress: () -> Unit,
 ) {
-    // SonariqLime, mirrored here because sharedUi cannot see the app
-    // module's theme.
-    val lime = Color(0xFF1DB954)
-    val cardShape = RoundedCornerShape(14.dp)
+    // The theme's primary is the emerald accent — no local copy of the hex,
+    // so the card follows the palette like every other surface.
+    val accent = MaterialTheme.colorScheme.primary
+    val cardShape = UniformCardShape
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = PAGE_GUTTER, end = PAGE_GUTTER, top = 18.dp, bottom = 8.dp)
-            .shadow(18.dp, cardShape, spotColor = lime.copy(alpha = 0.28f))
+            .padding(start = PAGE_GUTTER, end = PAGE_GUTTER, top = 16.dp, bottom = 8.dp)
+            .shadow(18.dp, cardShape, spotColor = accent.copy(alpha = 0.28f))
             .clip(cardShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(1.dp, lime.copy(alpha = 0.35f), cardShape)
+            .border(1.dp, accent.copy(alpha = 0.35f), cardShape)
             .longPressMenuClickable(onClick = onPlay, onLongClick = onLongPress)
             .contextClick(onLongPress)
             .padding(16.dp),
@@ -509,7 +502,7 @@ private fun TopResultCard(
             AsyncImage(
                 model = song.thumbnailUrl?.artworkAt(ROW_ART_PX),
                 contentDescription = null,
-                modifier = Modifier.size(72.dp).clip(RoundedCornerShape(10.dp)),
+                modifier = Modifier.size(72.dp).clip(UniformCardShape),
             )
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
@@ -622,7 +615,7 @@ private fun SuggestionRow(
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(22.dp),
         )
-        Spacer(Modifier.width(16.dp))
+        Spacer(Modifier.width(14.dp))
         Text(
             // The first row is the deliberate action to search the exact text
             // in the field, not a server-provided completion. Naming it makes
@@ -672,10 +665,13 @@ private fun LazyListScope.searchTypeaheadDropdown(
     isPlaying: Boolean,
 ) {
     item(key = "typeahead:divider") {
+        // The same divider the result rows use — title inset, hairline
+        // weight, full-strength outline — so the dropdown and the results
+        // below it read as one list system.
         HorizontalDivider(
-            modifier = Modifier.padding(start = PAGE_GUTTER, end = PAGE_GUTTER),
+            modifier = Modifier.padding(start = ROW_DIVIDER_INSET),
             thickness = 0.5.dp,
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+            color = MaterialTheme.colorScheme.outline,
         )
     }
     items(typeaheadResults, key = { result ->
@@ -710,8 +706,11 @@ private fun LazyListScope.searchTypeaheadDropdown(
 }
 
 /**
- * A single media row inside the typeahead dropdown: 52dp cover art, title,
- * and artist/album subtitle. Tap plays the track; long-press opens the menu.
+ * A single media row inside the typeahead dropdown, drawn with the shared
+ * track-row geometry (56 dp artwork at the uniform 12 dp corner, the same
+ * 6 dp row padding and 14 dp text gap as SongRow / CompactTrackRow) so a
+ * result looks the same in the dropdown as it does once the search lands.
+ * Tap plays the track; long-press opens the menu.
  */
 @Composable
 private fun TypeaheadSongRow(
@@ -729,14 +728,14 @@ private fun TypeaheadSongRow(
             .padding(horizontal = PAGE_GUTTER, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(52.dp)) {
+        Box(Modifier.size(56.dp)) {
             AsyncImage(
                 model = song.artworkAt(ROW_ART_PX),
                 contentDescription = null,
                 modifier = Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .thumbnailBorder(RoundedCornerShape(8.dp))
+                    .size(56.dp)
+                    .clip(UniformCardShape)
+                    .thumbnailBorder(UniformCardShape)
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             )
             if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
@@ -779,23 +778,25 @@ private fun LazyListScope.recentSearches(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = PAGE_GUTTER, vertical = 10.dp),
+                .padding(horizontal = PAGE_GUTTER, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Same heading style and action treatment as SectionHeader, so
+            // the history state's heading matches the results state's.
             Text(
                 text = stringResource(Res.string.recent_searches),
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.weight(1f),
             )
             Text(
                 text = stringResource(Res.string.clear),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(percent = 50))
+                    .clip(RoundedCornerShape(8.dp))
                     .clickable(onClick = onClear)
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
             )
         }
     }
@@ -823,7 +824,10 @@ private fun RecentSearchEntityRow(
     onClick: () -> Unit,
     onRemove: () -> Unit,
 ) {
-    val tileShape = RoundedCornerShape(16.dp)
+    // The tile takes the uniform card shape and its artwork the shared
+    // track-row geometry (56 dp, 12 dp corner), matching the result rows
+    // this history leads back to.
+    val tileShape = UniformCardShape
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -835,14 +839,14 @@ private fun RecentSearchEntityRow(
             .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(52.dp)) {
+        Box(Modifier.size(56.dp)) {
             AsyncImage(
                 model = entity.artworkUrl,
                 contentDescription = null,
                 modifier = Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .thumbnailBorder(RoundedCornerShape(8.dp))
+                    .size(56.dp)
+                    .clip(UniformCardShape)
+                    .thumbnailBorder(UniformCardShape)
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             )
             if (isCurrent && isPlaying) {
@@ -887,26 +891,29 @@ private fun RecentSearchEntityRow(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BrowseRow(item: BrowseItem, onClick: () -> Unit, onLongPress: (() -> Unit)? = null) {
+    // Shared track-row geometry again: 56 dp artwork (circular only for
+    // artists), the uniform 12 dp corner, and the rows' 6 dp padding, so
+    // album / playlist / artist hits sit in the same rhythm as song hits.
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
             .contextClick(onLongPress)
-            .padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
+            .padding(horizontal = PAGE_GUTTER, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AsyncImage(
             model = item.thumbnailUrl.artworkAt(ROW_ART_PX),
             contentDescription = null,
             modifier = Modifier
-                .size(52.dp)
+                .size(56.dp)
                 .clip(
                     if (item.type == BrowseType.ARTIST) CircleShape
-                    else RoundedCornerShape(8.dp),
+                    else UniformCardShape,
                 )
                 .thumbnailBorder(
                     if (item.type == BrowseType.ARTIST) CircleShape
-                    else RoundedCornerShape(8.dp),
+                    else UniformCardShape,
                 )
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         )
@@ -931,7 +938,7 @@ private fun BrowseRow(item: BrowseItem, onClick: () -> Unit, onLongPress: (() ->
 }
 
 /**
- * The filter row: matte Sonariq pills, the selected one filled lime so the
+ * The filter row: matte Sonariq pills, the selected one filled emerald so the
  * active filter reads at a glance. They scroll horizontally so a long label
  * set never squeezes the text, and the gutter padding sits inside the scroll
  * so it scrolls with them.

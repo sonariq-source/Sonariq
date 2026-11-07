@@ -36,6 +36,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.ScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.AdminPanelSettings
@@ -116,6 +117,7 @@ import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.Sensors
 import androidx.compose.material.icons.rounded.TrendingUp
 import org.json.JSONObject
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
@@ -478,6 +480,11 @@ fun SettingsScreen(
     var showLibraryBackup by rememberSaveable { mutableStateOf(false) }
     var showLibraryCleanup by rememberSaveable { mutableStateOf(false) }
     var showAdmin by rememberSaveable { mutableStateOf(false) }
+    // The settings reorganisation: the fifteen-odd groups below now sit
+    // under seven categories, each with its own detail page. Null is the
+    // category index; a typed search query bypasses the categories entirely
+    // and shows every matching group, exactly as search behaved before.
+    var activeSettingsCategory by rememberSaveable { mutableStateOf<String?>(null) }
     var showSectionReorder by rememberSaveable { mutableStateOf(false) }
     var showTicketmasterKeyDialog by remember { mutableStateOf(false) }
     var concertsRefreshing by remember { mutableStateOf(false) }
@@ -517,11 +524,22 @@ fun SettingsScreen(
     // that answered to the query, and that tally has to start from zero each
     // time the query changes.
     val search = SettingsSearch(searchQuery)
+    val settingsSearching = searchQuery.isNotBlank()
+    // A group is composed on its category's detail page, or whenever a
+    // search is running (search stays global across every category).
+    fun settingsCategoryVisible(category: String): Boolean =
+        settingsSearching || activeSettingsCategory == category
+    BackHandler(enabled = activeSettingsCategory != null && !settingsSearching) {
+        activeSettingsCategory = null
+    }
 
     // What is left after a keystroke is a different list, and the offset the
     // last one was scrolled to means nothing in it.
     val scrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     var isFirstSearchComposition by remember { mutableStateOf(true) }
+    LaunchedEffect(activeSettingsCategory) {
+        if (activeSettingsCategory != null) scrollState.scrollTo(0)
+    }
     LaunchedEffect(searchQuery) {
         if (isFirstSearchComposition && searchQuery.isEmpty()) {
             // Skip the initial composition during Activity recreation:
@@ -539,25 +557,46 @@ fun SettingsScreen(
             .verticalScroll(scrollState)
             .padding(contentPadding),
     ) {
-        Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp)) {
-            Text(
-                text = stringResource(R.string.settings),
-                style = MaterialTheme.typography.displayLarge,
-                color = MaterialTheme.colorScheme.onBackground,
+        if (!settingsSearching && activeSettingsCategory != null) {
+            // Detail page header: back to the category index, with the
+            // category as the page title.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 20.dp, top = 4.dp, bottom = 10.dp),
+            ) {
+                IconButton(onClick = { activeSettingsCategory = null }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = stringResource(R.string.settings),
+                    )
+                }
+                Text(
+                    text = settingsCategoryTitle(activeSettingsCategory),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+            }
+        } else {
+            Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp)) {
+                Text(
+                    text = stringResource(R.string.settings),
+                    style = MaterialTheme.typography.displayLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+            }
+            // Profile header: the account this installation is signed in as,
+            // drawn with the same [AccountCard] the account screen uses and fed
+            // by the account state this sheet already receives. Tapping it opens
+            // the account & scrobbling screen, exactly like the account row in
+            // the first group below; signed out, the card itself is the sign-in.
+            AccountCard(
+                signedIn = signedIn,
+                account = account,
+                onSignIn = onSignIn,
+                onClick = onAccountScrobbling,
             )
+            Spacer(Modifier.height(14.dp))
         }
-        // Profile header: the account this installation is signed in as,
-        // drawn with the same [AccountCard] the account screen uses and fed
-        // by the account state this sheet already receives. Tapping it opens
-        // the account & scrobbling screen, exactly like the account row in
-        // the first group below; signed out, the card itself is the sign-in.
-        AccountCard(
-            signedIn = signedIn,
-            account = account,
-            onSignIn = onSignIn,
-            onClick = onAccountScrobbling,
-        )
-        Spacer(Modifier.height(14.dp))
         SearchField(
             query = searchQuery,
             onQueryChange = { searchQuery = it },
@@ -566,7 +605,11 @@ fun SettingsScreen(
             modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp),
         )
 
-        SearchableSettingsGroup(search) {
+        if (!settingsSearching && activeSettingsCategory == null) {
+            SettingsCategoryIndex(onOpen = { activeSettingsCategory = it })
+        }
+
+        if (settingsCategoryVisible("accounts")) SearchableSettingsGroup(search) {
             val accountTitle = stringResource(R.string.account_integrations)
             // What the row opens is the scrobbling screen, so the services it
             // signs into are worth typing at this field even though none of
@@ -603,7 +646,7 @@ fun SettingsScreen(
         // above lists that as the module's own row now. Lossless itself is no
         // longer a setting at all — see
         // [SourceResolver.requestForNow][com.music.sonariq.data.sources.SourceResolver.requestForNow].
-        SearchableSettingsGroup(search, header = stringResource(R.string.audio_quality), headerIcon = Icons.Rounded.GraphicEq, defaultExpanded = true) {
+        if (settingsCategoryVisible("playback")) SearchableSettingsGroup(search, header = stringResource(R.string.audio_quality), headerIcon = Icons.Rounded.GraphicEq, defaultExpanded = true) {
             val sourceTitle = stringResource(R.string.source)
             val sourceSubtitle = stringResource(R.string.sources_subtitle)
             row(sourceTitle, sourceSubtitle, "addon", "lossless") {
@@ -691,7 +734,7 @@ fun SettingsScreen(
         // does this minute cost"; these answer "what am I keeping, and when may
         // it be fetched" — and those two questions only make sense read
         // together, which is what puts them side by side here.
-        SearchableSettingsGroup(search, header = stringResource(R.string.downloads), headerIcon = Icons.Rounded.Download) {
+        if (settingsCategoryVisible("library")) SearchableSettingsGroup(search, header = stringResource(R.string.downloads), headerIcon = Icons.Rounded.Download) {
             val downloadQualityTitle = stringResource(R.string.download_quality)
             row(downloadQualityTitle, "offline", "lossless") {
                 SettingsRow(
@@ -812,7 +855,7 @@ fun SettingsScreen(
         // Concert alerts: upcoming shows by the listener's top artists, via
         // Ticketmaster's Discovery API. The API is free but keyed, and the key
         // is the user's to bring — see the dialog below.
-        SearchableSettingsGroup(search, header = stringResource(R.string.concerts), headerIcon = Icons.Rounded.ConfirmationNumber) {
+        if (settingsCategoryVisible("accounts")) SearchableSettingsGroup(search, header = stringResource(R.string.concerts), headerIcon = Icons.Rounded.ConfirmationNumber) {
             val concertAlertsTitle = stringResource(R.string.concert_alerts)
             row(concertAlertsTitle, "concerts", "shows", "gigs", "tour", "live") {
                 SettingsRow(
@@ -881,7 +924,7 @@ fun SettingsScreen(
                 }
             }
         }
-        SearchableSettingsGroup(search, header = stringResource(R.string.playback), headerIcon = Icons.Rounded.PlayArrow) {
+        if (settingsCategoryVisible("playback")) SearchableSettingsGroup(search, header = stringResource(R.string.playback), headerIcon = Icons.Rounded.PlayArrow) {
             // Autoplay: the master switch, then the vibe engine's own rows.
             // The vibe rows only act while vibe autoplay is on, so they dim
             // when it is off.
@@ -1219,7 +1262,7 @@ fun SettingsScreen(
         // may take — source weights, exploration, bans, activity, wind-down
         // and workout sessions. Its own group rather than more rows on
         // Playback, which is where the master switch and the vibe engine stay.
-        SearchableSettingsGroup(search, header = stringResource(R.string.autoplay_section), headerIcon = Icons.Rounded.AutoAwesome) {
+        if (settingsCategoryVisible("playback")) SearchableSettingsGroup(search, header = stringResource(R.string.autoplay_section), headerIcon = Icons.Rounded.AutoAwesome) {
             val mixLibraryTitle = stringResource(R.string.autoplay_mix_library)
             row(mixLibraryTitle, "autoplay", "mix", "weight", "source", "library") {
                 SliderRow(
@@ -1527,7 +1570,7 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.appearance), headerIcon = Icons.Rounded.Palette) {
+        if (settingsCategoryVisible("appearance")) SearchableSettingsGroup(search, header = stringResource(R.string.appearance), headerIcon = Icons.Rounded.Palette) {
             val themeTitle = stringResource(R.string.theme)
             row(themeTitle, "dark mode", "light mode") {
                 SettingsRow(icon = Icons.Rounded.Brightness4, title = themeTitle)
@@ -1835,6 +1878,12 @@ fun SettingsScreen(
                     )
                 }
             }
+        }
+
+        // The lyrics rows that used to sit inside the Appearance group are
+        // their own group now, on the Lyrics category's page. Every row is
+        // unchanged; only the grouping moved.
+        if (settingsCategoryVisible("lyrics")) SearchableSettingsGroup(search, header = "Lyrics", headerIcon = Icons.AutoMirrored.Rounded.Notes) {
             val syncedLyricsTitle = stringResource(R.string.synced_lyrics)
             // Same reasoning as Animated cover art above: the lyrics source and
             // translation rows are only here while this is on.
@@ -2099,6 +2148,9 @@ fun SettingsScreen(
                     )
                 }
             }
+        }
+
+        if (settingsCategoryVisible("appearance")) SearchableSettingsGroup(search) {
             // Home sections that learn: the feed order follows what gets
             // played, unless a manual order is dragged in below.
             val homeLearnTitle = stringResource(R.string.ux_home_learn_title)
@@ -2132,7 +2184,7 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.performance), headerIcon = Icons.Rounded.Bolt) {
+        if (settingsCategoryVisible("playback")) SearchableSettingsGroup(search, header = stringResource(R.string.performance), headerIcon = Icons.Rounded.Bolt) {
             val highPerformanceModeTitle = stringResource(R.string.high_performance_mode)
             row(highPerformanceModeTitle, "frame rate", "refresh rate", "hz", "battery", "smooth") {
                 SettingsRow(
@@ -2191,7 +2243,7 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.local_music), headerIcon = Icons.Rounded.Folder) {
+        if (settingsCategoryVisible("library")) SearchableSettingsGroup(search, header = stringResource(R.string.local_music), headerIcon = Icons.Rounded.Folder) {
             val localMusicFolderTitle = stringResource(R.string.local_music_folder)
             row(localMusicFolderTitle, "folder", "offline", "files") {
                 SettingsRow(
@@ -2240,7 +2292,7 @@ fun SettingsScreen(
         val cacheLimitMb = if (cacheUnlimited) CACHE_UNLIMITED_STOP_MB else (cacheLimitBytes / (1024 * 1024)).toInt()
         val unlimitedLabel = stringResource(R.string.song_cache_unlimited)
         val cacheLimitLabel = if (cacheUnlimited) unlimitedLabel else formatCacheSize(cacheLimitMb)
-        SearchableSettingsGroup(search, header = stringResource(R.string.storage), headerIcon = Icons.Rounded.Storage) {
+        if (settingsCategoryVisible("library")) SearchableSettingsGroup(search, header = stringResource(R.string.storage), headerIcon = Icons.Rounded.Storage) {
             val showCacheFolderTitle = stringResource(R.string.show_cache_folder)
             row(showCacheFolderTitle, "cache", "cached songs", "library", "folder") {
                 SettingsRow(
@@ -2317,7 +2369,7 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.your_data), headerIcon = Icons.Rounded.Shield) {
+        if (settingsCategoryVisible("data")) SearchableSettingsGroup(search, header = stringResource(R.string.your_data), headerIcon = Icons.Rounded.Shield) {
             val replayTitle = stringResource(R.string.replay)
             row(replayTitle, "stats", "history", "wrapped") {
                 SettingsRow(
@@ -2423,7 +2475,7 @@ fun SettingsScreen(
 
         // No footer: it only restated the stop-on-close row's own subtitle,
         // which sits four rows above it and says the same thing in fewer words.
-        SearchableSettingsGroup(search, header = stringResource(R.string.app_updates), headerIcon = Icons.Rounded.SystemUpdate) {
+        if (settingsCategoryVisible("app")) SearchableSettingsGroup(search, header = stringResource(R.string.app_updates), headerIcon = Icons.Rounded.SystemUpdate) {
             val autoUpdateCheck by AppSettings.autoUpdateCheck.collectAsStateWithLifecycle()
             val updateScope = rememberCoroutineScope()
             var updateChecking by remember { mutableStateOf(false) }
@@ -2503,7 +2555,7 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.miscellaneous), headerIcon = Icons.Rounded.MoreHoriz) {
+        if (settingsCategoryVisible("app")) SearchableSettingsGroup(search, header = stringResource(R.string.miscellaneous), headerIcon = Icons.Rounded.MoreHoriz) {
             val playNextOnSwipeTitle = stringResource(R.string.play_next_on_swipe)
             row(playNextOnSwipeTitle, "swipe", "queue") {
                 SettingsRow(
@@ -2605,7 +2657,7 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.language), headerIcon = Icons.Rounded.Language) {
+        if (settingsCategoryVisible("app")) SearchableSettingsGroup(search, header = stringResource(R.string.language), headerIcon = Icons.Rounded.Language) {
             val appLanguageTitle = stringResource(R.string.app_language)
             row(appLanguageTitle, "locale", "translate") {
                 val selectedLanguage = AppCompatDelegate.getApplicationLocales().get(0)?.language
@@ -2619,7 +2671,7 @@ fun SettingsScreen(
             }
         }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.advanced_options), headerIcon = Icons.Rounded.Build) {
+        if (settingsCategoryVisible("app")) SearchableSettingsGroup(search, header = stringResource(R.string.advanced_options), headerIcon = Icons.Rounded.Build) {
             val smartAlignmentTitle = stringResource(R.string.smart_version_alignment)
             row(smartAlignmentTitle, "alignment", "sync", "waveform", "video", "audio", "skit", "intro") {
                 SettingsRow(
@@ -2714,7 +2766,9 @@ fun SettingsScreen(
 
         // Read after every group above has had its turn at the query, which is
         // what makes this an accurate "nothing here" rather than a guess.
-        if (!search.anyMatch) {
+        // Only while searching: on the category index no group is composed,
+        // so no row has answered the (empty) query either.
+        if (search.isActive && !search.anyMatch) {
             MessageState(stringResource(R.string.settings_search_empty, searchQuery))
         }
 
@@ -3700,6 +3754,127 @@ private fun SettingsGroupEntries(entries: List<SettingsGroupScope.Entry>) {
             index == 0 && !entry.divided -> Spacer(Modifier.height(10.dp))
         }
         entry.content()
+    }
+}
+
+/** The seven top-level settings categories, by the id the groups gate on. */
+private fun settingsCategoryTitle(id: String?): String = when (id) {
+    "playback" -> "Playback & audio"
+    "lyrics" -> "Lyrics"
+    "appearance" -> "Appearance"
+    "library" -> "Library & downloads"
+    "accounts" -> "Accounts & services"
+    "data" -> "Your data & privacy"
+    "app" -> "App & updates"
+    else -> "Settings"
+}
+
+/**
+ * The settings home: one glass card per category — icon, title, a one-line
+ * summary of what lives inside, and a chevron. Tapping one opens that
+ * category's detail page (the groups themselves, composed by
+ * [SettingsScreen] behind the category gate).
+ */
+@Composable
+private fun SettingsCategoryIndex(onOpen: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+        SettingsCategoryCard(
+            icon = Icons.Rounded.PlayArrow,
+            title = "Playback & audio",
+            summary = "Audio quality, crossfade, autoplay and performance",
+            onClick = { onOpen("playback") },
+        )
+        SettingsCategoryCard(
+            icon = Icons.AutoMirrored.Rounded.Notes,
+            title = "Lyrics",
+            summary = "Synced lyrics, translation and word sync",
+            onClick = { onOpen("lyrics") },
+        )
+        SettingsCategoryCard(
+            icon = Icons.Rounded.Palette,
+            title = "Appearance",
+            summary = "Theme, accent, cover art, visualizer and home",
+            onClick = { onOpen("appearance") },
+        )
+        SettingsCategoryCard(
+            icon = Icons.Rounded.Download,
+            title = "Library & downloads",
+            summary = "Downloads, local music and storage",
+            onClick = { onOpen("library") },
+        )
+        SettingsCategoryCard(
+            icon = Icons.Rounded.Person,
+            title = "Accounts & services",
+            summary = "Account, Listen Together and concerts",
+            onClick = { onOpen("accounts") },
+        )
+        SettingsCategoryCard(
+            icon = Icons.Rounded.Shield,
+            title = "Your data & privacy",
+            summary = "Replay, backup, history and the owner panel",
+            onClick = { onOpen("data") },
+        )
+        SettingsCategoryCard(
+            icon = Icons.Rounded.SystemUpdate,
+            title = "App & updates",
+            summary = "Updates, language and advanced options",
+            onClick = { onOpen("app") },
+        )
+    }
+}
+
+/** One row of the category index: the glass card language of [SettingsGroup]. */
+@Composable
+private fun SettingsCategoryCard(
+    icon: ImageVector,
+    title: String,
+    summary: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = GROUP_INSET, vertical = 5.dp)
+            .clip(GroupShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), GroupShape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = ROW_INSET, vertical = 14.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Icon(
+            imageVector = Icons.Rounded.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(22.dp),
+        )
     }
 }
 

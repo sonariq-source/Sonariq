@@ -161,7 +161,7 @@ fun LibraryScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 stringResource(Res.string.library),
-                                style = MaterialTheme.typography.displayLarge,
+                                style = MaterialTheme.typography.displayMedium,
                                 color = MaterialTheme.colorScheme.onBackground,
                                 modifier = Modifier.weight(1f),
                             )
@@ -184,8 +184,8 @@ fun LibraryScreen(
                                 }
                             }
                         }
-                        Spacer(Modifier.height(14.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Spacer(Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Row(
                                 modifier = Modifier.clip(RoundedCornerShape(percent = 50)).background(MaterialTheme.colorScheme.primary)
                                     .clickable(onClick = onNewPlaylist).padding(horizontal = 16.dp, vertical = 10.dp),
@@ -327,10 +327,17 @@ fun LibraryScreen(
 data class LibraryLink(val item: ShelfItem, val icon: ImageVector, val logo: DrawableResource? = null)
 
 /**
- * The category chips under the Library heading: one pill per collection the
+ * The category chips under the Library heading: one chip per collection the
  * page actually holds — the saved shelves and the Liked / Downloads / Local
  * shortcuts — each opening the same destination its card or row below opens.
  * A chip for a category that is not on the page is never drawn.
+ *
+ * These are navigation shortcuts, not a filter: the page holds no selected
+ * filter state (tapping a chip opens that collection rather than narrowing
+ * this one), so no chip is drawn selected — a filled "active" chip would be
+ * a state the page does not have. What they share with a filter system is
+ * the presentation: [LibraryChip] uses the exact geometry and unselected
+ * styling of Search's filter pills, so chips read as one system across tabs.
  */
 @Composable
 private fun LibraryFilterChips(
@@ -347,7 +354,7 @@ private fun LibraryFilterChips(
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = PAGE_GUTTER)
-            .padding(bottom = 14.dp),
+            .padding(bottom = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         shelves.forEach { shelf ->
@@ -361,18 +368,21 @@ private fun LibraryFilterChips(
 
 @Composable
 private fun LibraryChip(label: String, onClick: () -> Unit) {
+    // Identical to an unselected Search filter pill: same 12 dp corner,
+    // translucent surface fill, outline hairline and 14 by 8 dp padding.
+    // Search's selected pill is the emerald-filled counterpart of this.
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(percent = 50))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(percent = 50))
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.55f))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = MaterialTheme.colorScheme.onBackground,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -393,8 +403,8 @@ private fun LibraryChip(label: String, onClick: () -> Unit) {
 @Composable
 private fun LibraryLinkList(links: List<LibraryLink>, onClick: (ShelfItem) -> Unit) {
     Column(
-        modifier = Modifier.padding(top = 6.dp, bottom = 22.dp).fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.padding(top = 6.dp, bottom = SECTION_BOTTOM_PADDING).fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         SectionHeader("Quick access")
         links.forEach { link ->
@@ -514,16 +524,13 @@ private fun FeaturedSection(
     onItemClick: (ShelfItem) -> Unit,
     onItemLongPress: (ShelfItem) -> Unit,
 ) {
-    Column(Modifier.padding(bottom = 28.dp)) {
-        Text(
-            text = stringResource(Res.string.featured),
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 12.dp),
-        )
+    Column(Modifier.padding(bottom = SECTION_BOTTOM_PADDING)) {
+        // The shared section header, so Featured's heading matches every
+        // other shelf heading on this page and on Home.
+        SectionHeader(title = stringResource(Res.string.featured))
         ShelfRow(
             contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(LIBRARY_GRID_SPACING),
         ) {
             items(items, key = { it.browseId ?: it.title }) { item ->
                 FeaturedCard(
@@ -543,8 +550,10 @@ private fun FeaturedCard(
     onClick: () -> Unit,
     onLongPress: (() -> Unit)?,
 ) {
-    val tileShape = RoundedCornerShape(18.dp)
-    val artShape = RoundedCornerShape(12.dp)
+    // The Library's horizontal cards share one shape: 16 dp for the card
+    // (the same as the Quick access cards above), 12 dp for the artwork.
+    val tileShape = RoundedCornerShape(16.dp)
+    val artShape = UniformCardShape
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -667,7 +676,7 @@ internal fun LibraryGridShelf(
 ) {
     val leadingCount = if (leadingCard != null) 1 else 0
     val visibleItems = shelf.items.take((LIBRARY_ROW_MAX_ITEMS - leadingCount).coerceAtLeast(0))
-    Column(Modifier.padding(bottom = 28.dp)) {
+    Column(Modifier.padding(bottom = SECTION_BOTTOM_PADDING)) {
         SectionHeader(
             title = shelf.title,
             subtitle = shelf.subtitle,
@@ -720,8 +729,11 @@ fun LibraryGridPage(
             columns = GridCells.Fixed(grid.columns),
             state = gridState,
             contentPadding = contentPadding,
+            // LIBRARY_GRID_SPACING is the grid gap in both directions (see
+            // its definition) — the vertical gap now matches the horizontal
+            // one instead of running wider.
             horizontalArrangement = Arrangement.spacedBy(LIBRARY_GRID_SPACING),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
+            verticalArrangement = Arrangement.spacedBy(LIBRARY_GRID_SPACING),
             modifier = Modifier.padding(horizontal = PAGE_GUTTER),
         ) {
             if (onNewPlaylist != null) {

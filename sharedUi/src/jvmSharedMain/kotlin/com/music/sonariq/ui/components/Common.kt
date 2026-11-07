@@ -41,6 +41,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.sonariq.ui.haptics.Haptic
 import com.music.sonariq.ui.haptics.rememberHaptics
+import com.music.sonariq.ui.player.GlassTokens
 import kotlin.math.abs
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -484,7 +485,7 @@ private fun SongRowContent(
         targetValue = if (isCurrent || selected) activeTint.copy(alpha = 0.14f) else Color.Transparent,
         label = "song row background",
     )
-    // A Spotify track still being matched to a YouTube Music song, or one that
+    // An imported track still being matched to a playable source, or one that
     // has no match: shown, but not something a tap or a menu can act on.
     val matching = song.isMatchPending
     val unavailable = song.isMatchMissing
@@ -652,8 +653,12 @@ fun Modifier.hangIntoGutter(outset: Dp): Modifier = layout { measurable, constra
     layout(width, placeable.height) { placeable.place(0, 0) }
 }
 
-/** The accent a current song's title takes in lists that mark it with [SearchPlayingBars]. */
-val PlayingAccent = Color(0xFFE08A00)
+/**
+ * The accent a current song's title takes in lists that mark it with
+ * [SearchPlayingBars]: the shared emerald accent token, so a playing row
+ * reads in the app's own colour rather than a leftover amber.
+ */
+val PlayingAccent = GlassTokens.accent
 
 @Composable
 fun SearchPlayingBars(modifier: Modifier = Modifier) {
@@ -822,7 +827,7 @@ fun MessageState(
  * `OutlinedTextField` — the same box the alerts and the search bar are built
  * from.
  *
- * Flat `surfaceVariant`, an 11dp radius, no outline and no floating label. A
+ * Flat `surfaceVariant`, the shared card radius, no outline and no floating label. A
  * stock `OutlinedTextField` dropped onto one of these pages reads as a widget
  * borrowed from another app: it is the only thing on the screen wearing a
  * border, and its label reserves a band of empty space above every row it sits
@@ -853,7 +858,7 @@ fun PillTextField(
         modifier = modifier
             .fillMaxWidth()
             .height(40.dp)
-            .background(container, RoundedCornerShape(11.dp))
+            .background(container, GlassTokens.cardShape)
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
@@ -893,7 +898,7 @@ fun PillTextField(
 @Composable
 fun GlassPanel(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(20.dp),
+    shape: Shape = GlassTokens.panelShape,
     contentPadding: PaddingValues = PaddingValues(16.dp),
     content: @Composable () -> Unit,
 ) {
@@ -901,7 +906,7 @@ fun GlassPanel(
         modifier = modifier
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .border(1.dp, Color.White.copy(alpha = 0.10f), shape),
+            .border(GlassTokens.hairlineWidth, GlassTokens.hairline, shape),
     ) {
         // Top highlight: a short white gradient across the upper edge.
         Box(
