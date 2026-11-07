@@ -1,6 +1,7 @@
 package com.music.sonariq.tv
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -27,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -118,6 +120,7 @@ private fun TvKey(
         modifier = modifier
             .width(if (wide) 120.dp else 56.dp)
             .height(56.dp)
+            .scale(if (focused) 1.06f else 1f)
             .clip(RoundedCornerShape(12.dp))
             .background(
                 when {
@@ -125,6 +128,11 @@ private fun TvKey(
                     focused -> MaterialTheme.colorScheme.primary
                     else -> MaterialTheme.colorScheme.surfaceVariant
                 },
+            )
+            .border(
+                width = if (focused) 2.dp else 0.dp,
+                color = Color(0xFF32D979),
+                shape = RoundedCornerShape(12.dp),
             )
             .clickable(
                 interactionSource = interaction,
@@ -140,7 +148,7 @@ private fun TvKey(
             fontWeight = FontWeight.SemiBold,
             color = when {
                 !enabled -> Color.Gray
-                focused -> Color.White
+                focused -> MaterialTheme.colorScheme.onPrimary
                 else -> MaterialTheme.colorScheme.onSurfaceVariant
             },
         )
@@ -163,6 +171,7 @@ private fun TvKeyIcon(
         modifier = modifier
             .width(if (wide) 120.dp else 56.dp)
             .height(56.dp)
+            .scale(if (focused) 1.06f else 1f)
             .clip(RoundedCornerShape(12.dp))
             .background(
                 when {
@@ -170,6 +179,11 @@ private fun TvKeyIcon(
                     accent -> MaterialTheme.colorScheme.primaryContainer
                     else -> MaterialTheme.colorScheme.surfaceVariant
                 },
+            )
+            .border(
+                width = if (focused) 2.dp else 0.dp,
+                color = Color(0xFF32D979),
+                shape = RoundedCornerShape(12.dp),
             )
             .clickable(
                 interactionSource = interaction,
@@ -180,7 +194,8 @@ private fun TvKeyIcon(
         Icon(
             icon,
             contentDescription = contentDescription,
-            tint = if (focused) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = if (focused) MaterialTheme.colorScheme.onPrimary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

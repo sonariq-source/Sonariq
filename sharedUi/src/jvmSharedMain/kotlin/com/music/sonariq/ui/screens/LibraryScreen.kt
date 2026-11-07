@@ -3,7 +3,10 @@ package com.music.sonariq.ui.screens
 import com.music.sonariq.sharedui.resources.*
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -132,6 +135,12 @@ fun LibraryScreen(
     smartPlaylistItems: List<ShelfItem> = emptyList(),
     /** The big "Library" heading; the desktop's pages carry none. */
     showTitle: Boolean = true,
+    /**
+     * Opens the in-library search (the Search tab in its library source).
+     * Only the phone wires it; where it is null the heading carries no
+     * search action rather than a dead one.
+     */
+    onSearchLibrary: (() -> Unit)? = null,
 ) {
     val pinnedPlaylists by AppUi.host.pinnedPlaylists.collectAsStateWithLifecycle()
     val onDevice = stringResource(Res.string.on_device)
@@ -149,34 +158,67 @@ fun LibraryScreen(
             if (showTitle) {
                 item {
                     Column(Modifier.fillMaxWidth().padding(horizontal = PAGE_GUTTER, vertical = 12.dp)) {
-                        Text("YOUR MUSIC, ORGANIZED", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.height(5.dp))
-                        Text(
-                            stringResource(Res.string.library),
-                            style = MaterialTheme.typography.displayLarge,
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                        Spacer(Modifier.height(3.dp))
-                        Text("Everything you saved, ready when you are.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(15.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                stringResource(Res.string.library),
+                                style = MaterialTheme.typography.displayLarge,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (onSearchLibrary != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                        .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
+                                        .clickable(onClick = onSearchLibrary),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = SonariqIcons.Search,
+                                        contentDescription = stringResource(Res.string.search_library_hint),
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(21.dp),
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(14.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                Modifier.clip(RoundedCornerShape(13.dp)).background(MaterialTheme.colorScheme.primary)
-                                    .clickable(onClick = onNewPlaylist).padding(horizontal = 14.dp, vertical = 10.dp),
+                            Row(
+                                modifier = Modifier.clip(RoundedCornerShape(percent = 50)).background(MaterialTheme.colorScheme.primary)
+                                    .clickable(onClick = onNewPlaylist).padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text("＋  New playlist", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimary)
+                                Icon(
+                                    imageVector = SonariqIcons.Plus,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(stringResource(Res.string.new_playlist), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimary)
                             }
                             if (onImportSpotifyPlaylist != null) {
                                 Box(
-                                    Modifier.clip(RoundedCornerShape(13.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
-                                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(13.dp))
-                                        .clickable { onImportSpotifyPlaylist() }.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    Modifier.clip(RoundedCornerShape(percent = 50)).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                        .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(percent = 50))
+                                        .clickable { onImportSpotifyPlaylist() }.padding(horizontal = 16.dp, vertical = 10.dp),
                                 ) {
                                     Text("Import playlist", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
                                 }
                             }
                         }
                     }
+                }
+                item(key = "library-chips") {
+                    LibraryFilterChips(
+                        shelves = (state as? UiState.Success)?.data?.shelves.orEmpty(),
+                        links = links,
+                        onShowAll = onShowAll,
+                        onShelfItemClick = onShelfItemClick,
+                    )
                 }
             }
             item(key = "replay") { replay() }
@@ -285,56 +327,168 @@ fun LibraryScreen(
 data class LibraryLink(val item: ShelfItem, val icon: ImageVector, val logo: DrawableResource? = null)
 
 /**
- * The folders and collection shortcuts as a plain index: one ruled line per
- * place — glyph, name, then what is inside it, set against the right edge —
- * rather than a grid of cards.
+ * The category chips under the Library heading: one pill per collection the
+ * page actually holds — the saved shelves and the Liked / Downloads / Local
+ * shortcuts — each opening the same destination its card or row below opens.
+ * A chip for a category that is not on the page is never drawn.
+ */
+@Composable
+private fun LibraryFilterChips(
+    shelves: List<HomeShelf>,
+    links: List<LibraryLink>,
+    onShowAll: (HomeShelf) -> Unit,
+    onShelfItemClick: (ShelfItem) -> Unit,
+) {
+    val shortcutIds = setOf(YtMusicRepository.LIKED_MUSIC, "local:downloads", "local:all")
+    val shortcuts = links.filter { it.item.browseId in shortcutIds }
+    if (shelves.isEmpty() && shortcuts.isEmpty()) return
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = PAGE_GUTTER)
+            .padding(bottom = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        shelves.forEach { shelf ->
+            LibraryChip(label = shelf.title) { onShowAll(shelf) }
+        }
+        shortcuts.forEach { link ->
+            LibraryChip(label = link.item.title) { onShelfItemClick(link.item) }
+        }
+    }
+}
+
+@Composable
+private fun LibraryChip(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(percent = 50))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(percent = 50))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/**
+ * The folders and collection shortcuts as modern cards: one glass card per
+ * place — an emerald-tinted icon disc, the name with its count or descriptor
+ * stacked under it, and a chevron — instead of the old ruled index. Liked
+ * Songs is the one gradient tile: an emerald wash with dark text, so the
+ * collection the page is built around reads at a glance.
  *
- * Each row's second line is either a genuine count from the data layer
- * (today: only Downloads') or a descriptor; rows never invent figures — see
+ * Each card's second line is either a genuine count from the data layer
+ * (today: only Downloads') or a descriptor; cards never invent figures — see
  * the app's `libraryRowModels`, which builds this list.
  */
 @Composable
 private fun LibraryLinkList(links: List<LibraryLink>, onClick: (ShelfItem) -> Unit) {
-    Column(Modifier.padding(top = 6.dp, bottom = 22.dp).fillMaxWidth()) {
+    Column(
+        modifier = Modifier.padding(top = 6.dp, bottom = 22.dp).fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         SectionHeader("Quick access")
-        links.forEachIndexed { index, link ->
+        links.forEach { link ->
+            val isLiked = link.item.browseId == YtMusicRepository.LIKED_MUSIC
+            val cardShape = RoundedCornerShape(16.dp)
+            val titleColor = if (isLiked) {
+                MaterialTheme.colorScheme.onPrimary
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            }
+            val subtitleColor = if (isLiked) {
+                MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f)
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .padding(horizontal = PAGE_GUTTER)
+                    .fillMaxWidth()
+                    .clip(cardShape)
+                    .then(
+                        if (isLiked) {
+                            Modifier.background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.secondary,
+                                    ),
+                                ),
+                            )
+                        } else {
+                            Modifier
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                .border(1.dp, Color.White.copy(alpha = 0.08f), cardShape)
+                        },
+                    )
                     .clickable { onClick(link.item) }
-                    .padding(horizontal = PAGE_GUTTER, vertical = 15.dp),
+                    .padding(horizontal = 14.dp, vertical = 13.dp),
             ) {
-                if (link.logo != null) {
-                    Icon(painter = painterResource(link.logo), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                } else {
-                    Icon(imageVector = link.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isLiked) {
+                                Color.Black.copy(alpha = 0.18f)
+                            } else {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                            },
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (link.logo != null) {
+                        Icon(
+                            painter = painterResource(link.logo),
+                            contentDescription = null,
+                            tint = if (isLiked) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    } else {
+                        Icon(
+                            imageVector = link.icon,
+                            contentDescription = null,
+                            tint = if (isLiked) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
                 }
-                Spacer(Modifier.width(16.dp))
-                Text(
-                    link.item.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                if (link.item.subtitle.isNotBlank()) {
-                    Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(13.dp))
+                Column(Modifier.weight(1f)) {
                     Text(
-                        link.item.subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        link.item.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = titleColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    if (link.item.subtitle.isNotBlank()) {
+                        Text(
+                            link.item.subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = subtitleColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
                 Spacer(Modifier.width(10.dp))
-                Text("\u203A", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (index < links.lastIndex) {
-                Box(
-                    Modifier.padding(start = PAGE_GUTTER + 38.dp, end = PAGE_GUTTER).fillMaxWidth().height(1.dp)
-                        .background(MaterialTheme.colorScheme.outlineVariant),
+                Icon(
+                    imageVector = SonariqIcons.ChevronRight,
+                    contentDescription = null,
+                    tint = subtitleColor,
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }

@@ -728,8 +728,10 @@ internal fun ellipsised(text: String, paint: Paint, width: Float): String {
  * share button.
  */
 internal class Fonts(context: Context) {
-    private val heavy = font(context, R.font.space_grotesk_bold) ?: Typeface.DEFAULT_BOLD
-    private val semibold = font(context, R.font.space_grotesk_semibold) ?: Typeface.DEFAULT_BOLD
+    // Inter at every weight: the poster's sans face, matching the app's
+    // body face — no display face is used on the share picture.
+    private val heavy = font(context, R.font.inter_bold) ?: Typeface.DEFAULT_BOLD
+    private val semibold = font(context, R.font.inter_semibold) ?: Typeface.DEFAULT_BOLD
     private val regular = font(context, R.font.inter_regular) ?: Typeface.DEFAULT
 
     fun heading(size: Float, color: Int) = paint(heavy, size, color)

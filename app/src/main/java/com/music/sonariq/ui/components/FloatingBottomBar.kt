@@ -157,9 +157,12 @@ internal const val STRETCH = 0.16f
 internal const val SQUASH = 0.5f
 
 /**
- * Sonariq's navigation: a floating capsule of icons. Only the selected tab
- * opens up to show its name, in an emerald pill; the others stay icon-only. It
- * floats clear of the screen edge instead of sitting on it as a full-width dock.
+ * Sonariq's navigation: a docked, full-width glass bar flush with the bottom
+ * of the screen. Every destination shows its icon over its label; the
+ * selected one carries an emerald pill behind the icon and an emerald label.
+ * The bar itself is glass — the theme's elevated surface with a hairline
+ * along its top edge — and it pads itself by the navigation-bar inset so it
+ * sits correctly over gesture and three-button navigation alike.
  */
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
@@ -170,31 +173,33 @@ fun FloatingBottomBar(
     hazeState: HazeState,
     modifier: Modifier = Modifier,
 ) {
-    val capsule = RoundedCornerShape(30.dp)
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .windowInsetsPadding(floatingBarInsets)
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center,
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Color.White.copy(alpha = 0.10f)),
+        )
         Row(
             modifier = Modifier
-                .shadow(12.dp, capsule, clip = false)
-                .clip(capsule)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), capsule)
-                .padding(6.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             tabs.forEachIndexed { index, tab ->
-                CapsuleTab(
+                DockedTab(
                     tab = tab,
                     selected = index == selectedIndex,
                     animate = !reduceAnimation,
                     onClick = { onTabSelected(index) },
+                    modifier = Modifier.weight(1f),
                 )
             }
         }
@@ -202,29 +207,27 @@ fun FloatingBottomBar(
 }
 
 @Composable
-private fun CapsuleTab(
+private fun DockedTab(
     tab: BottomTab,
     selected: Boolean,
     animate: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val haptics = rememberHaptics()
-    val fill by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+    val pillFill by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Color.Transparent,
         animationSpec = if (animate) tween(220) else snap(),
-        label = "tabFill",
+        label = "tabPillFill",
     )
     val tint by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         animationSpec = if (animate) tween(220) else snap(),
         label = "tabTint",
     )
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .height(46.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(fill)
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -232,27 +235,31 @@ private fun CapsuleTab(
                 if (!selected) haptics.play(Haptic.Select)
                 onClick()
             }
-            .padding(horizontal = if (selected) 16.dp else 14.dp),
+            .padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(
-            imageVector = tab.icon,
-            contentDescription = if (selected) null else tab.label,
-            tint = tint,
-            modifier = Modifier.size(24.dp),
-        )
-        AnimatedVisibility(
-            visible = selected,
-            enter = if (animate) expandHorizontally() + fadeIn() else EnterTransition.None,
-            exit = if (animate) shrinkHorizontally() + fadeOut() else ExitTransition.None,
+        Box(
+            modifier = Modifier
+                .width(52.dp)
+                .height(30.dp)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(pillFill),
+            contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = tab.label,
-                style = MaterialTheme.typography.labelLarge,
-                color = tint,
-                maxLines = 1,
-                softWrap = false,
-                modifier = Modifier.padding(start = 8.dp),
+            Icon(
+                imageVector = tab.icon,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(23.dp),
             )
         }
+        Spacer(Modifier.height(TAB_ICON_LABEL_GAP))
+        Text(
+            text = tab.label,
+            style = MaterialTheme.typography.labelMedium,
+            color = tint,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }

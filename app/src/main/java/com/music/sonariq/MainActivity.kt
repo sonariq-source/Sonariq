@@ -3654,6 +3654,10 @@ private fun SonariqApp(
                             ),
                             deviceItems = libraryDeviceItems(downloadedReleases) + localPlaylistItems,
                             smartPlaylistItems = smartPlaylistItems,
+                            onSearchLibrary = {
+                                onSearchSourceChange(SearchSource.LIBRARY)
+                                selectedTab = TAB_SEARCH
+                            },
                         )
                     }
                 }
@@ -4174,46 +4178,12 @@ private fun SonariqApp(
                 val barSelectedIndex =
                     visibleTabs.indexOfFirst { it.first == selectedTab }.coerceAtLeast(0)
 
-                if (glassActive) Column(
+                // One bottom stack in both materials: the mini player as a
+                // separate glass card directly above a docked full-width
+                // navigation bar — two designed parts, never one capsule.
+                Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .widthIn(max = FLOATING_BAR_MAX_WIDTH)
-                        .fillMaxWidth()
-                        .onSizeChanged { floatingBarsHeight.intValue = it.height },
-                ) {
-                    QueueActionNoticeHost(queueNotice)
-                    // Liquid glass replaces the two stacked bars with the single
-                    // component they are stacked to imitate: the now playing
-                    // controls dock into the tab bar rather than riding above it,
-                    // and the pair folds together on scroll. See [GlassNavBar].
-                    GlassNavBar(
-                        tabs = barTabs,
-                        selectedIndex = barSelectedIndex,
-                        onTabSelected = onTabSelected,
-                        scrollConnection = navBarScroll,
-                        song = player.song,
-                        isPlaying = player.isPlaying,
-                        isLoading = playPauseBusy,
-                        onPlayPause = {
-                            togglePlayPause()
-                        },
-                        onNext = { controller?.seekToNextMediaItem() },
-                        onPrevious = { controller?.seekToPrevious() },
-                        onExpand = if (reducePlayerMotion) {
-                            { showNowPlaying = true }
-                        } else {
-                            playerSheetMotion::open
-                        },
-                        controlsLocked = controlsLocked,
-                        onBlockedControl = showHostOnlyNotice,
-                        dock = activeDock,
-                        pull = playerSheetMotion.takeIf { !reducePlayerMotion },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                } else Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        // Full-width dock: player and navigation align to the screen edge.
                         .fillMaxWidth()
                         .onSizeChanged { floatingBarsHeight.intValue = it.height },
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -4243,7 +4213,6 @@ private fun SonariqApp(
                             durationMs = player.durationMs,
                             modifier = Modifier.fillMaxWidth(),
                         )
-                        Spacer(Modifier.height(8.dp))
                     }
                     FloatingBottomBar(
                         tabs = barTabs,

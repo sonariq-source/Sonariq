@@ -40,7 +40,6 @@ import com.music.sonariq.ui.player.NowPlayingScreen
 import com.music.sonariq.ui.player.QueueSidePanel
 import com.music.sonariq.ui.player.PlayerBack
 import com.music.sonariq.ui.player.RepeatModes
-import com.music.sonariq.ui.player.rememberMixPulse
 import androidx.compose.runtime.SideEffect
 import com.music.sonariq.data.model.QueueTier
 import androidx.compose.animation.AnimatedVisibility
@@ -192,8 +191,6 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
@@ -2864,37 +2861,6 @@ fun SonariqDesktopApp() {
                 topBar = { compact ->
                     DesktopTopBar(
                         compact = compact,
-                        song = selectedSong,
-                        isPlaying = playback.isPlaying,
-                        isLoading = playback.isLoading,
-                        previousEnabled = liveQueue.hasPrevious ||
-                            playback.positionMs > BACK_RESTARTS_AFTER_MS,
-                        progress = if (playback.durationMs > 0L) {
-                            playback.positionMs.toFloat() / playback.durationMs.toFloat()
-                        } else {
-                            0f
-                        },
-                        volume = playback.volume,
-                        shuffle = shuffle,
-                        repeatMode = repeatMode,
-                        onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
-                        onPrevious = ::playPrevious,
-                        onNext = ::playNext,
-                        onShuffleChange = ::setShuffle,
-                        onRepeatModeChange = {
-                            repeatMode = it
-                            persistence.saveString("repeat_mode", it.name)
-                        },
-                        onOpenNowPlaying = { overlays.nowPlaying = true },
-                        onVolumeChange = {
-                            volume = it
-                            persistence.saveString("volume", it.toString())
-                        },
-                        onOpenAudioOutput = { overlays.audioOutput = true },
-                        // A second click on the same button puts the column away, as in Apple Music.
-                        onOpenLyrics = { overlays.toggleSidePanel(DesktopSidePanel.LYRICS) },
-                        onOpenQueue = { overlays.toggleSidePanel(DesktopSidePanel.QUEUE) },
-                        sidePanel = overlays.sidePanel,
                         accountAvatar = activeAccount?.avatar
                             ?: activeAccount?.profiles?.firstOrNull()?.avatar,
                         onOpenAccounts = { DesktopTrackLog.log("accounts: opening the switcher"); overlays.accounts = true },
@@ -2935,6 +2901,44 @@ fun SonariqDesktopApp() {
                         onExpand = { overlays.nowPlaying = true },
                         onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
                         onNext = ::playNext,
+                    )
+                },
+                playbackBar = {
+                    DesktopPlaybackBar(
+                        song = selectedSong,
+                        isPlaying = playback.isPlaying,
+                        isLoading = playback.isLoading,
+                        previousEnabled = liveQueue.hasPrevious ||
+                            playback.positionMs > BACK_RESTARTS_AFTER_MS,
+                        progress = if (playback.durationMs > 0L) {
+                            playback.positionMs.toFloat() / playback.durationMs.toFloat()
+                        } else {
+                            0f
+                        },
+                        positionMs = playback.positionMs,
+                        durationMs = playback.durationMs,
+                        volume = playback.volume,
+                        shuffle = shuffle,
+                        repeatMode = repeatMode,
+                        onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
+                        onPrevious = ::playPrevious,
+                        onNext = ::playNext,
+                        onShuffleChange = ::setShuffle,
+                        onRepeatModeChange = {
+                            repeatMode = it
+                            persistence.saveString("repeat_mode", it.name)
+                        },
+                        onOpenNowPlaying = { overlays.nowPlaying = true },
+                        onSeek = ::seekPlayer,
+                        onVolumeChange = {
+                            volume = it
+                            persistence.saveString("volume", it.toString())
+                        },
+                        onOpenAudioOutput = { overlays.audioOutput = true },
+                        // A second click on the same button puts the column away.
+                        onOpenLyrics = { overlays.toggleSidePanel(DesktopSidePanel.LYRICS) },
+                        onOpenQueue = { overlays.toggleSidePanel(DesktopSidePanel.QUEUE) },
+                        sidePanel = overlays.sidePanel,
                     )
                 },
                 trailing = {
@@ -3889,26 +3893,6 @@ fun SonariqDesktopApp() {
 @Composable
 private fun DesktopTopBar(
     compact: Boolean,
-    song: Song?,
-    isPlaying: Boolean,
-    isLoading: Boolean,
-    previousEnabled: Boolean,
-    progress: Float,
-    volume: Float,
-    shuffle: Boolean,
-    repeatMode: DesktopRepeatMode,
-    onPlayPause: () -> Unit,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onShuffleChange: (Boolean) -> Unit,
-    onRepeatModeChange: (DesktopRepeatMode) -> Unit,
-    onOpenNowPlaying: () -> Unit,
-    onVolumeChange: (Float) -> Unit,
-    onOpenAudioOutput: () -> Unit,
-    onOpenLyrics: () -> Unit,
-    onOpenQueue: () -> Unit,
-    /** Which of the two the column beside the page is showing, lit on its button. */
-    sidePanel: DesktopSidePanel?,
     accountAvatar: String?,
     onOpenAccounts: () -> Unit,
     /** The app's one way back — every page's own arrow was folded into this. */
@@ -3917,17 +3901,10 @@ private fun DesktopTopBar(
 ) {
     val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
     val inlineCaption = DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
-    // The same beat clock the player's scrubber runs, so this line and the player breathe
-    // together through an Automix blend.
-    val mixBlend = DesktopPlayerSettings.smartMixBlend.collectAsState()
-    val reduceAnimation by DesktopPlayerSettings.reduceAnimation.collectAsState()
-    val mixPulse = rememberMixPulse({ mixBlend.value }, enabled = !reduceAnimation)
-    val currentProgress by rememberUpdatedState(progress)
-
-    // Apple Music uses one calm strip for both player controls and window furniture. The left
-    // sidebar owns the traffic lights; the rest is a balanced transport / now-playing / utility
-    // layout with deliberately smaller glyphs than the phone player.
-    DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(64.dp)) {
+    // Modern streaming layout: the top strip carries only window furniture, the way back and
+    // the account — transport, the current track and the utility controls live in the
+    // persistent playback bar along the bottom of the window (see DesktopPlaybackBar).
+    DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(56.dp)) {
         Box(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
             // The window's own buttons live at the head of the sidebar; a compact window has no
@@ -3951,7 +3928,7 @@ private fun DesktopTopBar(
                     .padding(start = 14.dp, end = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // The mark leads the player's own controls, now that the sidebar runs to the top.
+                // The mark leads the strip, now that the sidebar runs to the top.
                 Image(
                     painter = painterResource(Res.drawable.logo_mark),
                     contentDescription = "Sonariq",
@@ -3966,200 +3943,8 @@ private fun DesktopTopBar(
                         modifier = Modifier.size(20.dp),
                     )
                 }
-                Spacer(Modifier.width(6.dp))
-                if (!compact) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(0.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        DesktopToolbarButton(onClick = { onShuffleChange(!shuffle) }, size = 32.dp) {
-                            Icon(
-                                SonariqIcons.Shuffle,
-                                DesktopStrings["shuffle", "Shuffle"],
-                                tint = if (shuffle) DesktopAccent else DesktopSecondary,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                        DesktopToolbarButton(onClick = onPrevious, enabled = previousEnabled, size = 32.dp) {
-                            Icon(
-                                Icons.Rounded.FastRewind,
-                                DesktopStrings["widget_previous", "Previous"],
-                                tint = if (previousEnabled) Color.White else DesktopSecondary.copy(alpha = 0.40f),
-                                modifier = Modifier.size(21.dp),
-                            )
-                        }
-                        DesktopToolbarButton(onClick = onPlayPause, size = 32.dp) {
-                            if (isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    color = Color.White,
-                                    strokeWidth = 2.dp,
-                                )
-                            } else {
-                                Icon(
-                                    if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                                    if (isPlaying) "Pause" else "Play",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(23.dp),
-                                )
-                            }
-                        }
-                        DesktopToolbarButton(onClick = onNext, size = 32.dp) {
-                            Icon(
-                                Icons.Rounded.FastForward,
-                                DesktopStrings["widget_next", "Next"],
-                                tint = Color.White,
-                                modifier = Modifier.size(21.dp),
-                            )
-                        }
-                        DesktopToolbarButton(
-                            onClick = { onRepeatModeChange(repeatMode.next()) },
-                            size = 32.dp,
-                        ) {
-                            val tint = if (repeatMode != DesktopRepeatMode.OFF) DesktopAccent else DesktopSecondary
-                            if (repeatMode == DesktopRepeatMode.ONE) {
-                                Text(
-                                    "1",
-                                    color = tint,
-                                    fontWeight = FontWeight.Bold,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.semantics { contentDescription = "Repeat one" },
-                                )
-                            } else {
-                                Icon(
-                                    SonariqIcons.Repeat,
-                                    "Repeat ${repeatMode.label()}",
-                                    tint = tint,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            }
-                        }
-                    }
-
-                    Box(
-                        Modifier.weight(1f).padding(horizontal = 14.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Surface(
-                            modifier = Modifier
-                                .widthIn(min = 300.dp, max = 520.dp)
-                                .fillMaxWidth()
-                                .height(46.dp)
-                                .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(4.dp))
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable(onClick = onOpenNowPlaying),
-                            color = Color(0xFF323236),
-                            tonalElevation = 0.dp,
-                        ) {
-                            Box(Modifier.fillMaxSize()) {
-                                if (song == null) {
-                                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            SonariqIcons.MusicNote,
-                                            DesktopStrings["playback_channel_name", "Now playing"],
-                                            tint = DesktopSecondary.copy(alpha = 0.65f),
-                                            modifier = Modifier.size(21.dp),
-                                        )
-                                    }
-                                } else {
-                                    Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                                        DesktopArtwork(
-                                            song.thumbnailUrl,
-                                            Modifier.size(44.dp).clip(RoundedCornerShape(3.dp)),
-                                            px = ROW_ART_PX,
-                                        )
-                                        Column(
-                                            Modifier.weight(1f).padding(start = 12.dp, end = 56.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                        ) {
-                                            Text(
-                                                song.title,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                style = MaterialTheme.typography.labelLarge,
-                                                fontWeight = FontWeight.SemiBold,
-                                            )
-                                            Text(
-                                                song.artist,
-                                                color = DesktopSecondary,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                style = MaterialTheme.typography.labelSmall,
-                                            )
-                                        }
-                                    }
-                                    // Drawn rather than sized: through a blend the line covers
-                                    // the full width and pulses on the beat, as the player's
-                                    // scrubber does, and reading either in draw keeps the frame
-                                    // clock from recomposing the whole bar.
-                                    Box(
-                                        Modifier
-                                            .align(Alignment.BottomStart)
-                                            .padding(start = 44.dp)
-                                            .fillMaxWidth()
-                                            .height(2.dp)
-                                            .drawBehind {
-                                                val base = currentProgress.coerceIn(0f, 1f)
-                                                val fraction = base + (1f - base) * mixPulse.cover
-                                                drawRect(
-                                                    color = Color.White.copy(alpha = mixPulse.alpha(0.48f)),
-                                                    size = Size(size.width * fraction, size.height),
-                                                )
-                                            },
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    Spacer(Modifier.weight(1f))
-                }
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(1.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        Icons.Rounded.VolumeUp,
-                        DesktopStrings["d_volume", "Volume"],
-                        tint = DesktopSecondary,
-                        modifier = Modifier.size(17.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    DesktopThinSlider(
-                        value = volume,
-                        onValueChange = onVolumeChange,
-                        idleHeight = 4.dp,
-                        activeHeight = 8.dp,
-                        modifier = Modifier.width(78.dp),
-                    )
-                    Spacer(Modifier.width(5.dp))
-                    DesktopToolbarButton(onClick = onOpenAudioOutput, size = 32.dp) {
-                        Icon(
-                            Icons.Rounded.Headphones,
-                            DesktopStrings["audio_output", "Audio output"],
-                            tint = DesktopSecondary,
-                            modifier = Modifier.size(19.dp),
-                        )
-                    }
-                    DesktopToolbarButton(onClick = onOpenLyrics, size = 32.dp) {
-                        Icon(
-                            SonariqIcons.LyricsQuote,
-                            DesktopStrings["lyrics", "Lyrics"],
-                            tint = if (sidePanel == DesktopSidePanel.LYRICS) Color.White else DesktopSecondary,
-                            modifier = Modifier.size(19.dp),
-                        )
-                    }
-                    DesktopToolbarButton(onClick = onOpenQueue, size = 32.dp) {
-                        Icon(
-                            SonariqIcons.Queue,
-                            DesktopStrings["queue", "Queue"],
-                            tint = if (sidePanel == DesktopSidePanel.QUEUE) Color.White else DesktopSecondary,
-                            modifier = Modifier.size(19.dp),
-                        )
-                    }
-                    DesktopAccountButton(avatar = accountAvatar, onClick = onOpenAccounts)
-                }
+                Spacer(Modifier.weight(1f))
+                DesktopAccountButton(avatar = accountAvatar, onClick = onOpenAccounts)
             }
             }
             HorizontalDivider(
@@ -4167,6 +3952,272 @@ private fun DesktopTopBar(
                 thickness = 1.dp,
                 color = desktopChromeDivider(),
             )
+        }
+    }
+}
+
+/**
+ * The persistent playback bar along the bottom of the window, in the modern streaming
+ * layout's three zones: the current track on the left, transport and progress in the centre,
+ * and the utility controls on the right. Every control here is one the old top strip carried,
+ * regrouped — none added, none removed. Emerald Liquid Glass surface with a top hairline.
+ */
+@Composable
+private fun DesktopPlaybackBar(
+    song: Song?,
+    isPlaying: Boolean,
+    isLoading: Boolean,
+    previousEnabled: Boolean,
+    progress: Float,
+    positionMs: Long,
+    durationMs: Long,
+    volume: Float,
+    shuffle: Boolean,
+    repeatMode: DesktopRepeatMode,
+    onPlayPause: () -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onShuffleChange: (Boolean) -> Unit,
+    onRepeatModeChange: (DesktopRepeatMode) -> Unit,
+    onOpenNowPlaying: () -> Unit,
+    onSeek: (Long) -> Unit,
+    onVolumeChange: (Float) -> Unit,
+    onOpenAudioOutput: () -> Unit,
+    onOpenLyrics: () -> Unit,
+    onOpenQueue: () -> Unit,
+    /** Which of the two the column beside the page is showing, lit on its button. */
+    sidePanel: DesktopSidePanel?,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(DesktopSurfaceRaised.copy(alpha = 0.72f)),
+    ) {
+        HorizontalDivider(
+            modifier = Modifier.fillMaxWidth(),
+            thickness = 1.dp,
+            color = desktopChromeDivider(),
+        )
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(88.dp)
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Left zone: the current track.
+            Row(
+                Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable(onClick = onOpenNowPlaying)
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (song == null) {
+                    Box(
+                        Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.White.copy(alpha = 0.06f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            SonariqIcons.MusicNote,
+                            DesktopStrings["playback_channel_name", "Now playing"],
+                            tint = DesktopSecondary.copy(alpha = 0.65f),
+                            modifier = Modifier.size(21.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        DesktopStrings["playback_channel_name", "Now playing"],
+                        color = DesktopSecondary,
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                } else {
+                    DesktopArtwork(
+                        song.thumbnailUrl,
+                        Modifier.size(52.dp).clip(RoundedCornerShape(8.dp)),
+                        px = ROW_ART_PX,
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            song.title,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            song.artist,
+                            color = DesktopSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(16.dp))
+            // Centre zone: transport over the progress line, flanked by the times.
+            Column(
+                Modifier.weight(1.4f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    DesktopToolbarButton(onClick = { onShuffleChange(!shuffle) }, size = 34.dp) {
+                        Icon(
+                            SonariqIcons.Shuffle,
+                            DesktopStrings["shuffle", "Shuffle"],
+                            tint = if (shuffle) DesktopAccent else DesktopSecondary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    DesktopToolbarButton(onClick = onPrevious, enabled = previousEnabled, size = 34.dp) {
+                        Icon(
+                            Icons.Rounded.FastRewind,
+                            DesktopStrings["widget_previous", "Previous"],
+                            tint = if (previousEnabled) Color.White else DesktopSecondary.copy(alpha = 0.40f),
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
+                    // The one filled control in the bar: a circular emerald play/pause.
+                    Box(
+                        Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(DesktopAccent)
+                            .clickable(onClick = onPlayPause),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(19.dp),
+                                color = Color(0xFF04140B),
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            Icon(
+                                if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                if (isPlaying) "Pause" else "Play",
+                                tint = Color(0xFF04140B),
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
+                    }
+                    DesktopToolbarButton(onClick = onNext, size = 34.dp) {
+                        Icon(
+                            Icons.Rounded.FastForward,
+                            DesktopStrings["widget_next", "Next"],
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
+                    DesktopToolbarButton(
+                        onClick = { onRepeatModeChange(repeatMode.next()) },
+                        size = 34.dp,
+                    ) {
+                        val tint = if (repeatMode != DesktopRepeatMode.OFF) DesktopAccent else DesktopSecondary
+                        if (repeatMode == DesktopRepeatMode.ONE) {
+                            Text(
+                                "1",
+                                color = tint,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.semantics { contentDescription = "Repeat one" },
+                            )
+                        } else {
+                            Icon(
+                                SonariqIcons.Repeat,
+                                "Repeat ${repeatMode.label()}",
+                                tint = tint,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+                }
+                Row(
+                    Modifier.widthIn(max = 520.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        formatTime(positionMs),
+                        color = DesktopSecondary,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    DesktopThinSlider(
+                        value = progress,
+                        onValueChange = { fraction ->
+                            if (durationMs > 0L) onSeek((fraction * durationMs).toLong())
+                        },
+                        idleHeight = 4.dp,
+                        activeHeight = 8.dp,
+                        activeColor = DesktopAccent,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "-" + formatTime(durationMs - positionMs),
+                        color = DesktopSecondary,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+            }
+            Spacer(Modifier.width(16.dp))
+            // Right zone: volume, audio output, lyrics and queue — the old strip's utilities.
+            Row(
+                Modifier.weight(1f),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Rounded.VolumeUp,
+                    DesktopStrings["d_volume", "Volume"],
+                    tint = DesktopSecondary,
+                    modifier = Modifier.size(17.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                DesktopThinSlider(
+                    value = volume,
+                    onValueChange = onVolumeChange,
+                    idleHeight = 4.dp,
+                    activeHeight = 8.dp,
+                    modifier = Modifier.width(78.dp),
+                )
+                Spacer(Modifier.width(5.dp))
+                DesktopToolbarButton(onClick = onOpenAudioOutput, size = 32.dp) {
+                    Icon(
+                        Icons.Rounded.Headphones,
+                        DesktopStrings["audio_output", "Audio output"],
+                        tint = DesktopSecondary,
+                        modifier = Modifier.size(19.dp),
+                    )
+                }
+                DesktopToolbarButton(onClick = onOpenLyrics, size = 32.dp) {
+                    Icon(
+                        SonariqIcons.LyricsQuote,
+                        DesktopStrings["lyrics", "Lyrics"],
+                        tint = if (sidePanel == DesktopSidePanel.LYRICS) Color.White else DesktopSecondary,
+                        modifier = Modifier.size(19.dp),
+                    )
+                }
+                DesktopToolbarButton(onClick = onOpenQueue, size = 32.dp) {
+                    Icon(
+                        SonariqIcons.Queue,
+                        DesktopStrings["queue", "Queue"],
+                        tint = if (sidePanel == DesktopSidePanel.QUEUE) Color.White else DesktopSecondary,
+                        modifier = Modifier.size(19.dp),
+                    )
+                }
+            }
         }
     }
 }
@@ -4238,10 +4289,13 @@ private fun DesktopSidebar(
     val inlineCaption = DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
     Box(
         Modifier
-            .width(220.dp)
+            .width(232.dp)
             .fillMaxHeight()
             .desktopWindowGlass(DesktopChromeEdge.END, fade = 0.07f),
     ) {
+        // The sidebar's own surface: the emerald Liquid Glass tone at partial alpha over the
+        // window glass, set off from the page by the hairline along its end edge below.
+        Box(Modifier.matchParentSize().background(DesktopSurfaceRaised.copy(alpha = 0.45f)))
         Column(Modifier.fillMaxSize()) {
             // The sidebar runs to the top of the window, so its head is the window's caption: the
             // three buttons, and room to take hold of the window by.
@@ -4255,6 +4309,26 @@ private fun DesktopSidebar(
         Column(
             Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = if (inlineCaption) 4.dp else 16.dp, bottom = 16.dp),
         ) {
+            // The wordmark heads the sidebar in the modern streaming layout.
+            Row(
+                Modifier.padding(start = 8.dp, top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Image(
+                    painter = painterResource(Res.drawable.logo_mark),
+                    contentDescription = "Sonariq",
+                    modifier = Modifier.size(width = 30.dp, height = 19.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "Sonariq",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
+            }
+            Spacer(Modifier.height(16.dp))
             DesktopSearchField(
                 query = query,
                 onQueryChange = onQueryChange,
@@ -4295,6 +4369,17 @@ private fun DesktopSidebar(
             Spacer(Modifier.height(6.dp))
             HorizontalDivider(color = desktopChromeDivider())
             Spacer(Modifier.height(12.dp))
+            // The library section: the account's and the local playlists the sidebar has
+            // always listed, now under their own heading.
+            Text(
+                "Playlists",
+                modifier = Modifier.padding(start = 12.dp),
+                color = DesktopSecondary,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+            )
+            Spacer(Modifier.height(8.dp))
             LazyColumn(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 contentPadding = PaddingValues(bottom = 8.dp),
@@ -4348,21 +4433,34 @@ private fun DesktopSidebarItem(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+    // An icon-and-label row; the selected destination is a filled rounded rectangle in a
+    // translucent emerald glass tint with emerald icon and label, not a bare tint swap.
+    val shape = RoundedCornerShape(12.dp)
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(7.dp))
-            .background(if (selected) Color.White.copy(alpha = 0.12f) else Color.Transparent)
+            .padding(vertical = 2.dp)
+            .clip(shape)
+            .then(
+                if (selected) {
+                    Modifier
+                        .background(DesktopSurfaceRaised.copy(alpha = 0.90f))
+                        .background(DesktopAccent.copy(alpha = 0.16f))
+                } else {
+                    Modifier
+                },
+            )
             .clickable(onClick = onClick)
-            .padding(horizontal = 9.dp, vertical = 7.dp),
+            .padding(horizontal = 12.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, label, tint = if (selected) DesktopAccent else DesktopSecondary, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(10.dp))
+        Icon(icon, label, tint = if (selected) DesktopAccent else DesktopSecondary, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
         Text(
             label,
-            color = if (selected) Color.White else DesktopSecondary,
+            color = if (selected) DesktopAccent else DesktopSecondary,
             style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -4492,16 +4590,17 @@ internal fun DesktopSearchField(
     onFocusChanged: (Boolean) -> Unit = {},
     placeholder: String = "Search",
 ) {
-    val searchShape = RoundedCornerShape(7.dp)
+    // A pill-shaped glass field in the emerald Liquid Glass system.
+    val searchShape = RoundedCornerShape(percent = 50)
     Box(
         modifier
             .fillMaxWidth()
-            .height(36.dp)
+            .height(40.dp)
             .clip(searchShape)
-            .background(Color.White.copy(alpha = 0.07f))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), searchShape)
+            .background(DesktopSurfaceRaised.copy(alpha = 0.72f))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), searchShape)
             .clickable { focusRequester.requestFocus() }
-            .padding(horizontal = 9.dp),
+            .padding(horizontal = 14.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
         BasicTextField(
@@ -4559,6 +4658,8 @@ private fun DesktopFrame(
     topBar: @Composable (Boolean) -> Unit,
     sidebar: @Composable () -> Unit,
     bottomBar: @Composable (Boolean) -> Unit,
+    /** The persistent playback bar docked under the page; compact keeps its floating chrome over the page as well. */
+    playbackBar: @Composable () -> Unit = {},
     /** The column on the far side of the page — the lyrics or the queue, when one is open. */
     trailing: @Composable () -> Unit = {},
     overlay: @Composable () -> Unit = {},
@@ -4608,10 +4709,15 @@ private fun DesktopFrame(
                                         if (glass) backdrop(materialBehindApp)
                                         content(
                                             PaddingValues(
+                                                // The shared pages own the 16.dp gutters; the
+                                                // wrapper only keeps the foot of the page clear.
                                                 start = 0.dp,
                                                 end = 0.dp,
-                                                // Room for the bar that floats over this, so the
-                                                // last row can still be scrolled clear of it.
+                                                // Compact: room for the chrome that floats over
+                                                // this, so the last row can still be scrolled
+                                                // clear of it. Wide: nothing floats over the
+                                                // page — the playback bar is docked below it —
+                                                // so a plain 16.dp gutter is all the foot needs.
                                                 bottom = if (compact) 128.dp else 16.dp,
                                             ),
                                         )
@@ -4632,6 +4738,10 @@ private fun DesktopFrame(
                                         ),
                                 ) { trailing() }
                             }
+                            // The persistent playback bar, docked under the page and its side
+                            // column. Compact windows get it too: it is where their volume,
+                            // lyrics and queue controls live now.
+                            playbackBar()
                             }
                         }
                     }

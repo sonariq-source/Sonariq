@@ -75,7 +75,7 @@ fun SearchField(
     // accent in an otherwise quiet, editorial search surface.
     val accent = MaterialTheme.colorScheme.primary
     var focused by remember { mutableStateOf(false) }
-    val barShape = RoundedCornerShape(topStart = 26.dp, topEnd = 6.dp, bottomEnd = 26.dp, bottomStart = 6.dp)
+    val barShape = RoundedCornerShape(percent = 50)
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -84,7 +84,7 @@ fun SearchField(
             .onFocusChanged { focused = it.hasFocus }
             .clip(barShape)
             .background(
-                if (focused) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant,
+                if (focused) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerHigh,
                 barShape,
             )
             .border(

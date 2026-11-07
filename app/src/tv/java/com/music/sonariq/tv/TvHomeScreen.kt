@@ -1,6 +1,10 @@
 package com.music.sonariq.tv
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,9 +32,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -54,6 +61,11 @@ import kotlinx.coroutines.launch
  * Two-pane layout: search and the on-screen keyboard on the left, results
  * on the right. Thumbnails load at 128px — a 64dp row needs no more, and on
  * a low-end TV the smaller decode keeps scrolling smooth.
+ *
+ * Reconstructed geometry: one sans type system (the theme's Inter), bold
+ * section headers, consistent TV gutters, and results presented as a shelf
+ * of fixed-height rows — small uniform-corner artwork, title/artist stacked,
+ * duration as trailing meta, and an emerald focus ring with a slight scale.
  */
 @Composable
 fun TvHomeScreen(
@@ -104,7 +116,7 @@ fun TvHomeScreen(
     Column(
         Modifier
             .fillMaxSize()
-            .padding(48.dp),
+            .padding(horizontal = 48.dp, vertical = 40.dp),
     ) {
         // Header: brand left, party right.
         Row(
@@ -177,15 +189,16 @@ fun TvHomeScreen(
                     .weight(1.2f)
                     .fillMaxHeight(),
             ) {
+                // Bold sans section header for the results shelf.
                 Text(
                     text = if (searching) "Searching…"
                     else if (results.isNotEmpty()) "${results.size} results"
                     else "Results",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(16.dp))
                 if (searching && results.isEmpty()) {
                     CircularProgressIndicator()
                 } else if (results.isEmpty() && query.isNotBlank()) {
@@ -222,34 +235,71 @@ private fun TvSongRow(
     song: Song,
     onClick: () -> Unit,
 ) {
+    // Same clickable/focus path as before; the interaction source only
+    // drives the new focus presentation (emerald ring + slight scale).
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val rowShape = RoundedCornerShape(12.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(10.dp),
+            .height(76.dp)
+            .scale(if (focused) 1.02f else 1f)
+            .clip(rowShape)
+            .background(
+                if (focused) MaterialTheme.colorScheme.surfaceContainerHigh
+                else MaterialTheme.colorScheme.surface,
+            )
+            .border(
+                width = if (focused) 2.dp else 1.dp,
+                color = if (focused) Color(0xFF32D979) else Color.Transparent,
+                shape = rowShape,
+            )
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 12.dp),
     ) {
+        // Small rounded-square artwork, uniform 12dp corners.
         AsyncImage(
             model = song.artworkAt(128),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .size(56.dp)
-                .clip(RoundedCornerShape(8.dp)),
+                .size(52.dp)
+                .clip(RoundedCornerShape(12.dp)),
         )
         Spacer(Modifier.width(16.dp))
-        Column {
+        // Title + artist stacked, taking the flexible middle of the row.
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = song.title,
                 style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp),
                 color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = song.artist,
                 style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        // Trailing meta: the track duration, when the row stated one.
+        song.durationText?.takeIf { it.isNotBlank() }?.let { duration ->
+            Spacer(Modifier.width(16.dp))
+            Text(
+                text = duration,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (focused) Color(0xFF32D979)
+                else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

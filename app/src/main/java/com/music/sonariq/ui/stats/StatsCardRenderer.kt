@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.View
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,15 +18,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,6 +44,7 @@ import com.music.sonariq.data.stats.ReplayPeriod
 import com.music.sonariq.ui.replay.formatMinutes
 import com.music.sonariq.ui.replay.grouped
 import com.music.sonariq.ui.replay.localizedLabel
+import com.music.sonariq.ui.theme.Inter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -266,8 +273,9 @@ private data class WrappedCardData(
     val emptyHint: String,
 )
 
-/** Prism: matte midnight/plum, coral primary, orchid secondary, cyan highlights. */
+/** The emerald share-card palette, matching the app's glass tone and accents. */
 private val DeepBase = Color(0xFF0D1511)
+private val GlassTone = Color(0xFF17251D)
 private val Emerald = Color(0xFF1DB954)
 private val Bright = Color(0xFF35E887)
 private val Mint = Color(0xFF8EF5BD)
@@ -277,6 +285,8 @@ private val InkFaint = Color(0xFF68766D)
 
 @Composable
 private fun StatsCard(data: StatsCardData) {
+    // Every word on the card is set in Inter, the app's sans face.
+    CompositionLocalProvider(LocalTextStyle provides TextStyle(fontFamily = Inter)) {
     Box(
         Modifier
             .fillMaxSize()
@@ -319,10 +329,17 @@ private fun StatsCard(data: StatsCardData) {
                 .background(Brush.horizontalGradient(listOf(Color(0xFF1DB954), Color(0xFF0E7A44)))),
         )
 
+        // The content sits in one glass panel with uniform 28dp corners
+        // and an emerald edge, over the wash behind it.
+        val panelShape = RoundedCornerShape(28.dp)
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(horizontal = 64.dp, vertical = 56.dp),
+                .padding(36.dp)
+                .clip(panelShape)
+                .background(GlassTone, panelShape)
+                .border(1.dp, Emerald.copy(alpha = 0.45f), panelShape)
+                .padding(horizontal = 48.dp, vertical = 44.dp),
         ) {
             Text(
                 text = data.title.uppercase(),
@@ -454,6 +471,7 @@ private fun StatsCard(data: StatsCardData) {
             )
         }
     }
+    }
 }
 
 @Composable
@@ -469,7 +487,7 @@ private fun Caption(text: String) {
 
 /**
  * The Wrapped card: the year, total minutes, top songs, top artist and top
- * genre on the same 4:5 frame as [StatsCard], in the same Prism language.
+ * genre on the same 4:5 frame as [StatsCard], in the same emerald language.
  *
  * Kept deliberately compact — the type is smaller than the Replay card's and
  * the song chart runs to three — so everything on it fits the frame instead
@@ -477,12 +495,13 @@ private fun Caption(text: String) {
  */
 @Composable
 private fun WrappedCard(data: WrappedCardData) {
+    CompositionLocalProvider(LocalTextStyle provides TextStyle(fontFamily = Inter)) {
     Box(
         Modifier
             .fillMaxSize()
             .background(Color(0xFF080D0B)),
     ) {
-        // Prism wash: coral light from the top, orchid pooling at the foot.
+        // Emerald wash: green light from the top, brighter green at the foot.
         Box(
             Modifier
                 .fillMaxSize()
@@ -509,7 +528,7 @@ private fun WrappedCard(data: WrappedCardData) {
                     ),
                 ),
         )
-        // The brand bar: coral into orchid, the Wrapped signature.
+        // The brand bar: emerald into bright green, the Wrapped signature.
         Box(
             Modifier
                 .fillMaxWidth()
@@ -517,10 +536,15 @@ private fun WrappedCard(data: WrappedCardData) {
                 .background(Brush.horizontalGradient(listOf(Emerald, Bright))),
         )
 
+        val panelShape = RoundedCornerShape(28.dp)
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(horizontal = 56.dp, vertical = 40.dp),
+                .padding(36.dp)
+                .clip(panelShape)
+                .background(GlassTone, panelShape)
+                .border(1.dp, Emerald.copy(alpha = 0.45f), panelShape)
+                .padding(horizontal = 40.dp, vertical = 36.dp),
         ) {
             Text(
                 text = data.title.uppercase(),
@@ -651,6 +675,7 @@ private fun WrappedCard(data: WrappedCardData) {
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+    }
     }
 }
 

@@ -6,6 +6,7 @@ import com.music.sonariq.ui.components.ExplicitSongTitle
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
@@ -275,13 +276,45 @@ internal fun InlineQueue(
                 color = Color.White,
                 modifier = Modifier.weight(1f),
             )
+            if (tracks.user.isNotEmpty()) {
+                QueueClearButton(MaterialTheme.typography.titleMedium, controlsLocked, onClear)
+            }
+        }
+        // Autoplay's control as its own glass panel under the heading: the
+        // label, its state, and the toggle that was in the heading row.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(GlassTokens.surface.copy(alpha = 0.85f))
+                .border(1.dp, GlassTokens.hairline, RoundedCornerShape(16.dp))
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = SonariqIcons.Infinity,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.85f),
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = stringResource(Res.string.autoplay),
+                style = MaterialTheme.typography.titleSmall,
+                color = Color.White,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = stringResource(if (autoplayEnabled) Res.string.autoplay_on else Res.string.autoplay_off),
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.55f),
+            )
+            Spacer(Modifier.width(6.dp))
             AutoplayToggleButton(
                 enabled = autoplayEnabled,
                 onToggle = onToggleAutoplay,
             )
-            if (tracks.user.isNotEmpty()) {
-                QueueClearButton(MaterialTheme.typography.titleMedium, controlsLocked, onClear)
-            }
         }
         Spacer(Modifier.height(4.dp))
         Box(
@@ -308,14 +341,25 @@ internal fun InlineQueue(
                         )
                     }
                     item(key = nowPlaying.key) {
-                        InlineQueueRow(
-                            song = nowPlaying.song,
-                            isCurrent = true,
-                            onClick = { onJumpTo(nowPlaying.timelineIndex) },
-                            onRemove = { onRemove(nowPlaying.timelineIndex) },
-                            locked = controlsLocked,
-                            modifier = queueMotion(),
-                        )
+                        // The current track rides in its own glass card, set
+                        // apart from the rows that follow it.
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(GlassTokens.surface.copy(alpha = 0.85f))
+                                .border(1.dp, GlassTokens.hairline, RoundedCornerShape(16.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        ) {
+                            InlineQueueRow(
+                                song = nowPlaying.song,
+                                isCurrent = true,
+                                onClick = { onJumpTo(nowPlaying.timelineIndex) },
+                                onRemove = { onRemove(nowPlaying.timelineIndex) },
+                                locked = controlsLocked,
+                                modifier = queueMotion(),
+                            )
+                        }
                     }
                 }
                 if (tracks.user.isNotEmpty()) {

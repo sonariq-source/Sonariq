@@ -258,16 +258,11 @@ fun ShelfSkeleton(index: Int = 0, cardWidth: Dp = SHELF_CARD_WIDTH, cardCorner: 
 }
 
 /** Home and Explore while the first page of shelves is still loading. */
-fun LazyListScope.feedSkeleton(shelves: Int = 3, firstIsHero: Boolean = true) {
-    if (firstIsHero) {
-        item(key = "skeleton:hero") { HeroShelfSkeleton() }
-        items(shelves - 1, key = { "skeleton:shelf:$it" }) { index ->
-            ShelfSkeleton(index = index + 1)
-        }
-    } else {
-        items(shelves, key = { "skeleton:shelf:$it" }) { index ->
-            ShelfSkeleton(index = index)
-        }
+fun LazyListScope.feedSkeleton(shelves: Int = 3, firstIsHero: Boolean = false) {
+    // The feed has no hero slot any more, so every placeholder is the
+    // ordinary shelf's, whatever the caller passes for [firstIsHero].
+    items(shelves, key = { "skeleton:shelf:$it" }) { index ->
+        ShelfSkeleton(index = index)
     }
 }
 

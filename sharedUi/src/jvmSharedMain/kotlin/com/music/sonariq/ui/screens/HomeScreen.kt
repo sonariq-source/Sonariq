@@ -62,10 +62,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Cached
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.MoreVert
@@ -103,10 +105,11 @@ import com.music.sonariq.ui.components.trackColumnWidth
 private val HOME_TITLE_LIFT = 28.dp
 
 /**
- * Sonariq's signature cover shape: two corners rounded hard, two kept tight,
- * so every cover reads as a leaf rather than a plain rounded square.
+ * The one artwork-card shape of the reconstructed layout: a uniform 12 dp
+ * corner on all four sides, so every cover reads as the same modern card
+ * wherever it appears — shelves, grids and tiles alike.
  */
-internal val SonariqLeaf = RoundedCornerShape(topStart = 24.dp, topEnd = 6.dp, bottomEnd = 24.dp, bottomStart = 6.dp)
+internal val UniformCardShape = RoundedCornerShape(12.dp)
 
 private const val RECENTS_TITLE = "Recents"
 private const val RECENT_TRACKS_PER_COLUMN = 4
@@ -139,125 +142,6 @@ private fun GreetingLine(modifier: Modifier = Modifier) {
     )
 }
 
-/**
- * Picks the Discover spotlight's item from shelves Home already fetched.
- * Discovery-shaped shelves first — new releases, featured mixes, quick picks —
- * then anything with a cover that isn't the recents row. Always one of the
- * feed's own real items; null when there is nothing to spotlight.
- */
-private fun pickDiscoverItem(shelves: List<HomeShelf>): Pair<HomeShelf, ShelfItem>? {
-    val usable = shelves.filter { shelf ->
-        shelf.items.isNotEmpty() &&
-            !shelf.title.trim().equals(RECENTS_TITLE, ignoreCase = true)
-    }
-    if (usable.isEmpty()) return null
-    val preference = listOf(
-        "new releases",
-        "featured playlists for you",
-        "mixed for you",
-        "quick picks",
-        "listen again",
-        "from your library",
-    )
-    for (key in preference) {
-        val shelf = usable.firstOrNull {
-            it.title.trim().lowercase(Locale.ROOT) == key
-        } ?: continue
-        return shelf to shelf.items.first()
-    }
-    val shelf = usable.first()
-    return shelf to shelf.items.first()
-}
-
-/**
- * The Discover spotlight as a poster: one full-width cover with the title set
- * over its foot in the serif face and a round play badge in the corner. Drawn
- * from the feed's own shelves; tapping it opens the item exactly as a tap on
- * its shelf would — the poster spotlights real content, it never invents any.
- */
-@Composable
-private fun DiscoverHeroCard(
-    shelf: HomeShelf,
-    item: ShelfItem,
-    onItemClick: (ShelfItem, String) -> Unit,
-    onItemLongPress: ((ShelfItem) -> Unit)?,
-    currentSong: Song?,
-    isPlaying: Boolean,
-) {
-    val posterShape = RoundedCornerShape(topStart = 8.dp, topEnd = 36.dp, bottomEnd = 8.dp, bottomStart = 36.dp)
-    val accent = MaterialTheme.colorScheme.primary
-    val isCurrent = item.matchesCurrentlyPlaying(currentSong)
-    val playingNow = isCurrent && isPlaying
-    Box(
-        modifier = Modifier
-            .padding(horizontal = PAGE_GUTTER)
-            .padding(bottom = 30.dp)
-            .fillMaxWidth()
-            .aspectRatio(1.28f)
-            .clip(posterShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .longPressMenuClickable(
-                onClick = { onItemClick(item, shelf.title) },
-                onLongClick = onItemLongPress?.let { pick -> { pick(item) } },
-            )
-            .contextClick(onItemLongPress?.let { pick -> { pick(item) } }),
-    ) {
-        AsyncImage(
-            model = item.thumbnailUrl.artworkAt(HEADER_ART_PX),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.matchParentSize(),
-        )
-        Box(
-            Modifier.matchParentSize().background(
-                Brush.verticalGradient(
-                    0.38f to Color.Transparent,
-                    1f to Color(0xFF080D0B).copy(alpha = 0.94f),
-                ),
-            ),
-        )
-        Column(
-            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth(0.74f).padding(start = 24.dp, bottom = 22.dp),
-        ) {
-            Text(
-                if (playingNow) "Back in your rotation" else "Picked for right now",
-                style = MaterialTheme.typography.labelMedium,
-                color = accent,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                item.title,
-                style = MaterialTheme.typography.headlineMedium,
-                color = Color.White,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (item.subtitle.isNotBlank()) {
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    localizeCardSubtitle(item.subtitle),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.78f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        Box(
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 20.dp)
-                .size(54.dp).clip(CircleShape).background(accent),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = if (playingNow) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(28.dp),
-            )
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -287,9 +171,9 @@ fun HomeScreen(
     loadingMore: Boolean = false,
     recentlyPlayedLoading: Boolean = false,
     /**
-     * Whether the feed's first shelf gets the big full-bleed cards. The phone
-     * leads with them; on a window as wide as a desktop's they are posters, so
-     * there every shelf is the ordinary row.
+     * Kept for call-site compatibility. The feed no longer gives its first
+     * shelf a hero treatment on any surface — every shelf is the ordinary
+     * card row — so this is read by nobody.
      */
     leadHero: Boolean = true,
     currentSong: Song? = null,
@@ -352,7 +236,7 @@ fun HomeScreen(
                         // shelf placeholders rather than another hero card.
                         feedSkeleton(firstIsHero = false)
                     } else {
-                        feedSkeleton(firstIsHero = leadHero)
+                        feedSkeleton(firstIsHero = false)
                     }
                 }
                 is UiState.Error -> item {
@@ -361,24 +245,6 @@ fun HomeScreen(
                 is UiState.Success -> {
                     if (recentlyPlayedLoading) {
                         recentlyPlayedSkeleton(listLayout = recentsViewType == LibraryViewType.LIST)
-                    }
-                    // The Discover spotlight: one hero card from the feed's
-                    // own shelves, above the sections. Held back while
-                    // Recently Played is still loading, so it never jumps in
-                    // over the skeleton the way the hero shelf doesn't.
-                    if (!recentlyPlayedLoading) {
-                        pickDiscoverItem(state.data)?.let { (shelf, item) ->
-                            item(key = "discover-spotlight") {
-                                DiscoverHeroCard(
-                                    shelf = shelf,
-                                    item = item,
-                                    onItemClick = onItemClick,
-                                    onItemLongPress = onItemLongPress,
-                                    currentSong = currentSong,
-                                    isPlaying = isPlaying,
-                                )
-                            }
-                        }
                     }
                     // The loading skeleton already owns the hero slot. Until
                     // Recently Played lands, every real shelf must retain its
@@ -389,7 +255,6 @@ fun HomeScreen(
                         onItemLongPress = onItemLongPress,
                         currentSong = currentSong,
                         isPlaying = isPlaying,
-                        firstIsHero = leadHero && !recentlyPlayedLoading,
                         recentsViewType = recentsViewType,
                         onRecentsViewTypeToggle = {
                             AppUi.host.setHomeRecentsViewType(
@@ -428,8 +293,10 @@ fun HomeScreen(
 }
 
 /**
- * Recents mirrors the artist page's top-tracks pager. Any other lead shelf keeps
- * Apple's full-bleed treatment, while the remaining shelves use square cards.
+ * The feed's shelf dispatcher: Recents keeps its list/grid pager, Quick picks
+ * becomes the two-column quick-pick grid under the heading, artist shelves
+ * use circular cards, and every other shelf is the standard card row. There
+ * is no hero treatment any more — the first shelf reads like the rest.
  */
 private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
     shelves: List<HomeShelf>,
@@ -437,39 +304,42 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
     onItemLongPress: ((ShelfItem) -> Unit)?,
     currentSong: Song?,
     isPlaying: Boolean,
-    firstIsHero: Boolean = true,
     recentsViewType: LibraryViewType,
     onRecentsViewTypeToggle: () -> Unit,
 ) {
     shelves.forEachIndexed { index, shelf ->
         item(key = shelf.title + index) {
             val openItem: (ShelfItem) -> Unit = { item -> onItemClick(item, shelf.title) }
-            if (index == 0 && shelf.title.equals(RECENTS_TITLE, ignoreCase = true)) {
-                RecentShelf(
-                    shelf = shelf,
-                    onItemClick = openItem,
-                    onItemLongPress = onItemLongPress,
-                    currentSong = currentSong,
-                    isPlaying = isPlaying,
-                    viewType = recentsViewType,
-                    onViewTypeToggle = onRecentsViewTypeToggle,
-                )
-            } else if (index == 0 && firstIsHero) {
-                HeroShelf(
-                    shelf = shelf,
-                    onItemClick = openItem,
-                    onItemLongPress = onItemLongPress,
-                    currentSong = currentSong,
-                    isPlaying = isPlaying,
-                )
-            } else {
-                Shelf(
-                    shelf = shelf,
-                    onItemClick = openItem,
-                    onItemLongPress = onItemLongPress,
-                    currentSong = currentSong,
-                    isPlaying = isPlaying,
-                )
+            when {
+                index == 0 && shelf.title.equals(RECENTS_TITLE, ignoreCase = true) -> {
+                    RecentShelf(
+                        shelf = shelf,
+                        onItemClick = openItem,
+                        onItemLongPress = onItemLongPress,
+                        currentSong = currentSong,
+                        isPlaying = isPlaying,
+                        viewType = recentsViewType,
+                        onViewTypeToggle = onRecentsViewTypeToggle,
+                    )
+                }
+                shelf.title.trim().equals("Quick picks", ignoreCase = true) -> {
+                    QuickPicksShelf(
+                        shelf = shelf,
+                        onItemClick = openItem,
+                        onItemLongPress = onItemLongPress,
+                        currentSong = currentSong,
+                        isPlaying = isPlaying,
+                    )
+                }
+                else -> {
+                    Shelf(
+                        shelf = shelf,
+                        onItemClick = openItem,
+                        onItemLongPress = onItemLongPress,
+                        currentSong = currentSong,
+                        isPlaying = isPlaying,
+                    )
+                }
             }
         }
     }
@@ -516,22 +386,18 @@ private fun RecentShelf(
                 }
             }
         } else {
-            BoxWithConstraints {
-                val cardWidth = heroCardWidth(maxWidth)
-                ShelfRow(
-                    contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    items(shelf.items) { item ->
-                        HeroCard(
-                            item = item,
-                            onClick = { onItemClick(item) },
-                            onLongPress = onItemLongPress?.let { { it(item) } },
-                            modifier = Modifier.width(cardWidth),
-                            isCurrent = item.matchesCurrentlyPlaying(currentSong),
-                            isPlaying = item.matchesCurrentlyPlaying(currentSong) && isPlaying,
-                        )
-                    }
+            ShelfRow(
+                contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                items(shelf.items) { item ->
+                    ShelfCard(
+                        item = item,
+                        onClick = { onItemClick(item) },
+                        onLongPress = onItemLongPress?.let { { it(item) } },
+                        isCurrent = item.matchesCurrentlyPlaying(currentSong),
+                        isPlaying = item.matchesCurrentlyPlaying(currentSong) && isPlaying,
+                    )
                 }
             }
         }
@@ -676,36 +542,21 @@ fun CompactTrackRow(
 }
 
 /**
- * Listen now's heading: left-aligned serif title with the greeting above it,
- * and Sonariq's sonar rings — four arcs and a ping — drawn off the right edge.
+ * The home heading: a compact bar — the time-aware greeting over a large
+ * bold sans page title. No decoration competes with the feed below it.
  */
 @Composable
 private fun HomeTitle(title: String, modifier: Modifier = Modifier) {
-    val ring = MaterialTheme.colorScheme.primary
-    Box(
+    Column(
         modifier = modifier.fillMaxWidth().padding(horizontal = PAGE_GUTTER).padding(top = 10.dp, bottom = 24.dp),
     ) {
-        Canvas(Modifier.align(Alignment.CenterEnd).size(120.dp)) {
-            val center = Offset(size.width + 8.dp.toPx(), size.height / 2f)
-            for (i in 1..4) {
-                drawCircle(
-                    color = ring.copy(alpha = 0.34f - i * 0.07f),
-                    radius = size.width * i / 4f,
-                    center = center,
-                    style = Stroke(width = 1.5.dp.toPx()),
-                )
-            }
-            drawCircle(ring, radius = 4.dp.toPx(), center = Offset(size.width * 0.5f, size.height * 0.4f))
-        }
-        Column {
-            GreetingLine()
-            Spacer(Modifier.height(2.dp))
-            Text(
-                title,
-                style = MaterialTheme.typography.displayMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-        }
+        GreetingLine()
+        Spacer(Modifier.height(2.dp))
+        Text(
+            title,
+            style = MaterialTheme.typography.displayMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
     }
 }
 
@@ -724,10 +575,6 @@ internal fun SectionHeader(title: String, subtitle: String = "", onShowAll: (() 
         modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 12.dp).fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.width(4.dp).height(26.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.primary),
-        )
-        Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 displayTitle,
@@ -741,12 +588,22 @@ internal fun SectionHeader(title: String, subtitle: String = "", onShowAll: (() 
             }
         }
         if (onShowAll != null) {
-            Text(
-                stringResource(Res.string.show_all),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
+            Row(
                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onShowAll).padding(horizontal = 8.dp, vertical = 6.dp),
-            )
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    stringResource(Res.string.show_all),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
         }
     }
 }
@@ -920,101 +777,6 @@ internal fun localizeCardSubtitle(subtitle: String): String {
     return localizedParts.joinToString(delimiter)
 }
 
-@Composable
-private fun HeroShelf(
-    shelf: HomeShelf,
-    onItemClick: (ShelfItem) -> Unit,
-    onItemLongPress: ((ShelfItem) -> Unit)? = null,
-    currentSong: Song? = null,
-    isPlaying: Boolean = false,
-) {
-    Column(Modifier.padding(bottom = 28.dp)) {
-        SectionHeader(shelf.title, shelf.subtitle)
-        // Measured rather than taken as a share of the parent, because the card
-        // has a ceiling as well as a fraction — see [heroCardWidth]. A fixed
-        // width is also the only one of the two the aspect ratio below can turn
-        // into a height, so the card keeps its shape however it was arrived at.
-        BoxWithConstraints {
-            val cardWidth = heroCardWidth(maxWidth)
-            ShelfRow(
-                state = rememberLazyListState(),
-                contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                items(shelf.items) { item ->
-                    HeroCard(
-                        item = item,
-                        onClick = { onItemClick(item) },
-                        onLongPress = onItemLongPress?.let { { it(item) } },
-                        modifier = Modifier.width(cardWidth),
-                        isCurrent = item.matchesCurrentlyPlaying(currentSong),
-                        isPlaying = item.matchesCurrentlyPlaying(currentSong) && isPlaying,
-                    )
-                }
-            }
-        }
-    }
-}
-
-/** Big card: artwork with the caption laid over a scrim, as on Listen Now. */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun HeroCard(
-    item: ShelfItem,
-    onClick: () -> Unit,
-    onLongPress: (() -> Unit)? = null,
-    modifier: Modifier = Modifier,
-    isCurrent: Boolean = false,
-    isPlaying: Boolean = false,
-) {
-    Box(
-        modifier = modifier
-            .aspectRatio(HERO_CARD_RATIO)
-            .clip(RoundedCornerShape(20.dp))
-            .thumbnailBorder(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
-            .contextClick(onLongPress),
-    ) {
-        AsyncImage(
-            model = item.thumbnailUrl.artworkAt(HEADER_ART_PX),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
-        if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomStart)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.78f)),
-                    ),
-                )
-                .padding(start = 16.dp, end = 16.dp, top = 34.dp, bottom = 14.dp),
-        ) {
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.titleLarge,
-                color = if (isCurrent) PlayingAccent else Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (item.subtitle.isNotBlank()) {
-                val displaySubtitle = localizeCardSubtitle(item.subtitle)
-                Text(
-                    text = displaySubtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.72f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
-}
-
 /**
  * [leadingCard] rides at the head of the row, ahead of the content — the
  * Library tab's "New playlist" tile, which belongs among the playlists rather
@@ -1032,6 +794,7 @@ internal fun Shelf(
     currentSong: Song? = null,
     isPlaying: Boolean = false,
 ) {
+    val artistsShelf = shelf.title.trim().equals("Artists", ignoreCase = true)
     Column(Modifier.padding(bottom = 28.dp)) {
         SectionHeader(shelf.title, shelf.subtitle)
         ShelfRow(
@@ -1040,14 +803,149 @@ internal fun Shelf(
         ) {
             leadingCard?.let { card -> item(key = "leading") { card() } }
             items(shelf.items) { item ->
-                ShelfCard(
-                    item = item,
-                    onClick = { onItemClick(item) },
-                    onLongPress = onItemLongPress?.let { { it(item) } },
-                    isCurrent = item.matchesCurrentlyPlaying(currentSong),
-                    isPlaying = item.matchesCurrentlyPlaying(currentSong) && isPlaying,
-                )
+                if (artistsShelf) {
+                    ArtistCircleCard(
+                        item = item,
+                        onClick = { onItemClick(item) },
+                        onLongPress = onItemLongPress?.let { { it(item) } },
+                    )
+                } else {
+                    ShelfCard(
+                        item = item,
+                        onClick = { onItemClick(item) },
+                        onLongPress = onItemLongPress?.let { { it(item) } },
+                        isCurrent = item.matchesCurrentlyPlaying(currentSong),
+                        isPlaying = item.matchesCurrentlyPlaying(currentSong) && isPlaying,
+                    )
+                }
             }
+        }
+    }
+}
+
+/**
+ * The Quick picks shelf as the reconstruction's entry grid: two columns of
+ * small horizontal cards — artwork left, title beside it — up to three rows,
+ * drawn from the same shelf data the feed already fetched. A tap opens the
+ * item exactly as a shelf-card tap would.
+ */
+@Composable
+private fun QuickPicksShelf(
+    shelf: HomeShelf,
+    onItemClick: (ShelfItem) -> Unit,
+    onItemLongPress: ((ShelfItem) -> Unit)?,
+    currentSong: Song?,
+    isPlaying: Boolean,
+) {
+    Column(Modifier.padding(bottom = 28.dp)) {
+        SectionHeader(shelf.title, shelf.subtitle)
+        Column(
+            modifier = Modifier.padding(horizontal = PAGE_GUTTER),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            shelf.items.take(6).chunked(2).forEach { rowItems ->
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    rowItems.forEach { item ->
+                        QuickPickCard(
+                            item = item,
+                            onClick = { onItemClick(item) },
+                            onLongPress = onItemLongPress?.let { { it(item) } },
+                            isCurrent = item.matchesCurrentlyPlaying(currentSong),
+                            isPlaying = item.matchesCurrentlyPlaying(currentSong) && isPlaying,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (rowItems.size == 1) {
+                        Spacer(Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun QuickPickCard(
+    item: ShelfItem,
+    onClick: () -> Unit,
+    onLongPress: (() -> Unit)?,
+    isCurrent: Boolean,
+    isPlaying: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .height(58.dp)
+            .clip(UniformCardShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
+            .contextClick(onLongPress),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(58.dp)) {
+            AsyncImage(
+                model = item.thumbnailUrl.artworkAt(ROW_ART_PX),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
+            )
+            if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
+        }
+        Text(
+            text = item.title,
+            style = MaterialTheme.typography.titleSmall,
+            color = if (isCurrent) PlayingAccent else MaterialTheme.colorScheme.onBackground,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 10.dp),
+        )
+    }
+}
+
+/** An artist card: circular artwork with the name centred beneath it. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun ArtistCircleCard(
+    item: ShelfItem,
+    onClick: () -> Unit,
+    onLongPress: (() -> Unit)? = null,
+    modifier: Modifier = Modifier.width(118.dp),
+) {
+    Column(
+        modifier = modifier
+            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
+            .contextClick(onLongPress),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        AsyncImage(
+            model = item.thumbnailUrl.artworkAt(CARD_ART_PX),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(118.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = item.title,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+        val displaySubtitle = localizeCardSubtitle(item.subtitle)
+        if (displaySubtitle.isNotBlank()) {
+            Text(
+                text = displaySubtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }
@@ -1070,7 +968,7 @@ internal fun NewShelfCard(
     Column(
         modifier = modifier.clickable(onClick = onClick),
     ) {
-        val tileShape = SonariqLeaf
+        val tileShape = UniformCardShape
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1124,7 +1022,7 @@ internal fun NewShelfCard(
  */
 @Composable
 private fun DeviceFolderTile(icon: ImageVector) {
-    val tileShape = SonariqLeaf
+    val tileShape = UniformCardShape
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1171,7 +1069,7 @@ internal fun ShelfCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1f)
-                        .clip(SonariqLeaf)
+                        .clip(UniformCardShape)
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                 ) {
@@ -1203,7 +1101,7 @@ internal fun ShelfCard(
                 text = item.title,
                 style = MaterialTheme.typography.titleMedium,
                 color = if (isCurrent) PlayingAccent else MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
             )

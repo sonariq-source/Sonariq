@@ -74,7 +74,7 @@ private fun TvApp(lastInteractionMs: StateFlow<Long>) {
     val partyState by ListenTogether.state.collectAsStateWithLifecycle()
 
     // The TV follows the party's track: when it changes to something new,
-    // open it in the karaoke player. The audio needs no UI code — PartySync
+    // open it in the player. The audio needs no UI code — PartySync
     // in PlaybackService already obeys ListenTogether.state, and this is the
     // same playback service the TV's MediaController is bound to, so playback
     // (track, play/pause, position) follows the party on its own.

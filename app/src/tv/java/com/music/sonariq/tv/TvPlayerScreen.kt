@@ -3,6 +3,9 @@ package com.music.sonariq.tv
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +47,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
@@ -112,6 +117,17 @@ fun TvPlayerScreen(
     val fullBleedArtwork by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
     val backFocus = remember { FocusRequester() }
     val playFocus = remember { FocusRequester() }
+    // Interaction sources only drive focus presentation (emerald ring +
+    // scale) on the existing buttons; focus order and key handling are
+    // exactly as before.
+    val backInteraction = remember { MutableInteractionSource() }
+    val backFocused by backInteraction.collectIsFocusedAsState()
+    val prevInteraction = remember { MutableInteractionSource() }
+    val prevFocused by prevInteraction.collectIsFocusedAsState()
+    val playInteraction = remember { MutableInteractionSource() }
+    val playFocused by playInteraction.collectIsFocusedAsState()
+    val nextInteraction = remember { MutableInteractionSource() }
+    val nextFocused by nextInteraction.collectIsFocusedAsState()
 
     // Load lyrics automatically — every provider, best sync wins.
     LaunchedEffect(song.videoId) {
@@ -213,8 +229,19 @@ fun TvPlayerScreen(
             ) {
                 IconButton(
                     onClick = onBack,
+                    interactionSource = backInteraction,
                     modifier = Modifier
                         .size(56.dp)
+                        .scale(if (backFocused) 1.06f else 1f)
+                        .background(
+                            MaterialTheme.colorScheme.surfaceContainerHigh,
+                            CircleShape,
+                        )
+                        .border(
+                            width = if (backFocused) 2.dp else 0.dp,
+                            color = Color(0xFF32D979),
+                            shape = CircleShape,
+                        )
                         .clip(CircleShape)
                         .focusRequester(backFocus),
                 ) {
@@ -225,13 +252,20 @@ fun TvPlayerScreen(
                     )
                 }
                 Spacer(Modifier.height(24.dp))
+                // Large sleeve artwork: uniform 16dp corners, one static
+                // soft shadow (no blur, no per-frame cost).
                 AsyncImage(
                     model = sleeveArtwork,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(280.dp)
-                        .clip(RoundedCornerShape(20.dp)),
+                        .shadow(
+                            elevation = 24.dp,
+                            shape = RoundedCornerShape(16.dp),
+                            clip = false,
+                        )
+                        .clip(RoundedCornerShape(16.dp)),
                 )
                 Spacer(Modifier.height(24.dp))
                 Text(
@@ -251,14 +285,28 @@ fun TvPlayerScreen(
                 )
                 Spacer(Modifier.height(24.dp))
                 // Transport: previous, play/pause, next — all D-pad reachable.
+                // Geometry: circular controls throughout; play/pause is the
+                // large emerald disc with a dark glyph, prev/next are smaller
+                // elevated discs. Focus reads as an emerald ring + scale.
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     IconButton(
                         onClick = { controller?.seekToPrevious() },
+                        interactionSource = prevInteraction,
                         modifier = Modifier
                             .size(64.dp)
+                            .scale(if (prevFocused) 1.06f else 1f)
+                            .background(
+                                MaterialTheme.colorScheme.surfaceContainerHigh,
+                                CircleShape,
+                            )
+                            .border(
+                                width = if (prevFocused) 2.dp else 0.dp,
+                                color = Color(0xFF32D979),
+                                shape = CircleShape,
+                            )
                             .clip(CircleShape),
                     ) {
                         Icon(
@@ -271,8 +319,19 @@ fun TvPlayerScreen(
                         onClick = {
                             if (isPlaying) controller?.pause() else controller?.play()
                         },
+                        interactionSource = playInteraction,
                         modifier = Modifier
-                            .size(80.dp)
+                            .size(88.dp)
+                            .scale(if (playFocused) 1.06f else 1f)
+                            .background(
+                                MaterialTheme.colorScheme.primary,
+                                CircleShape,
+                            )
+                            .border(
+                                width = if (playFocused) 3.dp else 0.dp,
+                                color = Color(0xFF32D979),
+                                shape = CircleShape,
+                            )
                             .clip(CircleShape)
                             .focusRequester(playFocus),
                     ) {
@@ -280,13 +339,24 @@ fun TvPlayerScreen(
                             if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                             contentDescription = if (isPlaying) "Pause" else "Play",
                             modifier = Modifier.size(52.dp),
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = MaterialTheme.colorScheme.onPrimary,
                         )
                     }
                     IconButton(
                         onClick = { controller?.seekToNext() },
+                        interactionSource = nextInteraction,
                         modifier = Modifier
                             .size(64.dp)
+                            .scale(if (nextFocused) 1.06f else 1f)
+                            .background(
+                                MaterialTheme.colorScheme.surfaceContainerHigh,
+                                CircleShape,
+                            )
+                            .border(
+                                width = if (nextFocused) 2.dp else 0.dp,
+                                color = Color(0xFF32D979),
+                                shape = CircleShape,
+                            )
                             .clip(CircleShape),
                     ) {
                         Icon(
@@ -312,11 +382,11 @@ fun TvPlayerScreen(
             ) {
                 Text(
                     text = "Lyrics",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(16.dp))
                 when {
                     loadingLyrics -> {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -361,10 +431,10 @@ fun TvPlayerScreen(
 }
 
 /**
- * Progress bar + elapsed/total time, in its own composition scope. This is
- * the only part of the left column that reads the position/duration states,
- * so the once-a-second ticker recomposes just this leaf instead of the
- * whole player screen. Layout and look are exactly as before.
+ * Progress bar flanked by elapsed/total times, in its own composition
+ * scope. This is the only part of the left column that reads the
+ * position/duration states, so the once-a-second ticker recomposes just
+ * this leaf instead of the whole player screen.
  */
 @Composable
 private fun TvProgress(positionState: LongState, durationState: LongState) {
@@ -373,19 +443,33 @@ private fun TvProgress(positionState: LongState, durationState: LongState) {
     val progress = if (durationMs > 0) {
         (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
     } else 0f
-    LinearProgressIndicator(
-        progress = progress,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(6.dp)
-            .clip(RoundedCornerShape(3.dp)),
-    )
-    Spacer(Modifier.height(8.dp))
-    Text(
-        text = "${formatMs(positionMs)} / ${formatMs(durationMs)}",
-        fontSize = 18.sp,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = formatMs(positionMs),
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.width(16.dp))
+        LinearProgressIndicator(
+            progress = progress,
+            modifier = Modifier
+                .weight(1f)
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp)),
+            color = Color(0xFF32D979),
+            trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        )
+        Spacer(Modifier.width(16.dp))
+        Text(
+            text = formatMs(durationMs),
+            fontSize = 18.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 private fun revealCount(line: LyricLine, positionMs: Long): Int {

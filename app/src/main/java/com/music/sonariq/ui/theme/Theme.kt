@@ -78,23 +78,24 @@ val SonariqShapes = Shapes(
     extraLarge = RoundedCornerShape(28.dp),
 )
 
-/** Headline face: a bookish serif so titles read like record-sleeve typography. */
-val SonariqDisplay = FontFamily(
-    Font(R.font.caladea_regular, FontWeight.W400),
-    Font(R.font.caladea_regular, FontWeight.W500),
-    Font(R.font.caladea_bold, FontWeight.W600),
-    Font(R.font.caladea_bold, FontWeight.W700),
-)
-
-// Kept for source compatibility with screens that still name the old family.
-val SpaceGrotesk = SonariqDisplay
-
 val Inter = FontFamily(
     Font(R.font.inter_regular, FontWeight.W400),
     Font(R.font.inter_medium, FontWeight.W500),
     Font(R.font.inter_semibold, FontWeight.W600),
     Font(R.font.inter_bold, FontWeight.W700),
 )
+
+/**
+ * Headline face: the same clean sans as the body text, set bold with tight
+ * tracking — one family across the whole hierarchy, the way modern streaming
+ * apps set their page headings, section titles and track names. The symbol
+ * name remains so screens that name the display family keep compiling; the
+ * face behind it is Inter now, not the old serif.
+ */
+val SonariqDisplay = Inter
+
+// Kept for source compatibility with screens that still name the old family.
+val SpaceGrotesk = SonariqDisplay
 
 private val SonariqTypography = Typography(
     displayLarge = TextStyle(fontFamily = SonariqDisplay, fontWeight = FontWeight.W700, fontSize = 40.sp, lineHeight = 44.sp, letterSpacing = (-0.8).sp),

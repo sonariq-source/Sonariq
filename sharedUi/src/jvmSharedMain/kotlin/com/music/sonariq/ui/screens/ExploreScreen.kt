@@ -201,21 +201,20 @@ private fun MoodGenreRow(
     onCategoryClick: (MoodGenre) -> Unit,
     onCategoryAutoplay: ((MoodGenre) -> Unit)? = null,
 ) {
-    // A staggered mosaic: on two columns the wide card swaps sides every row.
-    val staggered = columns == 2 && row.size == 2
+    // A regular grid: every card in the row takes the same share, so the
+    // discovery grid reads as uniform rectangles rather than a mosaic.
     Row(
         horizontalArrangement = Arrangement.spacedBy(MOOD_SPACING),
         modifier = Modifier
             .padding(horizontal = PAGE_GUTTER)
             .padding(bottom = MOOD_SPACING),
     ) {
-        row.forEachIndexed { position, item ->
-            val weight = if (!staggered) 1f else if ((rowIndex + position) % 2 == 0) 1.45f else 1f
+        row.forEach { item ->
             MoodGenreCard(
                 item = item,
                 onClick = { onCategoryClick(item) },
                 onAutoplay = onCategoryAutoplay?.let { start -> { start(item) } },
-                modifier = Modifier.weight(weight),
+                modifier = Modifier.weight(1f),
             )
         }
         // Short rows keep their cards the size of a full row's.
@@ -239,7 +238,7 @@ private fun MoodGenreCard(
     onAutoplay: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    val shape = SonariqLeaf
+    val shape = UniformCardShape
     var menuOpen by remember { mutableStateOf(false) }
     Box(
         modifier = modifier.height(MOOD_CARD_HEIGHT).clip(shape)

@@ -60,7 +60,7 @@ private val Ambient2BackdropBrush = Brush.verticalGradient(
  * Sonariq TV ambient mode, second style: a full lyric-view screensaver.
  *
  * The first ambient style ([TvAmbientOverlay]) shows one lyric line under the
- * track title. This one is the karaoke view: a three-line synced lyric block
+ * track title. This one is the full lyric view: a three-line synced lyric block
  * (previous line faded, current line lit, next line dimmed), a clock, a
  * progress bar, and the up-next list off the controller's timeline — the
  * things a glance across the room actually asks for.
@@ -168,7 +168,7 @@ internal fun TvAmbient2Overlay(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(120.dp)
-                            .clip(RoundedCornerShape(16.dp)),
+                            .clip(RoundedCornerShape(12.dp)),
                     )
                     Spacer(Modifier.width(32.dp))
                 }
@@ -210,14 +210,26 @@ internal fun TvAmbient2Overlay(
                 )
                 Spacer(Modifier.height(12.dp))
                 upNext.forEach { next ->
-                    Text(
-                        text = "${next.title} — ${next.artist}",
-                        fontSize = 24.sp,
-                        color = Color.White.copy(alpha = 0.8f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(Modifier.height(6.dp))
+                    // Fixed-height row, uniform 12dp corners, title/artist
+                    // as one line — same row geometry as the home shelf.
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = 0.05f))
+                            .padding(horizontal = 16.dp),
+                    ) {
+                        Text(
+                            text = "${next.title} — ${next.artist}",
+                            fontSize = 24.sp,
+                            color = Color.White.copy(alpha = 0.8f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
                 }
             }
         }

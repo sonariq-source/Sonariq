@@ -2091,7 +2091,7 @@ internal fun LyricsPanel(
                 ) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
+                            .clip(RoundedCornerShape(percent = 50))
                             .background(Color.White.copy(alpha = 0.14f))
                             .padding(horizontal = 11.dp, vertical = 4.dp),
                     ) {
@@ -2703,8 +2703,8 @@ private fun LyricsSearchOverlay(
         modifier = modifier
             .then(if (open) Modifier.fillMaxWidth() else Modifier)
             .clip(pill)
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
-            .border(1.dp, LyricLime.copy(alpha = 0.28f), pill),
+            .background(GlassTokens.surface.copy(alpha = 0.88f))
+            .border(1.dp, GlassTokens.hairline, pill),
         contentAlignment = Alignment.CenterEnd,
     ) {
         if (!open) {
@@ -2831,8 +2831,8 @@ private fun LyricsAppearanceOverlay(modifier: Modifier = Modifier) {
         Box(
             modifier = Modifier
                 .clip(pill)
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
-                .border(1.dp, LyricLime.copy(alpha = 0.28f), pill),
+                .background(GlassTokens.surface.copy(alpha = 0.88f))
+                .border(1.dp, GlassTokens.hairline, pill),
             contentAlignment = Alignment.Center,
         ) {
             IconButton(

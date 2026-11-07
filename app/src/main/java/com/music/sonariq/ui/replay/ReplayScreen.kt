@@ -506,10 +506,10 @@ private fun ReplayActionRow(icon: ImageVector, label: String, dark: Boolean, onC
 }
 
 /**
- * The way in to the Annual Wrapped: an emerald gradient banner — emerald into
- * orchid into cyan over the page — with the year set large. It sits with the
- * Replay's own action rows rather than in the charts because it is a
- * destination, not a chart.
+ * The way in to the Annual Wrapped: a glass emerald card — the glass tone
+ * with an emerald edge and the year set large in the headline style, no
+ * gradient composition. It sits with the Replay's own action rows rather
+ * than in the charts because it is a destination, not a chart.
  */
 @Composable
 private fun WrappedEntryCard(dark: Boolean, onClick: () -> Unit) {
@@ -521,16 +521,8 @@ private fun WrappedEntryCard(dark: Boolean, onClick: () -> Unit) {
             .padding(horizontal = PAGE_GUTTER + 4.dp, vertical = 4.dp)
             .fillMaxWidth()
             .clip(shape)
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        Color(0xFF1DB954).copy(alpha = if (dark) 0.30f else 0.18f),
-                        Color(0xFF35E887).copy(alpha = if (dark) 0.24f else 0.14f),
-                        Color(0xFF5EEAD4).copy(alpha = if (dark) 0.16f else 0.10f),
-                    ),
-                ),
-            )
-            .border(1.dp, textColor.copy(alpha = 0.12f), shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh, shape)
+            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f), shape)
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 16.dp),
     ) {
@@ -660,10 +652,17 @@ private fun Habits(summary: ReplaySummary, dark: Boolean) {
     Column(Modifier.padding(horizontal = PAGE_GUTTER + 4.dp)) {
         SectionTitleInline(stringResource(R.string.listening_shape), dark)
         Spacer(Modifier.height(4.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile(stringResource(R.string.songs), summary.distinctSongs.toString(), dark, Modifier.weight(1f))
-            StatTile(stringResource(R.string.artists), summary.distinctArtists.toString(), dark, Modifier.weight(1f))
-            StatTile(stringResource(R.string.albums), summary.distinctAlbums.toString(), dark, Modifier.weight(1f))
+        // The headline numbers as a 2-column grid of glass stat tiles: a
+        // big number in the headline style with its label under it.
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatTile(stringResource(R.string.songs), grouped(summary.distinctSongs.toLong()), dark, Modifier.weight(1f))
+                StatTile(stringResource(R.string.artists), grouped(summary.distinctArtists.toLong()), dark, Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatTile(stringResource(R.string.albums), grouped(summary.distinctAlbums.toLong()), dark, Modifier.weight(1f))
+                StatTile(stringResource(R.string.minutes_listened), grouped(summary.minutes), dark, Modifier.weight(1f))
+            }
         }
         summary.peakHour?.let {
             Spacer(Modifier.height(10.dp))
@@ -698,10 +697,12 @@ private fun SectionTitleInline(text: String, dark: Boolean) {
 @Composable
 private fun StatTile(label: String, value: String, dark: Boolean, modifier: Modifier = Modifier) {
     val textColor = if (dark) Color.White else Color.Black
+    val tileShape = RoundedCornerShape(16.dp)
     Column(
         modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(textColor.copy(alpha = 0.09f))
+            .clip(tileShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh, tileShape)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), tileShape)
             .padding(vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

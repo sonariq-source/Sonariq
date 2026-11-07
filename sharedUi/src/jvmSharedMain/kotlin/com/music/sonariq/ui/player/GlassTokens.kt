@@ -29,6 +29,12 @@ object GlassTokens {
     /** A floating pill control over artwork (search, lyrics appearance). */
     val pillShape = RoundedCornerShape(20.dp)
 
+    /** Content cards: one uniform corner on artwork cards app-wide. */
+    val cardShape = RoundedCornerShape(12.dp)
+
+    /** Large glass panels: mini player, control panels, sheets' inner cards. */
+    val panelShape = RoundedCornerShape(20.dp)
+
     /** The widest a bottom sheet gets, however wide the window behind it is. */
     val drawerMaxWidth = 640.dp
 

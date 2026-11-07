@@ -45,6 +45,7 @@ import kotlin.math.abs
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -68,8 +69,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -488,7 +492,7 @@ private fun SongRowContent(
         modifier = modifier
             .fillMaxWidth()
             .alpha(if (unavailable) 0.45f else 1f)
-            .clip(RoundedCornerShape(15.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(activeBackground)
             .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
             .contextClick(onMore ?: onLongPress)
@@ -877,5 +881,103 @@ fun PillTextField(
             keyboardActions = keyboardActions,
             modifier = Modifier.fillMaxWidth(),
         )
+    }
+}
+
+/**
+ * The reconstruction's one glass surface: a layered translucent panel with a
+ * hairline edge and a soft top highlight, tint/layer based — no blur pass.
+ * Nav, the mini player, menus, sheets and control panels all sit on this so
+ * the app reads as one material system.
+ */
+@Composable
+fun GlassPanel(
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(20.dp),
+    contentPadding: PaddingValues = PaddingValues(16.dp),
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .border(1.dp, Color.White.copy(alpha = 0.10f), shape),
+    ) {
+        // Top highlight: a short white gradient across the upper edge.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(28.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.06f), Color.Transparent),
+                    ),
+                ),
+        )
+        Box(modifier = Modifier.padding(contentPadding)) {
+            content()
+        }
+    }
+}
+
+/**
+ * The primary transport/action button of the reconstruction: a true circle in
+ * emerald with a dark glyph — never a leaf or capsule. [tint] defaults to the
+ * theme primary so hosts without their own palette still match.
+ */
+@Composable
+fun CircularPlayButton(
+    onClick: () -> Unit,
+    icon: ImageVector,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    size: Dp = 56.dp,
+    containerColor: Color = MaterialTheme.colorScheme.primary,
+    contentColor: Color = MaterialTheme.colorScheme.onPrimary,
+    enabled: Boolean = true,
+) {
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(if (enabled) containerColor else containerColor.copy(alpha = 0.4f))
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = contentColor,
+            modifier = Modifier.size(size * 0.5f),
+        )
+    }
+}
+
+/** One tile of the stats grid: a big sans number over a quiet label, on glass. */
+@Composable
+fun StatTile(
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    GlassPanel(modifier = modifier, contentPadding = PaddingValues(16.dp)) {
+        Column {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }

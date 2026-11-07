@@ -454,13 +454,13 @@ internal fun TransportRow(
                 )
             }
         } else {
-            // Sonariq's play key: an amber leaf (two hard corners, two tight)
-            // with a dark glyph, in the same footprint the bare glyph had.
+            // The play key: a true emerald circle with a dark glyph, in the
+            // same footprint the bare glyph had.
             Box(Modifier.size(playTouch), contentAlignment = Alignment.Center) {
                 Box(
                     modifier = Modifier
                         .size(80.dp)
-                        .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 10.dp, bottomEnd = 30.dp, bottomStart = 10.dp))
+                        .clip(CircleShape)
                         .background(Color(0xFF1DB954)),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -557,13 +557,13 @@ internal fun AppleTransportRow(
                 )
             }
         } else {
-            // Sonariq's play key: an amber leaf (two hard corners, two tight)
-            // with a dark glyph, in the same footprint the bare glyph had.
+            // The play key: a true emerald circle with a dark glyph, in the
+            // same footprint the bare glyph had.
             Box(Modifier.size(playTouch), contentAlignment = Alignment.Center) {
                 Box(
                     modifier = Modifier
                         .size(80.dp)
-                        .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 10.dp, bottomEnd = 30.dp, bottomStart = 10.dp))
+                        .clip(CircleShape)
                         .background(Color(0xFF1DB954)),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -880,40 +880,52 @@ internal fun AppleUtilityRow(
     /** Opens [VocalRemoverSheet]; only wired where the platform carries the DSP stage. */
     onOpenVocalRemover: () -> Unit,
 ) {
-    Row(
+    // The actions ride in one centred glass pill-bar — the same material as
+    // the mini player and the navigation bar — rather than as bare glyphs
+    // spread across the full width.
+    Box(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically,
+        contentAlignment = Alignment.Center,
     ) {
-        BottomGlyph(
-            icon = SonariqIcons.LyricsQuote,
-            contentDescription = stringResource(if (lyricsOpen) Res.string.close_lyrics else Res.string.open_lyrics),
-            onClick = onToggleLyrics,
-            highlighted = lyricsOpen,
-        )
-        BottomGlyph(
-            icon = Icons.Rounded.Headphones,
-            contentDescription = stringResource(Res.string.audio_output),
-            onClick = onOpenOutput,
-        )
-        if (PlayerSettings.vocalRemoverAvailable) {
-            val vocalLevel by PlayerSettings.vocalLevel.collectAsStateWithLifecycle()
+        Row(
+            modifier = Modifier
+                .clip(GlassTokens.pillShape)
+                .background(GlassTokens.surface.copy(alpha = 0.88f))
+                .border(1.dp, GlassTokens.hairline, GlassTokens.pillShape)
+                .padding(horizontal = 10.dp, vertical = 3.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             BottomGlyph(
-                icon = SonariqIcons.VocalWaveform,
-                contentDescription = stringResource(Res.string.vocal_remover),
-                onClick = onOpenVocalRemover,
-                // Lit while the centre channel is turned down at all: the
-                // mix the listener hears is not the original.
-                highlighted = vocalLevel < DEFAULT_VOCAL_LEVEL,
+                icon = SonariqIcons.LyricsQuote,
+                contentDescription = stringResource(if (lyricsOpen) Res.string.close_lyrics else Res.string.open_lyrics),
+                onClick = onToggleLyrics,
+                highlighted = lyricsOpen,
+            )
+            BottomGlyph(
+                icon = Icons.Rounded.Headphones,
+                contentDescription = stringResource(Res.string.audio_output),
+                onClick = onOpenOutput,
+            )
+            if (PlayerSettings.vocalRemoverAvailable) {
+                val vocalLevel by PlayerSettings.vocalLevel.collectAsStateWithLifecycle()
+                BottomGlyph(
+                    icon = SonariqIcons.VocalWaveform,
+                    contentDescription = stringResource(Res.string.vocal_remover),
+                    onClick = onOpenVocalRemover,
+                    // Lit while the centre channel is turned down at all: the
+                    // mix the listener hears is not the original.
+                    highlighted = vocalLevel < DEFAULT_VOCAL_LEVEL,
+                )
+            }
+            BottomGlyph(
+                icon = SonariqIcons.Queue,
+                contentDescription = stringResource(Res.string.up_next),
+                onClick = onToggleQueue,
+                highlighted = queueOpen,
+                haptic = if (queueOpen) Haptic.Tap else Haptic.Expand,
             )
         }
-        BottomGlyph(
-            icon = SonariqIcons.Queue,
-            contentDescription = stringResource(Res.string.up_next),
-            onClick = onToggleQueue,
-            highlighted = queueOpen,
-            haptic = if (queueOpen) Haptic.Tap else Haptic.Expand,
-        )
     }
 }
 

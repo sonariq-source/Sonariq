@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -91,6 +94,16 @@ internal fun TvAmbientOverlay(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // Small emerald accent pill above the title — static, uniform
+            // corners, part of the reconstructed geometry system.
+            Box(
+                modifier = Modifier
+                    .width(64.dp)
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(AmbientCoral),
+            )
+            Spacer(Modifier.height(28.dp))
             Text(
                 text = track.title,
                 fontSize = 56.sp,
@@ -131,7 +144,7 @@ internal fun TvAmbientOverlay(
 }
 
 /**
- * Three soft Prism orbs, frozen in place — a calm static glow. Radial
+ * Three soft emerald-family orbs, frozen in place — a calm static glow. Radial
  * gradients only, no blur, no animation: this screen sits idle for hours
  * on weak TV hardware, so nothing here may redraw on its own.
  */

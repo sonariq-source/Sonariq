@@ -684,7 +684,7 @@ fun DetailScreen(
                                     .padding(horizontal = ARTIST_CONTENT_GUTTER)
                                     .clip(panelShape)
                                     .background(
-                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                                        MaterialTheme.colorScheme.surfaceContainerHigh,
                                         panelShape,
                                     )
                                     .border(
@@ -704,6 +704,7 @@ fun DetailScreen(
                                         isCurrent = song.isSameTrackAs(currentSong),
                                         isPlaying = song.isSameTrackAs(currentSong) && isPlaying,
                                         horizontalPadding = 16.dp,
+                                        trackNumber = index + 1,
                                     )
                                     if (index < visible.lastIndex) {
                                         HorizontalDivider(
@@ -948,7 +949,7 @@ private fun ReleaseHeader(
         ) {
             Text(
                 text = page.title,
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineLarge,
                 color = palette.onBackground,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
@@ -1002,9 +1003,10 @@ private fun ReleaseHeader(
 }
 
 /**
- * An album or playlist's actions: Play and Shuffle as pills, then the small
- * glass circles — the library toggle where offered, the in-list search, the
- * overflow — in a quieter row of their own, clear of the artwork.
+ * An album or playlist's actions, in ONE row under the header: the large
+ * circular emerald Play button, the glass Shuffle pill beside it, then the
+ * small circular glass buttons — the library toggle where offered, the
+ * in-list search, the overflow — all wired to the same callbacks as before.
  */
 @Composable
 private fun ReleaseActions(
@@ -1026,21 +1028,20 @@ private fun ReleaseActions(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            PlayPill(onClick = onPlay)
+            PlayPill(
+                onClick = onPlay,
+                iconOnly = true,
+                size = 56.dp,
+                containerColor = MaterialTheme.colorScheme.primary,
+            )
             SecondaryPill(
                 label = stringResource(R.string.shuffle),
                 icon = SonariqIcons.Shuffle,
                 onClick = onShuffle,
             )
-        }
-        Spacer(Modifier.height(12.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
             if (library != null) {
                 CircleIconButton(
                     // A tick, not a filled-in plus: the pair reads as
@@ -1097,13 +1098,13 @@ private fun SecondaryPill(
         modifier = modifier
             .height(50.dp)
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), CircleShape)
             .clickable {
                 haptics.play(Haptic.Resume)
                 onClick()
             }
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = 18.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -2015,6 +2016,8 @@ private fun CompactSongRow(
     isCurrent: Boolean = false,
     isPlaying: Boolean = false,
     horizontalPadding: Dp = 0.dp,
+    /** The row's place in the list, drawn as a number column before the artwork. */
+    trackNumber: Int? = null,
 ) {
     val artShape = RoundedCornerShape(14.dp)
     Row(
@@ -2024,6 +2027,16 @@ private fun CompactSongRow(
             .padding(horizontal = horizontalPadding, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (trackNumber != null) {
+            Text(
+                text = trackNumber.toString(),
+                style = MaterialTheme.typography.titleMedium,
+                color = if (isCurrent) palette.accent else palette.onBackgroundVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(26.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+        }
         Box(Modifier.size(52.dp)) {
             AsyncImage(
                 model = song.artworkAt(ROW_ART_PX),

@@ -135,7 +135,7 @@ private val ROW_PADDING_HORIZONTAL = 14.dp
  * height happens to be — so that constraint is gone and the artwork can go
  * back to matching [SongRow].
  */
-private val ART_CORNER = 23.dp
+private val ART_CORNER = 10.dp
 
 /** Distance that makes a horizontal drag an intentional track change. */
 private val TRACK_SWIPE_THRESHOLD = 72.dp
@@ -372,11 +372,15 @@ fun MiniPlayer(
 ) {
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
-    // A compact rounded rectangle gives the new dock a distinct silhouette from the legacy floating pill.
-    val shape = RoundedCornerShape(32.dp)
+    // A glass card in its own right, sitting directly above the docked
+    // navigation bar: uniform 18 dp corners, the elevated glass surface and
+    // a hairline edge — a designed part of the bottom stack, not a pill
+    // floating inside the tab bar.
+    val shape = RoundedCornerShape(18.dp)
     Box(
         modifier = modifier
-            .padding(horizontal = 20.dp, vertical = 5.dp)
+            .padding(horizontal = 12.dp)
+            .padding(top = 6.dp, bottom = 8.dp)
             .miniPlayerGestures(
                 pull = pull,
                 onNext = {
@@ -391,8 +395,8 @@ fun MiniPlayer(
                 onBlocked = onBlockedControl,
             )
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .border(1.dp, Color.White.copy(alpha = 0.10f), shape)
             // The whole card expands the player; transport controls keep their own click targets.
             .clickable(onClick = onExpand),
     ) {
@@ -411,8 +415,8 @@ fun MiniPlayer(
                 modifier = Modifier
                     .size(46.dp)
                     .playerDockArt(dock, ART_CORNER)
-                    .clip(androidx.compose.foundation.shape.CircleShape)
-                    .thumbnailBorder(androidx.compose.foundation.shape.CircleShape)
+                    .clip(RoundedCornerShape(ART_CORNER))
+                    .thumbnailBorder(RoundedCornerShape(ART_CORNER))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             )
             Spacer(Modifier.width(10.dp))
@@ -475,13 +479,13 @@ fun MiniPlayer(
             }
         }
         if (position != null) {
+            // The progress line runs along the card's own bottom edge, full
+            // width, clipped by the card's corners.
             MiniPlayerProgress(
                 position = position,
                 durationMs = durationMs,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(horizontal = 28.dp)
-                    .padding(bottom = 5.dp)
                     .fillMaxWidth(),
             )
         }

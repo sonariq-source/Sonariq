@@ -189,6 +189,23 @@ fun EqualizerScreen(
         )
         Column(modifier = Modifier.graphicsLayer { alpha = settingsAlpha }) {
             Spacer(Modifier.height(18.dp))
+            // The preset quick-switch sits pinned at the top of the content,
+            // above the mode switch and the bands it shapes: chips over the
+            // saved and built-in presets, wired to the same preset machinery
+            // as the sheet the preset row below opens (which is still where
+            // presets get saved and deleted). Manual-only, because a preset
+            // is a band curve and the tone pad does not read one.
+            if (mode == EqualizerMode.MANUAL) {
+                PresetChips(
+                    selected = preset,
+                    userPresets = userPresets,
+                    activeUserPresetName = activeUserPresetName,
+                    enabled = enabled,
+                    onSelect = { AppSettings.setEqualizerPreset(it) },
+                    onSelectUserPreset = { AppSettings.applyUserEqualizerPreset(it) },
+                    modifier = Modifier.padding(bottom = 6.dp),
+                )
+            }
             SegmentedControl(
                 options = EqualizerMode.entries.map { it.localizedLabel() },
                 selectedIndex = EqualizerMode.entries.indexOf(mode),
@@ -250,19 +267,6 @@ fun EqualizerScreen(
                             enabled = enabled,
                         )
                     }
-                    // The preset quick-switch: chips over the saved and
-                    // built-in presets, wired to the same preset machinery as
-                    // the sheet. The row above still opens the sheet, which is
-                    // where presets get saved and deleted.
-                    PresetChips(
-                        selected = preset,
-                        userPresets = userPresets,
-                        activeUserPresetName = activeUserPresetName,
-                        enabled = enabled,
-                        onSelect = { AppSettings.setEqualizerPreset(it) },
-                        onSelectUserPreset = { AppSettings.applyUserEqualizerPreset(it) },
-                        modifier = Modifier.padding(top = 10.dp),
-                    )
                     SettingsGroup(
                         header = stringResource(R.string.equalizer_bands),
                         footer = stringResource(R.string.equalizer_bands_footer),
@@ -1141,7 +1145,7 @@ private fun PresetChip(
                 if (chosen) {
                     MaterialTheme.colorScheme.primary
                 } else {
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
+                    MaterialTheme.colorScheme.surfaceContainerHigh
                 },
             )
             .border(

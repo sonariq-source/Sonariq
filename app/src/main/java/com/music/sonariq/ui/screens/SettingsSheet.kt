@@ -10,6 +10,7 @@ import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -92,8 +93,6 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MusicOff
 import androidx.compose.material.icons.rounded.MotionPhotosOff
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Palette
@@ -150,6 +149,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -546,6 +546,18 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onBackground,
             )
         }
+        // Profile header: the account this installation is signed in as,
+        // drawn with the same [AccountCard] the account screen uses and fed
+        // by the account state this sheet already receives. Tapping it opens
+        // the account & scrobbling screen, exactly like the account row in
+        // the first group below; signed out, the card itself is the sign-in.
+        AccountCard(
+            signedIn = signedIn,
+            account = account,
+            onSignIn = onSignIn,
+            onClick = onAccountScrobbling,
+        )
+        Spacer(Modifier.height(14.dp))
         SearchField(
             query = searchQuery,
             onQueryChange = { searchQuery = it },
@@ -3286,7 +3298,7 @@ internal fun AccountCard(
                     Modifier
                         .padding(horizontal = GROUP_INSET)
                         .clip(GroupShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                         .border(
                             1.dp,
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.7f),
@@ -3734,15 +3746,22 @@ private fun SearchableSettingsGroup(
     }
     val searching = search.isActive
     val expanded = searching || storedExpanded
-    Spacer(Modifier.height(20.dp))
+    // The chevron turns as the card opens rather than swapping glyphs, so
+    // the header reads as one control changing state.
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 90f else 0f,
+        animationSpec = tween(200),
+        label = "settingsCategoryChevron",
+    )
+    Spacer(Modifier.height(14.dp))
     Column(
-        // Same glass card as [SettingsGroup]: a translucent surface over the
+        // Same glass card as [SettingsGroup]: the glass tone over the
         // background, edged with a hairline of outline.
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = GROUP_INSET)
             .clip(GroupShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), GroupShape),
     ) {
         Row(
@@ -3753,28 +3772,35 @@ private fun SearchableSettingsGroup(
                 .padding(horizontal = ROW_INSET, vertical = 14.dp),
         ) {
             if (headerIcon != null) {
-                Icon(
-                    imageVector = headerIcon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = headerIcon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(19.dp),
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
             }
             Text(
-                // Space Grotesk, the Sonariq display face, for section headers.
                 text = header.uppercase(Locale.ROOT),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
             Icon(
-                imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                imageVector = Icons.Rounded.ChevronRight,
                 contentDescription = stringResource(
                     if (expanded) R.string.settings_category_collapse else R.string.settings_category_expand,
                 ),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp),
+                modifier = Modifier.size(22.dp).rotate(chevronRotation),
             )
         }
         if (expanded) {
@@ -3821,16 +3847,23 @@ internal fun SettingsGroup(
             ),
         ) {
             if (headerIcon != null) {
-                Icon(
-                    imageVector = headerIcon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = headerIcon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(19.dp),
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
             }
             Text(
-                // Space Grotesk, the Sonariq display face, for section headers.
                 text = header.uppercase(Locale.ROOT),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -3840,13 +3873,13 @@ internal fun SettingsGroup(
         Spacer(Modifier.height(topSpacing))
     }
     Column(
-        // Glassmorphism: a translucent surface over the background, edged with
-        // a hairline of outline so the card reads against either theme.
+        // Glass card: the glass tone over the background, edged with a
+        // hairline of outline so the card reads against either theme.
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = GROUP_INSET)
             .clip(GroupShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), GroupShape),
     ) {
         content()

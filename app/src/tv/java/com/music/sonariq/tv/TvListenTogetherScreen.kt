@@ -2,6 +2,7 @@ package com.music.sonariq.tv
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -100,6 +103,7 @@ fun TvListenTogetherScreen(onBack: () -> Unit) {
                 text = "Listen Together",
                 style = MaterialTheme.typography.headlineLarge.copy(fontSize = 40.sp),
                 color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
             )
         }
         Spacer(Modifier.height(32.dp))
@@ -303,17 +307,27 @@ private fun TvPartyScreen(state: ListenTogether.State) {
     Column(
         modifier = Modifier.fillMaxSize(),
     ) {
-    Text(
-        text = "Party code",
-        fontSize = 24.sp,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    Text(
-        text = state.code?.toList()?.joinToString(" ") ?: "",
-        fontSize = 72.sp,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.primary,
-    )
+    // Party code as one uniform-corner card (12dp), glass surface.
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .padding(horizontal = 24.dp, vertical = 20.dp),
+    ) {
+        Text(
+            text = "Party code",
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = state.code?.toList()?.joinToString(" ") ?: "",
+            fontSize = 72.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
     Spacer(Modifier.height(24.dp))
 
     if (track != null) {
@@ -353,15 +367,25 @@ private fun TvPartyScreen(state: ListenTogether.State) {
         modifier = Modifier.weight(1f),
     ) {
         items(state.members, key = { it.memberId }) { member ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // Fixed-height row: name on the left, Host/You as trailing meta.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(horizontal = 16.dp),
+            ) {
                 Text(
                     text = member.displayName.ifBlank { "Guest" },
                     fontSize = 26.sp,
                     color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
                 )
                 if (member.isHost) {
                     Text(
-                        text = "  ·  Host",
+                        text = "Host",
                         fontSize = 22.sp,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold,
@@ -369,7 +393,7 @@ private fun TvPartyScreen(state: ListenTogether.State) {
                 }
                 if (member.memberId == state.you?.memberId) {
                     Text(
-                        text = "  ·  You",
+                        text = if (member.isHost) "  ·  You" else "You",
                         fontSize = 22.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -464,7 +488,9 @@ private fun TvHandoffCodeDisplay(code: String, onBack: () -> Unit) {
 
 /**
  * A big D-pad-focusable button in the TV style: idle on surfaceVariant,
- * glowing primary when focused. Shared with [TvHomeScreen].
+ * filled emerald when focused — primary fill, a bright emerald ring, a
+ * slight scale, and dark text on the fill. Uniform 12dp corners, matching
+ * the reconstructed card/row system. Shared with [TvHomeScreen].
  */
 @Composable
 fun TvTextButton(
@@ -480,13 +506,19 @@ fun TvTextButton(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .height(64.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .scale(if (focused) 1.03f else 1f)
+            .clip(RoundedCornerShape(12.dp))
             .background(
                 when {
                     !enabled -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                     focused -> MaterialTheme.colorScheme.primary
                     else -> MaterialTheme.colorScheme.surfaceVariant
                 },
+            )
+            .border(
+                width = if (focused) 2.dp else 0.dp,
+                color = Color(0xFF32D979),
+                shape = RoundedCornerShape(12.dp),
             )
             .clickable(
                 interactionSource = interaction,
@@ -503,7 +535,7 @@ fun TvTextButton(
             fontWeight = FontWeight.SemiBold,
             color = when {
                 !enabled -> Color.Gray
-                focused -> Color.White
+                focused -> MaterialTheme.colorScheme.onPrimary
                 else -> MaterialTheme.colorScheme.onSurfaceVariant
             },
         )

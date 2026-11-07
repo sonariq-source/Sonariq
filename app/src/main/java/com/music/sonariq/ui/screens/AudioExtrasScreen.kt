@@ -1,7 +1,10 @@
 package com.music.sonariq.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -29,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -99,7 +104,7 @@ fun AudioExtrasScreen(onBack: () -> Unit) {
         }
 
         Column(Modifier.verticalScroll(rememberScrollState())) {
-            ExtrasSectionTitle(stringResource(R.string.per_device_eq))
+            ExtrasPanel(stringResource(R.string.per_device_eq)) {
             SettingsRow(
                 icon = Icons.Rounded.GraphicEq,
                 title = stringResource(R.string.per_device_eq),
@@ -129,8 +134,9 @@ fun AudioExtrasScreen(onBack: () -> Unit) {
                     DeviceEqController.forgetCurrentDevice(context, routeKind, deviceName)
                 },
             )
+            }
 
-            ExtrasSectionTitle(stringResource(R.string.mono_audio))
+            ExtrasPanel(stringResource(R.string.mono_audio)) {
             SettingsRow(
                 icon = Icons.Rounded.Speaker,
                 title = stringResource(R.string.mono_audio),
@@ -157,8 +163,9 @@ fun AudioExtrasScreen(onBack: () -> Unit) {
                 valueRange = -1f..1f,
                 steps = 0,
             )
+            }
 
-            ExtrasSectionTitle(stringResource(R.string.canvas_backdrop))
+            ExtrasPanel(stringResource(R.string.canvas_backdrop)) {
             SettingsRow(
                 icon = Icons.Rounded.Animation,
                 title = stringResource(R.string.canvas_backdrop),
@@ -175,8 +182,9 @@ fun AudioExtrasScreen(onBack: () -> Unit) {
                 },
                 onClick = { AppSettings.setCanvasBackdropEnabled(!canvasEnabled) },
             )
+            }
 
-            ExtrasSectionTitle(stringResource(R.string.data_saver))
+            ExtrasPanel(stringResource(R.string.data_saver)) {
             SettingsRow(
                 icon = Icons.Rounded.CloudOff,
                 title = stringResource(R.string.data_saver),
@@ -243,9 +251,34 @@ fun AudioExtrasScreen(onBack: () -> Unit) {
                 },
                 onClick = { AppSettings.setWifiOnlyStreaming(!wifiOnlyStreaming) },
             )
+            }
 
             Spacer(Modifier.height(24.dp))
         }
+    }
+}
+
+/**
+ * One group of extras as a glass panel: the glass tone in a 20dp rounded
+ * card with a hairline edge, its section title at the panel's own inset and
+ * the group's existing rows unchanged inside it. Panels stack with 14dp
+ * between them, matching the settings screens' card rhythm.
+ */
+@Composable
+private fun ExtrasPanel(title: String, content: @Composable ColumnScope.() -> Unit) {
+    val panelShape = RoundedCornerShape(20.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(top = 14.dp)
+            .clip(panelShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh, panelShape)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), panelShape)
+            .padding(vertical = 6.dp),
+    ) {
+        ExtrasSectionTitle(title)
+        content()
     }
 }
 
@@ -255,7 +288,7 @@ private fun ExtrasSectionTitle(text: String) {
         text = text,
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 52.dp, top = 16.dp, bottom = 4.dp),
+        modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),
     )
 }
 
