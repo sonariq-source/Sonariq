@@ -38,20 +38,29 @@ object GlassTokens {
     /** The dim behind a sheet, at full strength. */
     val scrim = Color.Black.copy(alpha = 0.5f)
 
-    /** The sheet surface: near-black plum-dark, shared by the solid fallback. */
-    val surface = Color(0xFF121212)
+    /** The sheet surface: deep green-black glass, shared by the solid fallback. */
+    val surface = Color(0xFF17251D)
 
     /** The haze tint the frosted sheet material is built over [surface] with. */
-    val hazeTint = Color(0xFF141414)
+    val hazeTint = Color(0xFF121D17)
 
     /** How much of [surface] stays over the frosted sample in the glass state. */
     const val surfaceAlpha = 0.9f
+
+    /** The emerald action colour inside glass surfaces. */
+    val accent = Color(0xFF1DB954)
+
+    /** The active-navigation emerald. */
+    val activeNav = Color(0xFF32D979)
+
+    /** The mint highlight reserved for small emphasis on glass. */
+    val mint = Color(0xFF8EF5BD)
 
     /** A control's fill on top of a glass surface. */
     val controlTint = Color.White.copy(alpha = 0.05f)
 
     /** The hairline that separates a glass surface from what is behind it. */
-    val hairline = Color.White.copy(alpha = 0.08f)
+    val hairline = Color.White.copy(alpha = 0.12f)
     val hairlineWidth = 1.dp
 
     /** A sheet's grab handle. */

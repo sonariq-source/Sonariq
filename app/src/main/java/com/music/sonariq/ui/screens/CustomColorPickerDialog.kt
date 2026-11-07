@@ -48,7 +48,7 @@ import com.music.sonariq.R
 import com.music.sonariq.data.settings.AppSettings
 
 /**
- * A full color picker for the app accent, in Prism styling.
+ * A full color picker for the app accent, in emerald styling.
  *
  * A hue slider, a saturation/value field and a hex input. The color is applied
  * *live* while it is being picked — every change writes straight through to

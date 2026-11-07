@@ -315,7 +315,7 @@ internal fun LyricsPickBar(
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF141414).copy(alpha = 0.92f))
+            .background(Color(0xFF121D17).copy(alpha = 0.92f))
             .padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -384,7 +384,7 @@ private fun RowScope.PickAction(
     // The drawer's own base colour, so the label on the solid button reads as
     // cut out of it rather than as black paint laid over white.
     val foreground = if (accent) {
-        Color(0xFF121212).copy(alpha = if (enabled) 1f else 0.4f)
+        Color(0xFF17251D).copy(alpha = if (enabled) 1f else 0.4f)
     } else {
         Color.White.copy(alpha = if (enabled) 0.85f else 0.4f)
     }

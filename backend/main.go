@@ -18,13 +18,13 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/KabirSinghBhatia/BitChord/backend/clock"
-	"github.com/KabirSinghBhatia/BitChord/backend/codes"
-	"github.com/KabirSinghBhatia/BitChord/backend/config"
-	"github.com/KabirSinghBhatia/BitChord/backend/hub"
-	"github.com/KabirSinghBhatia/BitChord/backend/party"
-	"github.com/KabirSinghBhatia/BitChord/backend/presence"
-	"github.com/KabirSinghBhatia/BitChord/backend/protocol"
+	"github.com/sonariq-source/Sonariq/backend/clock"
+	"github.com/sonariq-source/Sonariq/backend/codes"
+	"github.com/sonariq-source/Sonariq/backend/config"
+	"github.com/sonariq-source/Sonariq/backend/hub"
+	"github.com/sonariq-source/Sonariq/backend/party"
+	"github.com/sonariq-source/Sonariq/backend/presence"
+	"github.com/sonariq-source/Sonariq/backend/protocol"
 )
 
 var (
@@ -701,7 +701,7 @@ var inviteTemplate = template.Must(template.New("invite").Parse(`<!DOCTYPE html>
             <a id="joinBtn" href="{{.IntentURI}}" class="btn">Join Party in Sonariq</a>
             <p class="footer-note">
                 Didn’t open automatically? Tap the button above.<br>
-                Don't have Sonariq yet? <a href="https://github.com/kushagrasinghx/BitChord/releases" target="_blank" rel="noopener">Download it here</a>.
+                Don't have Sonariq yet? <a href="https://github.com/sonariq-source/Sonariq/releases" target="_blank" rel="noopener">Download it here</a>.
             </p>
             <script>
                 var intentUri = {{.IntentURI}};

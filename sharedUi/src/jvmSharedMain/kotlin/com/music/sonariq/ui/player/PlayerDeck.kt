@@ -6,7 +6,7 @@ package com.music.sonariq.ui.player
  * arrives as parameters — so it lives here while the screen keeps its
  * artwork / credits / controls choreography.
  *
- * Fork of https://github.com/kushagrasinghx/BitChord (GPL-3.0).
+ * Sonariq (GPL-3.0).
  */
 
 import androidx.compose.animation.core.Animatable

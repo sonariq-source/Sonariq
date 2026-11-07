@@ -10,7 +10,7 @@ import com.music.sonariq.data.lyrics.LyricLine
  * seek to", so the logic is unit-testable. Used by the in-lyrics search and
  * by tap-to-seek.
  *
- * Fork of https://github.com/kushagrasinghx/BitChord (GPL-3.0).
+ * Sonariq (GPL-3.0).
  */
 
 /**

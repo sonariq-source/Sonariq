@@ -63,7 +63,7 @@ suspend fun renderSongShareCard(
 
     if (style == ShareCardStyle.Minimal) {
         // Minimal skips the sleeve entirely: the words on a clean dark field.
-        canvas.drawColor(0xFF0E0A12.toInt())
+        canvas.drawColor(0xFF080D0B.toInt())
     } else {
         drawBlurredBackdrop(canvas, art)
     }
@@ -96,7 +96,7 @@ private fun drawBlurredBackdrop(canvas: Canvas, art: Bitmap?) {
         canvas.drawBitmap(smeared, 0f, 0f, null)
         smeared.recycle()
     } else {
-        canvas.drawColor(0xFF120D18.toInt())
+        canvas.drawColor(0xFF0D1511.toInt())
     }
     val paint = Paint()
     paint.shader = LinearGradient(

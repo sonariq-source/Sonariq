@@ -8,9 +8,9 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/KabirSinghBhatia/BitChord/backend/clock"
-	"github.com/KabirSinghBhatia/BitChord/backend/codes"
-	"github.com/KabirSinghBhatia/BitChord/backend/config"
+	"github.com/sonariq-source/Sonariq/backend/clock"
+	"github.com/sonariq-source/Sonariq/backend/codes"
+	"github.com/sonariq-source/Sonariq/backend/config"
 )
 
 // PartyError represents an error with an HTTP status code and wire error code.

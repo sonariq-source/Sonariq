@@ -448,7 +448,7 @@ internal fun TransportRow(
                 CircularProgressIndicator(
                     // SonariqLime, mirrored here because sharedUi cannot see
                     // the app module's theme.
-                    color = Color(0xFFFFB020),
+                    color = Color(0xFF1DB954),
                     strokeWidth = 3.dp,
                     modifier = Modifier.size(if (compact) 30.dp else 38.dp),
                 )
@@ -461,7 +461,7 @@ internal fun TransportRow(
                     modifier = Modifier
                         .size(80.dp)
                         .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 10.dp, bottomEnd = 30.dp, bottomStart = 10.dp))
-                        .background(Color(0xFFFFB020)),
+                        .background(Color(0xFF1DB954)),
                     contentAlignment = Alignment.Center,
                 ) {
                     TransportGlyph(
@@ -471,7 +471,7 @@ internal fun TransportRow(
                         touchSize = 80.dp,
                         onClick = onPlayPause,
                         haptic = if (isPlaying) Haptic.Pause else Haptic.Resume,
-                        tint = Color(0xFF1F1400),
+                        tint = Color(0xFF04140B),
                     )
                 }
             }
@@ -551,7 +551,7 @@ internal fun AppleTransportRow(
                 CircularProgressIndicator(
                     // SonariqLime, mirrored here because sharedUi cannot see
                     // the app module's theme.
-                    color = Color(0xFFFFB020),
+                    color = Color(0xFF1DB954),
                     strokeWidth = 3.dp,
                     modifier = Modifier.size(38.dp),
                 )
@@ -564,7 +564,7 @@ internal fun AppleTransportRow(
                     modifier = Modifier
                         .size(80.dp)
                         .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 10.dp, bottomEnd = 30.dp, bottomStart = 10.dp))
-                        .background(Color(0xFFFFB020)),
+                        .background(Color(0xFF1DB954)),
                     contentAlignment = Alignment.Center,
                 ) {
                     TransportGlyph(
@@ -574,7 +574,7 @@ internal fun AppleTransportRow(
                         touchSize = 80.dp,
                         onClick = onPlayPause,
                         haptic = if (isPlaying) Haptic.Pause else Haptic.Resume,
-                        tint = Color(0xFF1F1400),
+                        tint = Color(0xFF04140B),
                     )
                 }
             }
@@ -637,7 +637,7 @@ private fun TransportVectorGlyph(
     val lastTap = remember { mutableLongStateOf(-tapWindowMs) }
     // SonariqLime, mirrored here because sharedUi cannot see the app module's
     // theme — the same stop the old pill's highlight used.
-    val tint = if (highlighted) Color(0xFFFFB020) else Color.White.copy(alpha = 0.92f)
+    val tint = if (highlighted) Color(0xFF1DB954) else Color.White.copy(alpha = 0.92f)
     Box(
         modifier = Modifier
             .size(PLAYER_SKIP_TOUCH_SIZE)
@@ -1250,7 +1250,7 @@ private fun PillSegment(
  * whenever there is one.
  *
  * A party overrides the output rather than sitting beside it because the two
- * are not the same kind of fact. "Kushagra's Phone" answers which speaker in
+ * are not the same kind of fact. "Alex's Phone" answers which speaker in
  * this room; once there are four devices playing the same song, the room is no
  * longer what the listener is checking. The tap follows the label — whichever
  * one is on screen is the thing it opens.
@@ -1288,7 +1288,7 @@ internal fun OutputCaption(
     val streamIsHiRes = nerdStats?.isHiRes == true
     val isHiResOutput = streamIsHiRes && routeCarriesHiRes
     // The host's first name, exactly as the output line already shortens the
-    // account's — "Kushagra's Jam" alongside "Kushagra's Phone".
+    // account's — "Alex's Jam" alongside "Alex's Phone".
     val jamName = badge.hostFirstName
         ?.let { stringResource(Res.string.listen_together_jam, it) }
         ?: stringResource(Res.string.listen_together_jam_unnamed)

@@ -38,8 +38,8 @@ import com.music.sonariq.data.listentogether.PartyActivityRepository
  * server. Like the moment station, it stays hidden rather than showing an
  * empty or invented feed.
  *
- * Prism styling follows the feed's other sections: a titleLarge heading and a
- * surfaceVariant card with 20.dp corners, coral for the Join action.
+ * Emerald styling follows the feed's other sections: a titleLarge heading and a
+ * surfaceVariant card with 20.dp corners, emerald for the Join action.
  */
 @Composable
 fun FriendActivitySection(

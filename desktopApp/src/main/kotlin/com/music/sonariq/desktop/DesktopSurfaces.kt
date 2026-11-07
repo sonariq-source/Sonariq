@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
 // The look every modal card in the app shares.
 
 /** The card fill. */
-internal val DesktopCardFill = Color(0xFA1A1A1D)
+internal val DesktopCardFill = Color(0xFA121D17)
 
 /** A block inside a card — a settings group — lifted just off the fill. */
 internal val DesktopCardInsetFill = Color(0x14FFFFFF)

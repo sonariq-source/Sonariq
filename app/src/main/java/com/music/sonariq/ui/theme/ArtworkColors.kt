@@ -94,4 +94,4 @@ private const val NEAR_WHITE = 0xD8
 private const val MIN_SATURATION_SPREAD = 0x30
 
 /** Brand lime, when the artwork has no usable color. */
-private val FALLBACK_ARGB = 0xFFFFB020.toInt()
+private val FALLBACK_ARGB = 0xFF1DB954.toInt()

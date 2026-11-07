@@ -40,7 +40,7 @@ jobs:
       - name: Health check
         run: |
           for i in $(seq 1 12); do
-            curl -fsS https://api.bitchord.kushagrasingh.in/healthz && exit 0
+            curl -fsS https://sonariq-ohhb.onrender.com/healthz && exit 0
             sleep 5
           done
           exit 1

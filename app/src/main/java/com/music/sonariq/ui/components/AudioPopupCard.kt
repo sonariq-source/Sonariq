@@ -84,14 +84,14 @@ internal fun AudioPopupCard(
                 .clip(POPUP_CARD_SHAPE)
                 .then(
                     if (reduceDynamicBlur) {
-                        Modifier.background(Color(0xFF121212))
+                        Modifier.background(Color(0xFF17251D))
                     } else {
                         Modifier
                             .optimizedHazeEffect(
                                 state = hazeState,
-                                style = HazeMaterials.regular(Color(0xFF141414)),
+                                style = HazeMaterials.regular(Color(0xFF121D17)),
                             )
-                            .background(Color(0xFF121212).copy(alpha = 0.9f))
+                            .background(Color(0xFF17251D).copy(alpha = 0.9f))
                     }
                 )
                 // Swallows the tap before it reaches the scrim behind, so

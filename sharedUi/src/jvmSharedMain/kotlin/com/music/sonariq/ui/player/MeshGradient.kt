@@ -50,10 +50,10 @@ import kotlin.math.sin
 // Used when the artwork yields no usable palette; keeps the player on-brand
 // instead of falling back to the old stock-purple set.
 private val FallbackColors = listOf(
-    Color(0xFFFFB020),
-    Color(0xFF4FD1B5),
-    Color(0xFF0F3B4A),
-    Color(0xFFCFE6F0),
+    Color(0xFF1DB954),
+    Color(0xFF35E887),
+    Color(0xFF0C2E1C),
+    Color(0xFF8EF5BD),
 )
 
 /** The four mesh colours, wrapped so the backdrop can skip recomposition. */

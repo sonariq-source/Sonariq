@@ -139,12 +139,12 @@ private const val BLOB_RADIUS_FRACTION = 0.55f
 private const val BLOB_ALPHA = 0.9f
 private const val PALETTE_FADE_MS = 900
 
-private val CanvasBase = Color(0xFF060A0E)
+private val CanvasBase = Color(0xFF080D0B)
 
 private val FallbackCanvasColours = listOf(
     Color(0xFF1D5C4D),
-    Color(0xFF0E3A52),
-    Color(0xFF4D1D4A),
+    Color(0xFF0E4A2E),
+    Color(0xFF1D4A38),
     Color(0xFF123B2A),
 )
 

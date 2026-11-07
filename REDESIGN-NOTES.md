@@ -13,12 +13,12 @@ The current Sonariq look. It replaces the earlier plum / coral theme.
 - **Covers:** one signature "leaf" cover shape (two hard corners, two tight) used on shelf cards, folder tiles, the poster, mood cards and the search field.
 - **Explore:** staggered mosaic of equal-height mood cards instead of a uniform two-column grid.
 - **Library:** quick access is a ruled index list (glyph, name, detail, chevron) instead of a card grid.
-- **Now Playing:** the play control is an amber leaf key; shuffle, skip and repeat flank it as before.
+- **Now Playing:** the play control is an emerald leaf key; shuffle, skip and repeat flank it as before.
 - **Copy:** page eyebrow labels are sentence case.
-- **Desktop:** the desktop palette uses the same tones with an amber accent.
+- **Desktop:** the desktop palette uses the same tones with an emerald accent.
 
 ## Naming
-Everything internal is named Sonariq: Kotlin packages and folders (`com.music.sonariq`), namespaces, JNI function names, native library names, env vars, resource names and services. Deliberately unchanged: links to the original BitChord project and its hosted services (GitHub repo and releases, `bitchord.kushagrasingh.in` jam/invite and presence servers, the `onrender.com` jam servers, the Go backend module path) — these are other people's servers and the GPL credit, and renaming them would break Listen Together, invite links, presence and update checks. Point them at your own servers when you host the backend.
+Everything internal is named Sonariq: Kotlin packages and folders (`com.music.sonariq`), namespaces, JNI function names, native library names, env vars, resource names and services. All links and services point at Sonariq's own project and servers: the Sonariq GitHub repository and its releases, the sonariq.giize.com invite origin, the Sonariq Listen Together server, and the Go backend module path inside the Sonariq repository.
 
 ## Pre-existing import fixes
 The source as received was missing `height` imports in LibraryScreen.kt and ExploreScreen.kt (and `border` in ExploreScreen.kt); they are added.

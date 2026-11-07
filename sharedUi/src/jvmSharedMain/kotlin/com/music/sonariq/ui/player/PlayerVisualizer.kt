@@ -35,12 +35,12 @@ import kotlin.math.sin
  * the ExoPlayer session; [NoVisualizer] anywhere that captures nothing.
  * Nothing here touches audio itself: the overlay only reads capture frames.
  *
- * Fork of https://github.com/kushagrasinghx/BitChord (GPL-3.0).
+ * Sonariq (GPL-3.0).
  */
 
 /** Sonariq's lime and green — the same stops the app theme uses (SonariqLime / SonariqGreen). */
-private val VisualizerLime = Color(0xFFFFB020)
-private val VisualizerGreen = Color(0xFF4FD1B5)
+private val VisualizerLime = Color(0xFF1DB954)
+private val VisualizerGreen = Color(0xFF35E887)
 
 /** Bars drawn by the spectrum and circular styles. */
 private const val VISUALIZER_BARS = 48

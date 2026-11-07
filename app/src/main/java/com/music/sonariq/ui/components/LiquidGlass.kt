@@ -124,7 +124,7 @@ fun glassContentColor(): Color =
  */
 @Composable
 fun glassIndicatorColor(): Color =
-    if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) Color.White else Color.Black
+    if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) Color.White else Color(0xFF32D979)
 
 /**
  * A lightweight visual match for liquid glass over a stable background.
@@ -143,7 +143,7 @@ fun Modifier.lightweightLiquidGlass(
     val glassTint = if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) {
         Color(0xFFFAFAFA)
     } else {
-        Color(0xFF121212)
+        Color(0xFF17251D)
     }
     val shapeProvider = ShapeProvider { shape }
 
@@ -198,7 +198,7 @@ fun Modifier.liquidGlass(shape: CornerBasedShape): Modifier {
     val surfaceTintColor = if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) {
         Color(0xFFFAFAFA)
     } else {
-        Color(0xFF121212)
+        Color(0xFF17251D)
     }
 
     return drawBackdrop(

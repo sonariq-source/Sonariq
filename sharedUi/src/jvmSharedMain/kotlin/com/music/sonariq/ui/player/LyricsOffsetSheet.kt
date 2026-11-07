@@ -230,7 +230,7 @@ internal fun LyricsOffsetSheet(
                                 checkedThumbColor = Color.White,
                                 // SonariqLime, mirrored here because sharedUi
                                 // cannot see the app module's theme.
-                                checkedTrackColor = Color(0xFFFFB020),
+                                checkedTrackColor = Color(0xFF1DB954),
                                 uncheckedThumbColor = Color.White.copy(alpha = 0.7f),
                                 uncheckedTrackColor = Color.White.copy(alpha = 0.18f),
                                 uncheckedBorderColor = Color.Transparent,

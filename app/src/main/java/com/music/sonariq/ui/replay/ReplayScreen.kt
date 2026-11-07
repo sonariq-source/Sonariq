@@ -506,7 +506,7 @@ private fun ReplayActionRow(icon: ImageVector, label: String, dark: Boolean, onC
 }
 
 /**
- * The way in to the Annual Wrapped: a Prism gradient banner — coral into
+ * The way in to the Annual Wrapped: an emerald gradient banner — emerald into
  * orchid into cyan over the page — with the year set large. It sits with the
  * Replay's own action rows rather than in the charts because it is a
  * destination, not a chart.
@@ -524,8 +524,8 @@ private fun WrappedEntryCard(dark: Boolean, onClick: () -> Unit) {
             .background(
                 Brush.linearGradient(
                     listOf(
-                        Color(0xFFFF6B5E).copy(alpha = if (dark) 0.30f else 0.18f),
-                        Color(0xFFDA70D6).copy(alpha = if (dark) 0.24f else 0.14f),
+                        Color(0xFF1DB954).copy(alpha = if (dark) 0.30f else 0.18f),
+                        Color(0xFF35E887).copy(alpha = if (dark) 0.24f else 0.14f),
                         Color(0xFF5EEAD4).copy(alpha = if (dark) 0.16f else 0.10f),
                     ),
                 ),
@@ -540,7 +540,7 @@ private fun WrappedEntryCard(dark: Boolean, onClick: () -> Unit) {
                     text = stringResource(R.string.wrapped).uppercase(),
                     style = MaterialTheme.typography.labelLarge,
                     letterSpacing = 3.sp,
-                    color = Color(0xFFFF6B5E),
+                    color = Color(0xFF1DB954),
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(

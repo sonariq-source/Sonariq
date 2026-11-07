@@ -455,7 +455,7 @@ private fun AutoplayToggleButton(
     val haptics = rememberHaptics()
     // SonariqLime, mirrored here because sharedUi cannot see the app
     // module's theme.
-    val lime = Color(0xFFFFB020)
+    val lime = Color(0xFF1DB954)
     val description = stringResource(
         if (enabled) Res.string.autoplay_on else Res.string.autoplay_off,
     )

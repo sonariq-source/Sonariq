@@ -12,7 +12,7 @@ import kotlin.math.sqrt
  * downsampling and the smoothing are plain math, so they live here and are
  * unit-tested rather than eyeballed.
  *
- * Fork of https://github.com/kushagrasinghx/BitChord (GPL-3.0).
+ * Sonariq (GPL-3.0).
  */
 
 /**

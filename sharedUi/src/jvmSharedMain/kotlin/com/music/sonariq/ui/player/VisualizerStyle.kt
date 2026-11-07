@@ -7,7 +7,7 @@ package com.music.sonariq.ui.player
  * (android.media.audiofx.Visualizer) — no microphone, no recording. [OFF]
  * hides the strip entirely and the capture with it.
  *
- * Fork of https://github.com/kushagrasinghx/BitChord (GPL-3.0).
+ * Sonariq (GPL-3.0).
  */
 enum class VisualizerStyle {
     OFF,

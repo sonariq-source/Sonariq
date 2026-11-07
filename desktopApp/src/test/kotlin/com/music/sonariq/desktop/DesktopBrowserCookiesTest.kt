@@ -28,7 +28,7 @@ class DesktopBrowserCookiesTest {
             {
               "profile": {
                 "info_cache": {
-                  "Default": { "name": "Kushagra" },
+                  "Default": { "name": "Sonariq" },
                   "Profile 26": { "name": "Music account" }
                 }
               }
@@ -36,7 +36,7 @@ class DesktopBrowserCookiesTest {
         """.trimIndent()
 
         assertEquals(
-            mapOf("Default" to "Kushagra", "Profile 26" to "Music account"),
+            mapOf("Default" to "Sonariq", "Profile 26" to "Music account"),
             DesktopBrowserCookies.chromiumProfileNames(state),
         )
     }

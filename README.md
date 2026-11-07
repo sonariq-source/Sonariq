@@ -7,16 +7,16 @@
 
 # Sonariq
 
-### Your music, in prism.
+### Your music, in emerald.
 
 *The music player that feels alive — liquid glass, synced lyrics, and sound that moves with you.*
 
 <br/>
 
-[![Latest release](https://img.shields.io/github/v/release/sonariq-source/Sonariq?style=for-the-badge&labelColor=1a0b1e&color=ff6b6b)](https://github.com/sonariq-source/Sonariq/releases)
-[![License](https://img.shields.io/github/license/sonariq-source/Sonariq?style=for-the-badge&labelColor=1a0b1e&color=c084fc)](https://github.com/sonariq-source/Sonariq/blob/sonariq/LICENSE)
-[![Build](https://img.shields.io/github/actions/workflow/status/sonariq-source/Sonariq/build.yml?branch=sonariq&style=for-the-badge&labelColor=1a0b1e&color=22d3ee&label=build)](https://github.com/sonariq-source/Sonariq/actions)
-[![Downloads](https://img.shields.io/github/downloads/sonariq-source/Sonariq/total?style=for-the-badge&labelColor=1a0b1e&color=a3e635)](https://github.com/sonariq-source/Sonariq/releases)
+[![Latest release](https://img.shields.io/github/v/release/sonariq-source/Sonariq?style=for-the-badge&labelColor=0d1511&color=1db954)](https://github.com/sonariq-source/Sonariq/releases)
+[![License](https://img.shields.io/github/license/sonariq-source/Sonariq?style=for-the-badge&labelColor=0d1511&color=35e887)](https://github.com/sonariq-source/Sonariq/blob/sonariq/LICENSE)
+[![Build](https://img.shields.io/github/actions/workflow/status/sonariq-source/Sonariq/build.yml?branch=sonariq&style=for-the-badge&labelColor=0d1511&color=32d979&label=build)](https://github.com/sonariq-source/Sonariq/actions)
+[![Downloads](https://img.shields.io/github/downloads/sonariq-source/Sonariq/total?style=for-the-badge&labelColor=0d1511&color=8ef5bd)](https://github.com/sonariq-source/Sonariq/releases)
 [![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&labelColor=1a0b1e&logo=ko-fi&logoColor=white)](https://ko-fi.com/sonariqstudio)
 
 <br/>
@@ -120,7 +120,7 @@
 ### Design
 - **New green-gradient waveform logo** — on the launcher, in-app and in notifications.
 - **Custom theme colour picker** — hue/saturation/hex picker for the app accent.
-- **Prism design system** — matte midnight/plum surfaces, coral primary, orchid secondary, cyan highlights.
+- **Emerald Liquid Glass design system** — deep green-black surfaces, emerald primary, bright green and mint accents, and translucent glass panels with fine light borders throughout.
 - **Liquid glass** — milkier blur, vivid refraction, luminous rims and top-light sheen, on by default. The player's sheets, drawers and floating controls now share one set of glass tokens — the same tint, hairline and corners everywhere.
 - **Animated navigation** — tabs bloom, pages slide, modals rise. The whole app breathes.
 - **Redesigned Now Playing** — glowing scrubber, luminous transport controls, live audio visualiser, and a gently drifting animated backdrop. The caption under the player shows your phone's real model, and the lyrics screen has a one-tap share button for story cards.
@@ -235,12 +235,12 @@ We welcome contributions to Sonariq! Please review our [Contributing Guide](CONT
 
 ## Disclaimer & Legal Notice
 
-Sonariq is an independent, community-driven third-party audio player and client — a work of [BitChord](https://github.com/kushagrasinghx/BitChord). It is **not** associated with Google LLC, YouTube Music, Deezer, Telegram, or any of their parent companies.
+Sonariq is an independent, community-driven third-party audio player and client. It is **not** associated with Google LLC, YouTube Music, Deezer, Telegram, or any of their parent companies.
 
 * **No Media Hosting:** Sonariq does not host, upload, or store copyrighted music files. It operates strictly as an interface to scan local device storage or stream media directly from public, public-facing, or user-authenticated APIs.
 * **Fair Use & API Usage:** This software is created solely for personal research, educational, and fair-use purposes. The user is entirely responsible for ensuring their usage aligns with their local copyright laws and YouTube Terms of Service.
 * **No Ad-Blocking Guarantee:** While Sonariq focuses on providing a clean listening environment, it does not guarantee permanent bypasses or modifications to commercial third-party platform conditions.
-* **Copyleft:** Sonariq is free software under the GPLv3, forked from BitChord under the same license. The license does not let anyone forbid others from selling or redistributing copies, but any distribution must come with the Corresponding Source under the same license.
+* **Copyleft:** Sonariq is free software under the GPLv3. The license does not let anyone forbid others from selling or redistributing copies, but any distribution must come with the Corresponding Source under the same license.
 
 ## License
 

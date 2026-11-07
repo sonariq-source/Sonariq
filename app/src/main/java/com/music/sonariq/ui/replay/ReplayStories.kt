@@ -293,7 +293,7 @@ private fun Stage(
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color(0xFF17171A))
+            .background(Color(0xFF0D1511))
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {

@@ -99,8 +99,8 @@ fun ThinSlider(
     transitionWindow: ClosedFloatingPointRange<Float>? = null,
     idleHeight: Dp = 7.dp,
     activeHeight: Dp = 12.dp,
-    activeColor: Color = Color(0xFFFFB020),
-    inactiveColor: Color = Color(0xFFFFB020).copy(alpha = 0.28f),
+    activeColor: Color = Color(0xFF1DB954),
+    inactiveColor: Color = Color(0xFF1DB954).copy(alpha = 0.28f),
     /** Halfway between the two track colours: visible against unplayed, invisible under played. */
     markerColor: Color = Color.White.copy(alpha = 0.5f),
 ) {

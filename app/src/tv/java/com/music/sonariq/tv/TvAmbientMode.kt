@@ -43,11 +43,11 @@ internal const val TV_AMBIENT_IDLE_MS = 5 * 60 * 1000L
 /** How often the idle/playback check runs. */
 internal const val TV_AMBIENT_POLL_MS = 15_000L
 
-// Prism palette for the ambient glow: coral / orchid / cyan on midnight.
-private val AmbientMidnight = Color(0xFF080910)
-private val AmbientCoral = Color(0xFFFF6B5E)
-private val AmbientOrchid = Color(0xFFDA70D6)
-private val AmbientCyan = Color(0xFF22D3EE)
+// Emerald palette for the ambient glow: emerald / bright green / mint on deep green-black.
+private val AmbientMidnight = Color(0xFF080D0B)
+private val AmbientCoral = Color(0xFF1DB954)
+private val AmbientOrchid = Color(0xFF35E887)
+private val AmbientCyan = Color(0xFF8EF5BD)
 
 /** What the ambient overlay shows, read off the controller's current media item. */
 internal data class AmbientTrack(

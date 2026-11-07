@@ -52,7 +52,7 @@ import java.io.FileOutputStream
  * ## Why Compose, offscreen
  *
  * The card is a fixed 4:5 frame whose layout never reflows, and drawing it as a
- * composable keeps the type, spacing and Prism styling in the same language as
+ * composable keeps the type, spacing and emerald styling in the same language as
  * the screen it is shared from. The composition is rooted in its own
  * [Recomposer] rather than a window: [ComposeView.createComposition] throws
  * when the view is not attached unless a parent composition context is set, so
@@ -63,7 +63,7 @@ import java.io.FileOutputStream
  *
  * Sleeves load asynchronously through Coil, and a shared picture must not
  * depend on a network fetch finishing before the share sheet opens. Rank
- * numerals and the Prism glows carry the visual weight instead, so the bitmap
+ * numerals and the emerald glows carry the visual weight instead, so the bitmap
  * is complete the moment it is drawn.
  */
 suspend fun renderStatsCard(context: Context, period: ReplayPeriod): Bitmap {
@@ -267,20 +267,20 @@ private data class WrappedCardData(
 )
 
 /** Prism: matte midnight/plum, coral primary, orchid secondary, cyan highlights. */
-private val PlumBase = Color(0xFF120D18)
-private val Coral = Color(0xFFFF6B5E)
-private val Orchid = Color(0xFFDA70D6)
-private val Cyan = Color(0xFF5EEAD4)
+private val DeepBase = Color(0xFF0D1511)
+private val Emerald = Color(0xFF1DB954)
+private val Bright = Color(0xFF35E887)
+private val Mint = Color(0xFF8EF5BD)
 private val Ink = Color.White
-private val InkDim = Color(0xFFB9AECB)
-private val InkFaint = Color(0xFF8A7F9E)
+private val InkDim = Color(0xFFA1B0A6)
+private val InkFaint = Color(0xFF68766D)
 
 @Composable
 private fun StatsCard(data: StatsCardData) {
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color(0xFF0A0F0A)),
+            .background(Color(0xFF080D0B)),
     ) {
         // Sonariq green wash: lime light from the top, deep green pooling at
         // the foot. Linear gradients need no measurement, so the backdrop is
@@ -291,7 +291,7 @@ private fun StatsCard(data: StatsCardData) {
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Color(0xFFA3E635).copy(alpha = 0.22f),
+                            Color(0xFF1DB954).copy(alpha = 0.22f),
                             Color.Transparent,
                             Color(0xFF1A2E05).copy(alpha = 0.60f),
                         ),
@@ -304,9 +304,9 @@ private fun StatsCard(data: StatsCardData) {
                 .background(
                     Brush.horizontalGradient(
                         listOf(
-                            Color(0xFFA3E635).copy(alpha = 0.06f),
+                            Color(0xFF1DB954).copy(alpha = 0.06f),
                             Color.Transparent,
-                            Color(0xFF4D7C0F).copy(alpha = 0.10f),
+                            Color(0xFF0E7A44).copy(alpha = 0.10f),
                         ),
                     ),
                 ),
@@ -316,7 +316,7 @@ private fun StatsCard(data: StatsCardData) {
             Modifier
                 .fillMaxWidth()
                 .height(6.dp)
-                .background(Brush.horizontalGradient(listOf(Color(0xFFA3E635), Color(0xFF4D7C0F)))),
+                .background(Brush.horizontalGradient(listOf(Color(0xFF1DB954), Color(0xFF0E7A44)))),
         )
 
         Column(
@@ -329,7 +329,7 @@ private fun StatsCard(data: StatsCardData) {
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 6.sp,
-                color = Cyan.copy(alpha = 0.9f),
+                color = Mint.copy(alpha = 0.9f),
             )
             Spacer(Modifier.height(10.dp))
             Text(
@@ -366,7 +366,7 @@ private fun StatsCard(data: StatsCardData) {
                     text = data.minutes,
                     fontSize = 84.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = Coral,
+                    color = Emerald,
                     maxLines = 1,
                 )
                 Text(
@@ -387,7 +387,7 @@ private fun StatsCard(data: StatsCardData) {
                                 text = song.rank.toString(),
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = if (song.rank == 1) Coral else InkFaint,
+                                color = if (song.rank == 1) Emerald else InkFaint,
                                 modifier = Modifier.width(40.dp),
                             )
                             Column(Modifier.weight(1f)) {
@@ -412,7 +412,7 @@ private fun StatsCard(data: StatsCardData) {
                                 text = song.minutes,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = Cyan.copy(alpha = 0.85f),
+                                color = Mint.copy(alpha = 0.85f),
                                 maxLines = 1,
                             )
                         }
@@ -437,7 +437,7 @@ private fun StatsCard(data: StatsCardData) {
                             .width(72.dp)
                             .height(5.dp)
                             .background(
-                                Brush.horizontalGradient(listOf(Orchid, Coral)),
+                                Brush.horizontalGradient(listOf(Bright, Emerald)),
                             ),
                     )
                 }
@@ -480,7 +480,7 @@ private fun WrappedCard(data: WrappedCardData) {
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color(0xFF0A0F0A)),
+            .background(Color(0xFF080D0B)),
     ) {
         // Prism wash: coral light from the top, orchid pooling at the foot.
         Box(
@@ -489,9 +489,9 @@ private fun WrappedCard(data: WrappedCardData) {
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Coral.copy(alpha = 0.20f),
+                            Emerald.copy(alpha = 0.20f),
                             Color.Transparent,
-                            Orchid.copy(alpha = 0.30f),
+                            Bright.copy(alpha = 0.30f),
                         ),
                     ),
                 ),
@@ -502,9 +502,9 @@ private fun WrappedCard(data: WrappedCardData) {
                 .background(
                     Brush.horizontalGradient(
                         listOf(
-                            Cyan.copy(alpha = 0.05f),
+                            Mint.copy(alpha = 0.05f),
                             Color.Transparent,
-                            Orchid.copy(alpha = 0.08f),
+                            Bright.copy(alpha = 0.08f),
                         ),
                     ),
                 ),
@@ -514,7 +514,7 @@ private fun WrappedCard(data: WrappedCardData) {
             Modifier
                 .fillMaxWidth()
                 .height(6.dp)
-                .background(Brush.horizontalGradient(listOf(Coral, Orchid))),
+                .background(Brush.horizontalGradient(listOf(Emerald, Bright))),
         )
 
         Column(
@@ -527,7 +527,7 @@ private fun WrappedCard(data: WrappedCardData) {
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 6.sp,
-                color = Cyan.copy(alpha = 0.9f),
+                color = Mint.copy(alpha = 0.9f),
             )
             Spacer(Modifier.height(6.dp))
             Text(
@@ -563,7 +563,7 @@ private fun WrappedCard(data: WrappedCardData) {
                     text = data.minutes,
                     fontSize = 44.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = Coral,
+                    color = Emerald,
                     maxLines = 1,
                 )
                 Text(
@@ -583,7 +583,7 @@ private fun WrappedCard(data: WrappedCardData) {
                                 text = song.rank.toString(),
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = if (song.rank == 1) Coral else InkFaint,
+                                color = if (song.rank == 1) Emerald else InkFaint,
                                 modifier = Modifier.width(34.dp),
                             )
                             Column(Modifier.weight(1f)) {
@@ -608,7 +608,7 @@ private fun WrappedCard(data: WrappedCardData) {
                                 text = song.minutes,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = Cyan.copy(alpha = 0.85f),
+                                color = Mint.copy(alpha = 0.85f),
                                 maxLines = 1,
                             )
                         }

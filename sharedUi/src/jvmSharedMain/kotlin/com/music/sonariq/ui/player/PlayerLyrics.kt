@@ -207,15 +207,15 @@ private const val LYRICS_DIMMED_SCRIM_ALPHA = 0.45f
  * search highlights. SonariqLime's value, mirrored here because sharedUi
  * cannot see the app module's theme.
  */
-private val LyricLime = Color(0xFFFFB020)
+private val LyricLime = Color(0xFF1DB954)
 
 /**
  * The two voices of duet karaoke mode, from the Prism palette — coral for the
  * lead half, orchid for the harmony half. Same hexes as the app's theme and
  * the TV ambient glow; mirrored here because sharedUi cannot see them.
  */
-private val DuetLeadTint = Color(0xFFFF6B5E)
-private val DuetHarmonyTint = Color(0xFFDA70D6)
+private val DuetLeadTint = Color(0xFF8EF5BD)
+private val DuetHarmonyTint = Color(0xFF35E887)
 
 /**
  * How far the bloom spreads off a letter. Tight, because it is a letter's worth

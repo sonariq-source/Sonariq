@@ -351,7 +351,7 @@ internal fun drawBackdrop(
  * this runs nowhere near a composition.
  */
 internal fun paletteOf(bitmap: Bitmap?): List<Int> {
-    val fallback = listOf(0xFF3A1C71.toInt(), 0xFFD76D77.toInt(), 0xFF2B5876.toInt(), 0xFFFFAF7B.toInt())
+    val fallback = listOf(0xFF0C2E1C.toInt(), 0xFF1DB954.toInt(), 0xFF123B2A.toInt(), 0xFF8EF5BD.toInt())
     val source = bitmap ?: return fallback
     val swatches = runCatching {
         Palette.from(source).maximumColorCount(24).generate().swatches
@@ -784,7 +784,7 @@ private const val CARD_ROWS = 5
 private const val COLUMN_GAP = 36f
 private const val ROW_HEIGHT = 116f
 private const val ART = 84f
-private const val ACCENT = 0xFFFA2D48.toInt()
+private const val ACCENT = 0xFF1DB954.toInt()
 
 private const val POSTER_ROWS = 5
 private const val POSTER_ALBUMS = 3

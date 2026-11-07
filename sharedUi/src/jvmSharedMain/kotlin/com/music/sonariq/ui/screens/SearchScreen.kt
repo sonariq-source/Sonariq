@@ -485,7 +485,7 @@ private fun TopResultCard(
 ) {
     // SonariqLime, mirrored here because sharedUi cannot see the app
     // module's theme.
-    val lime = Color(0xFFFFB020)
+    val lime = Color(0xFF1DB954)
     val cardShape = RoundedCornerShape(14.dp)
     Column(
         modifier = Modifier

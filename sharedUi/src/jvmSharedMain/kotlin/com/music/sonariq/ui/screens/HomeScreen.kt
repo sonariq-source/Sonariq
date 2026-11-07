@@ -212,7 +212,7 @@ private fun DiscoverHeroCard(
             Modifier.matchParentSize().background(
                 Brush.verticalGradient(
                     0.38f to Color.Transparent,
-                    1f to Color(0xFF050F15).copy(alpha = 0.94f),
+                    1f to Color(0xFF080D0B).copy(alpha = 0.94f),
                 ),
             ),
         )

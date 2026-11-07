@@ -61,7 +61,7 @@ Rules:
 `desktopApp/src/main/kotlin/com/music/sonariq/desktop/DesktopUpdateChecker.kt`, shown as a dialog
 from `SonariqDesktopApp` in `DesktopApp.kt`:
 
-1. At launch it calls `GET https://api.github.com/repos/kushagrasinghx/BitChord/releases/latest`.
+1. At launch it calls `GET https://api.github.com/repos/sonariq-source/Sonariq/releases/latest`.
 2. It strips the `v` from `tag_name` and compares it with `sonariq.version` (numeric, dot by dot;
    a `-beta` current version is older than the same release).
 3. If newer, it picks the asset for the running OS and shows "Update available" with Download and

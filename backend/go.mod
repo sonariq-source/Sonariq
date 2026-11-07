@@ -1,4 +1,4 @@
-module github.com/KabirSinghBhatia/BitChord/backend
+module github.com/sonariq-source/Sonariq/backend
 
 go 1.27.0
 

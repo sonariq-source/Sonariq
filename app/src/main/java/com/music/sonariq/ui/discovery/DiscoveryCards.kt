@@ -329,21 +329,21 @@ private data class RecapCardData(
 
 // ── Card styling ──────────────────────────────────────────────────────────────
 
-private val PlumBase = Color(0xFF120D18)
-private val Coral = Color(0xFFFF6B5E)
-private val Orchid = Color(0xFFDA70D6)
-private val Cyan = Color(0xFF5EEAD4)
-private val Lime = Color(0xFFA3E635)
+private val DeepBase = Color(0xFF0D1511)
+private val Emerald = Color(0xFF1DB954)
+private val Bright = Color(0xFF35E887)
+private val Mint = Color(0xFF8EF5BD)
+private val EmeraldAccent = Color(0xFF1DB954)
 private val Ink = Color.White
-private val InkDim = Color(0xFFB9AECB)
-private val InkFaint = Color(0xFF8A7F9E)
+private val InkDim = Color(0xFFA1B0A6)
+private val InkFaint = Color(0xFF68766D)
 
 @Composable
 private fun CardFrame(
     accent: List<Color>,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Box(Modifier.fillMaxSize().background(PlumBase)) {
+    Box(Modifier.fillMaxSize().background(DeepBase)) {
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
@@ -374,7 +374,7 @@ private fun CardEyebrow(text: String) {
         fontSize = 20.sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = 6.sp,
-        color = Cyan.copy(alpha = 0.9f),
+        color = Mint.copy(alpha = 0.9f),
     )
     Spacer(Modifier.height(10.dp))
 }
@@ -407,7 +407,7 @@ private fun ColumnScope.EmptyCardBody(title: String) {
 
 @Composable
 private fun StreakCard(data: StreakCardData) {
-    CardFrame(accent = listOf(Coral, Orchid)) {
+    CardFrame(accent = listOf(Emerald, Bright)) {
         CardEyebrow(data.title)
         if (data.empty) {
             EmptyCardBody(data.emptyTitle)
@@ -417,7 +417,7 @@ private fun StreakCard(data: StreakCardData) {
                 text = data.streak,
                 fontSize = 150.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = Coral,
+                color = Emerald,
                 maxLines = 1,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
@@ -447,7 +447,7 @@ private fun StreakCard(data: StreakCardData) {
 
 @Composable
 private fun GenreCard(data: GenreCardData) {
-    CardFrame(accent = listOf(Orchid, Cyan)) {
+    CardFrame(accent = listOf(Bright, Mint)) {
         CardEyebrow(data.title)
         Text(
             text = data.periodLabel,
@@ -497,8 +497,8 @@ private fun GenreCard(data: GenreCardData) {
                                     .background(
                                         Brush.horizontalGradient(
                                             listOf(
-                                                if (index % 2 == 0) Coral else Orchid,
-                                                Cyan,
+                                                if (index % 2 == 0) Emerald else Bright,
+                                                Mint,
                                             ),
                                         ),
                                     ),
@@ -514,7 +514,7 @@ private fun GenreCard(data: GenreCardData) {
 
 @Composable
 private fun ChartCard(data: ChartCardData) {
-    CardFrame(accent = listOf(Lime, Color(0xFF4D7C0F))) {
+    CardFrame(accent = listOf(EmeraldAccent, Color(0xFF0E7A44))) {
         CardEyebrow(data.title)
         Text(
             text = data.periodLabel,
@@ -535,7 +535,7 @@ private fun ChartCard(data: ChartCardData) {
                             text = row.rank.toString(),
                             fontSize = 24.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = if (row.rank == 1) Coral else InkFaint,
+                            color = if (row.rank == 1) Emerald else InkFaint,
                             modifier = Modifier.width(44.dp),
                         )
                         Column(Modifier.weight(1f)) {
@@ -562,7 +562,7 @@ private fun ChartCard(data: ChartCardData) {
                             text = row.caption,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Medium,
-                            color = Cyan.copy(alpha = 0.85f),
+                            color = Mint.copy(alpha = 0.85f),
                             maxLines = 1,
                         )
                     }
@@ -575,7 +575,7 @@ private fun ChartCard(data: ChartCardData) {
 
 @Composable
 private fun RecapCard(data: RecapCardData) {
-    CardFrame(accent = listOf(Coral, Orchid)) {
+    CardFrame(accent = listOf(Emerald, Bright)) {
         CardEyebrow(data.title)
         Text(
             text = data.monthLabel,
@@ -593,7 +593,7 @@ private fun RecapCard(data: RecapCardData) {
                     text = data.minutes,
                     fontSize = 72.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = Coral,
+                    color = Emerald,
                     maxLines = 1,
                 )
                 Spacer(Modifier.width(12.dp))

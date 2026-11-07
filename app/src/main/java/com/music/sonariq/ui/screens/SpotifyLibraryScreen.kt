@@ -299,7 +299,7 @@ private fun SpotifyLogin(
                     @Suppress("DEPRECATION")
                     settings.forceDark = WebSettings.FORCE_DARK_OFF
                 }
-                setBackgroundColor(0xFF121212.toInt())
+                setBackgroundColor(0xFF17251D.toInt())
                 CookieManager.getInstance().setAcceptCookie(true)
                 CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                 webViewClient = object : WebViewClient() {

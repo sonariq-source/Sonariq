@@ -9,7 +9,7 @@ package com.music.sonariq.data.listentogether
  */
 object JamInvite {
 
-    const val ORIGIN = "https://bitchord.kushagrasingh.in"
+    const val ORIGIN = "https://sonariq.giize.com"
 
     /** How many characters a party code carries. */
     const val CODE_LENGTH = 6

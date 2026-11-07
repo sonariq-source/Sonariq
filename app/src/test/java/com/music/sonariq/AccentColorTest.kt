@@ -42,18 +42,18 @@ class AccentColorTest {
 
     @Test
     fun `the curated set keeps its dark and light primaries`() {
-        assertEquals(0xFFFFB020L, AccentColor.LIME.darkArgb)
-        assertEquals(0xFF9A5600L, AccentColor.LIME.lightArgb)
-        assertEquals(0xFF4FD1B5L, AccentColor.EMERALD.darkArgb)
-        assertEquals(0xFF00796BL, AccentColor.EMERALD.lightArgb)
-        assertEquals(0xFF7DC4FFL, AccentColor.TEAL.darkArgb)
-        assertEquals(0xFF005C99L, AccentColor.TEAL.lightArgb)
-        assertEquals(0xFFFF8FB1L, AccentColor.GREEN.darkArgb)
-        assertEquals(0xFFB0285AL, AccentColor.GREEN.lightArgb)
-        assertEquals(0xFFE6E15AL, AccentColor.YELLOW.darkArgb)
-        assertEquals(0xFF6B6A00L, AccentColor.YELLOW.lightArgb)
-        assertEquals(0xFFB6A4FFL, AccentColor.AMBER.darkArgb)
-        assertEquals(0xFF5B45B8L, AccentColor.AMBER.lightArgb)
+        assertEquals(0xFF1DB954L, AccentColor.LIME.darkArgb)
+        assertEquals(0xFF147A3DL, AccentColor.LIME.lightArgb)
+        assertEquals(0xFF35E887L, AccentColor.EMERALD.darkArgb)
+        assertEquals(0xFF0E7A44L, AccentColor.EMERALD.lightArgb)
+        assertEquals(0xFF3ECF8EL, AccentColor.TEAL.darkArgb)
+        assertEquals(0xFF177A52L, AccentColor.TEAL.lightArgb)
+        assertEquals(0xFF8EF5BDL, AccentColor.GREEN.darkArgb)
+        assertEquals(0xFF2E7D46L, AccentColor.GREEN.lightArgb)
+        assertEquals(0xFFB9E769L, AccentColor.YELLOW.darkArgb)
+        assertEquals(0xFF5F7A12L, AccentColor.YELLOW.lightArgb)
+        assertEquals(0xFF7ED491L, AccentColor.AMBER.darkArgb)
+        assertEquals(0xFF3E7A34L, AccentColor.AMBER.lightArgb)
     }
 
     @Test

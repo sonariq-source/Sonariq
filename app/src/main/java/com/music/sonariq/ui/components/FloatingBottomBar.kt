@@ -158,7 +158,7 @@ internal const val SQUASH = 0.5f
 
 /**
  * Sonariq's navigation: a floating capsule of icons. Only the selected tab
- * opens up to show its name, in an amber pill; the others stay icon-only. It
+ * opens up to show its name, in an emerald pill; the others stay icon-only. It
  * floats clear of the screen edge instead of sitting on it as a full-width dock.
  */
 @OptIn(ExperimentalHazeMaterialsApi::class)

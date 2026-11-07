@@ -328,14 +328,14 @@ import org.jetbrains.compose.resources.painterResource
  */
 internal val DesktopPageGutter = PAGE_GUTTER
 
-internal val DesktopBackground = Color(0xFF0A1822)
-internal val DesktopSurface = Color(0xFF050F15)
-private val DesktopSurfaceRaised = Color(0xFF132A38)
-internal val DesktopGlass = Color(0x66132A38)
-internal val DesktopGlassStrong = Color(0xCC050F15)
+internal val DesktopBackground = Color(0xFF080D0B)
+internal val DesktopSurface = Color(0xFF0D1511)
+private val DesktopSurfaceRaised = Color(0xFF17251D)
+internal val DesktopGlass = Color(0x6617251D)
+internal val DesktopGlassStrong = Color(0xCC080D0B)
 
 /** The floating bars in the narrow layout. */
-private val DesktopBarGlass = Color(0xB324242A)
+private val DesktopBarGlass = Color(0xB317251D)
 
 /** The backdrop the floating bars blur. */
 private val LocalDesktopHaze = staticCompositionLocalOf<HazeState?> { null }
@@ -345,7 +345,7 @@ private val LocalDesktopBottomInset = staticCompositionLocalOf { 0.dp }
 
 /** Android's own edge on these bars: `Color.White.copy(alpha = 0.10f)`. */
 private val DesktopBarEdge = Color(0x1AFFFFFF)
-internal val DesktopAccent = Color(0xFFFFB020)
+internal val DesktopAccent = Color(0xFF1DB954)
 
 /** Deleting, signing out, and anything that failed — the one place a colour survives, as on Android. */
 internal val DesktopDestructive = Color(0xFFFF453A)
@@ -369,8 +369,8 @@ internal fun desktopSwitchColors() = SwitchDefaults.colors(
     uncheckedThumbColor = Color.White.copy(alpha = 0.35f),
     uncheckedBorderColor = Color.Transparent,
 )
-internal val DesktopSecondary = Color(0xFF8FAAB8)
-internal val DesktopDivider = Color(0xFF24404F)
+internal val DesktopSecondary = Color(0xFFA1B0A6)
+internal val DesktopDivider = Color(0xFF26362B)
 private const val STATS_SAMPLE_MS = 5_000L
 
 /** How often the playhead is offered to the history tracker. */
@@ -410,8 +410,8 @@ private const val AUTOPLAY_EMPTY_REFRESH_DELAY_MS = 2_000L
 internal fun desktopColorScheme() = darkColorScheme(
     primary = DesktopAccent,
     // Dark ink on the amber accent.
-    onPrimary = Color(0xFF1F1400),
-    primaryContainer = Color(0xFFFFB020).copy(alpha = 0.18f),
+    onPrimary = Color(0xFF04140B),
+    primaryContainer = Color(0xFF1DB954).copy(alpha = 0.18f),
     onPrimaryContainer = Color.White,
     background = DesktopBackground,
     onBackground = Color.White,
@@ -419,7 +419,7 @@ internal fun desktopColorScheme() = darkColorScheme(
     onSurface = Color.White,
     surfaceVariant = DesktopSurfaceRaised,
     onSurfaceVariant = DesktopSecondary,
-    outline = Color(0xFF24404F),
+    outline = Color(0xFF26362B),
     outlineVariant = DesktopDivider,
     surfaceTint = DesktopAccent,
 )
@@ -5971,12 +5971,12 @@ private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
     Text(
         text = buildAnnotatedString {
             append("sonariq $version  ")
-            withLink(LinkAnnotation.Url("https://github.com/kushagrasinghx/BitChord", linkStyles)) {
+            withLink(LinkAnnotation.Url("https://github.com/sonariq-source/Sonariq", linkStyles)) {
                 append("GitHub")
             }
             append("  ")
-            withLink(LinkAnnotation.Url("https://github.com/kushagrasinghx", linkStyles)) {
-                append("Developer")
+            withLink(LinkAnnotation.Url("https://github.com/sonariq-source", linkStyles)) {
+                append("Sonariq studio")
             }
             append("  ")
             withLink(LinkAnnotation.Url("https://discord.gg/pDdKfrdHY6", linkStyles)) {

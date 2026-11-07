@@ -52,8 +52,8 @@ import java.util.Locale
  * up to twice a second, for hours at a time).
  */
 private val Ambient2BackdropBrush = Brush.verticalGradient(
-    0f to Color(0xFF0B0E18),
-    1f to Color(0xFF080910),
+    0f to Color(0xFF0D1511),
+    1f to Color(0xFF080D0B),
 )
 
 /**
@@ -107,7 +107,7 @@ internal fun TvAmbient2Overlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF080910)),
+            .background(Color(0xFF080D0B)),
     ) {
         // No full-screen artwork here: decoding a full-res cover every track
         // is the heaviest thing this screen did on weak TV hardware. The
@@ -153,7 +153,7 @@ internal fun TvAmbient2Overlay(
                     .fillMaxWidth()
                     .height(6.dp)
                     .clip(RoundedCornerShape(3.dp)),
-                color = Color(0xFFFF6B5E),
+                color = Color(0xFF1DB954),
                 trackColor = Color.White.copy(alpha = 0.18f),
             )
 

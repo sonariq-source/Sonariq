@@ -241,7 +241,7 @@ To keep memory, bandwidth, and latency strictly bounded:
 
 ## Deploying to Oracle Cloud (Always Free)
 
-This is what runs `https://api.bitchord.kushagrasingh.in`: one Always Free
+This is the reference self-host layout for the Sonariq backend: one Always Free
 `VM.Standard.E2.1.Micro` (1 OCPU, 1 GB) on Ubuntu 24.04 in ap-mumbai-1, with
 Caddy in front for HTTPS and WebSockets. Files are in `deploy/`.
 
@@ -256,7 +256,7 @@ Caddy in front for HTTPS and WebSockets. Files are in `deploy/`.
 4. **Install** (from a copy of `backend/` on the VM):
 
    ```sh
-   sudo DOMAIN=api.bitchord.kushagrasingh.in bash deploy/setup.sh
+   sudo DOMAIN=listen.your-domain.example bash deploy/setup.sh
    ```
 
    It installs Go, builds the server into `/opt/sonariq-jam`, runs it as the

@@ -556,7 +556,7 @@ private fun DrawScope.drawMesh(mesh: ArtworkMesh, seamY: Float, alpha: Float) {
 }
 
 /** Drawn only until an artwork has been read — never a colour anyone chose. */
-private val FallbackBackdrop = Color(0xFF050F15)
+private val FallbackBackdrop = Color(0xFF080D0B)
 
 /**
  * A screen cannot recover detail discarded here; small is the performance

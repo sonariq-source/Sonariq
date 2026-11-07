@@ -55,7 +55,7 @@ class AudioTelemetryHardeningTest {
 
     @Test
     fun usbEndpointTelemetryDistinguishesExternal24BitDacFromAudioTrackClientFormat() {
-        // Kushagra hardware: USB device advertising PCM24 / 48000 Hz
+        // Reference hardware: USB device advertising PCM24 / 48000 Hz
         val dac24Snapshot = AudioOutputStatus.Snapshot(
             deviceName = "External 24-bit DAC",
             routeKind = AudioRouting.Kind.USB,

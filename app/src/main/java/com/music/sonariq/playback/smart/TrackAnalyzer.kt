@@ -5,7 +5,7 @@
  * open-unmix vocal mask (see [VocalTracker]), both over the head and tail of
  * the track, which is the only part a transition ever reads.
  *
- * Copyright (C) 2026 Kushagra Singh
+ * Copyright (C) 2026 Sonariq
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the

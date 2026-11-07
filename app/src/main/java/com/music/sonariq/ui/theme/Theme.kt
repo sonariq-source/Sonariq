@@ -21,59 +21,61 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.core.view.WindowCompat
 import com.music.sonariq.R
 
-// Sonariq identity. Legacy symbol names remain so the player and detail
-// screens keep compiling; their values are the new sonar amber and kelp teal.
-val AccentRed = Color(0xFFFF6B5E)
-val SonariqLime = Color(0xFFFFB020)
-val SonariqGreen = Color(0xFF4FD1B5)
+// Sonariq identity: the emerald system. Legacy symbol names remain so the
+// player and detail screens keep compiling; their values are emerald-family.
+val AccentRed = Color(0xFF35E887)
+val SonariqLime = Color(0xFF1DB954)
+val SonariqGreen = Color(0xFF35E887)
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFFFFB020),
-    onPrimary = Color(0xFF1F1400),
-    primaryContainer = Color(0xFF3A2A06),
-    onPrimaryContainer = Color(0xFFFFDDA0),
-    secondary = Color(0xFF4FD1B5),
+    primary = Color(0xFF1DB954),
+    onPrimary = Color(0xFF04140B),
+    primaryContainer = Color(0xFF0E2E1B),
+    onPrimaryContainer = Color(0xFFB9F5D2),
+    secondary = Color(0xFF35E887),
     onSecondary = Color(0xFF00201A),
-    tertiary = Color(0xFFCFE6F0),
-    onTertiary = Color(0xFF0B1E27),
-    background = Color(0xFF06121A),
-    onBackground = Color(0xFFE8F2F5),
-    surface = Color(0xFF0C1D28),
-    onSurface = Color(0xFFE8F2F5),
-    surfaceVariant = Color(0xFF132A38),
-    onSurfaceVariant = Color(0xFF8FAAB8),
-    outline = Color(0xFF24404F),
-    outlineVariant = Color(0xFF173141),
+    tertiary = Color(0xFF8EF5BD),
+    onTertiary = Color(0xFF0E2417),
+    background = Color(0xFF080D0B),
+    onBackground = Color(0xFFF5FAF6),
+    surface = Color(0xFF0D1511),
+    onSurface = Color(0xFFF5FAF6),
+    surfaceVariant = Color(0xFF121D17),
+    surfaceContainer = Color(0xFF121D17),
+    surfaceContainerHigh = Color(0xFF17251D),
+    onSurfaceVariant = Color(0xFFA1B0A6),
+    outline = Color(0xFF26362B),
+    outlineVariant = Color(0xFF121D17),
     error = Color(0xFFFF6B5E),
 )
 
 private val LightColors = lightColorScheme(
-    primary = Color(0xFF9A5600),
+    primary = Color(0xFF147A3D),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFFFE2B0),
-    onPrimaryContainer = Color(0xFF2E1900),
-    secondary = Color(0xFF00796B),
+    primaryContainer = Color(0xFFC9F2D8),
+    onPrimaryContainer = Color(0xFF0A2415),
+    secondary = Color(0xFF0E7A44),
     onSecondary = Color.White,
-    tertiary = Color(0xFF2B5870),
+    tertiary = Color(0xFF1F5C3D),
     onTertiary = Color.White,
-    background = Color(0xFFF1F7F8),
-    onBackground = Color(0xFF0B1E27),
+    background = Color(0xFFEFF7F1),
+    onBackground = Color(0xFF0E2417),
     surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF0B1E27),
-    surfaceVariant = Color(0xFFE2EDF0),
-    onSurfaceVariant = Color(0xFF4B6572),
-    outline = Color(0xFFC3D5DB),
-    outlineVariant = Color(0xFFD8E5E9),
+    onSurface = Color(0xFF0E2417),
+    surfaceVariant = Color(0xFFDCEEE2),
+    onSurfaceVariant = Color(0xFF4E6355),
+    outline = Color(0xFFBFD6C7),
+    outlineVariant = Color(0xFFD5E8DB),
     error = Color(0xFFB3261E),
 )
 
-// Tighter, more instrument-like corners than the previous soft Sonariq radii.
+// Smooth, glass-like corners shared by every surface in the emerald system.
 val SonariqShapes = Shapes(
-    extraSmall = RoundedCornerShape(4.dp),
-    small = RoundedCornerShape(8.dp),
-    medium = RoundedCornerShape(12.dp),
-    large = RoundedCornerShape(16.dp),
-    extraLarge = RoundedCornerShape(24.dp),
+    extraSmall = RoundedCornerShape(6.dp),
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(14.dp),
+    large = RoundedCornerShape(20.dp),
+    extraLarge = RoundedCornerShape(28.dp),
 )
 
 /** Headline face: a bookish serif so titles read like record-sleeve typography. */
@@ -135,7 +137,7 @@ fun SonariqTheme(
         val primary = dynamicAccentArgb?.let { Color(accentForDark(it)) }
             ?: customAccentArgb?.let { Color(accentForDark(it)) }
             ?: Color(accent.darkArgb)
-        DarkColors.copy(primary = primary, onPrimary = Color(0xFF14110A))
+        DarkColors.copy(primary = primary, onPrimary = Color(0xFF04140B))
     } else {
         val primary = dynamicAccentArgb?.let { Color(accentForLight(it)) }
             ?: customAccentArgb?.let { Color(accentForLight(it)) }

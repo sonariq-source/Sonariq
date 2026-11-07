@@ -13,10 +13,10 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/KabirSinghBhatia/BitChord/backend/clock"
-	"github.com/KabirSinghBhatia/BitChord/backend/config"
-	"github.com/KabirSinghBhatia/BitChord/backend/presence"
-	"github.com/KabirSinghBhatia/BitChord/backend/protocol"
+	"github.com/sonariq-source/Sonariq/backend/clock"
+	"github.com/sonariq-source/Sonariq/backend/config"
+	"github.com/sonariq-source/Sonariq/backend/presence"
+	"github.com/sonariq-source/Sonariq/backend/protocol"
 )
 
 func setupTestServer() *httptest.Server {

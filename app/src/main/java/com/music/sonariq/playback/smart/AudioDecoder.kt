@@ -5,7 +5,7 @@
  * only needs the fallback, since Sonariq has no reason to carry a second
  * Opus decoder purely for background analysis.
  *
- * Copyright (C) 2026 Kushagra Singh
+ * Copyright (C) 2026 Sonariq
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the

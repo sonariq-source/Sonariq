@@ -227,7 +227,7 @@ private fun CastActionRow(label: String, onClick: () -> Unit) {
                 fontSize = 15.sp,
                 fontWeight = FontWeight.W600,
             ),
-            color = Color(0xFFFF6B5E),
+            color = Color(0xFF1DB954),
         )
     }
 }
