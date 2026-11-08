@@ -1904,6 +1904,10 @@ internal fun LyricsPanel(
     // stays off until search closes, when the song takes over again. Search
     // and copy are timing-independent, so they work on plain lyrics too.
     var searchOpen by remember { mutableStateOf(false) }
+    // The appearance menu's open state, held here rather than inside the
+    // overlay so the chrome stand-down below can keep the pill composed
+    // while its own menu is up.
+    var appearanceExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     val searchMatches = remember(lines, searchQuery) { searchLyricLines(lines, searchQuery) }
     var searchMatch by remember { mutableStateOf(0) }
@@ -2699,7 +2703,14 @@ internal fun LyricsPanel(
     // The panel's chrome header: the Living Sound eyebrow, centred in the
     // panel's top padding between the appearance and search pills. Chrome
     // only — no line rendering, highlighting, scroll or timing is touched.
-    if (!picking) {
+    //
+    // All of the panel's chrome obeys the controls stand-down: while the
+    // reader is reading (controls closed) nothing floats over the words,
+    // and the reveal gestures — a lower-half tap, a scroll back up — bring
+    // the chrome back with the rest of the player's controls. An open
+    // search or appearance menu holds its own pill composed past the
+    // stand-down, so neither can vanish from under the finger using it.
+    if (!picking && controlsOpen) {
         Eyebrow(
             text = "Lyrics",
             modifier = Modifier
@@ -2711,7 +2722,7 @@ internal fun LyricsPanel(
     // The floating in-lyrics search, top-end over the lines. Hidden while
     // picking: the pick bar owns the panel's chrome then, and a search that
     // jumped the scroll would fight the choosing.
-    if (!picking) {
+    if (!picking && (controlsOpen || searchOpen)) {
         LyricsSearchOverlay(
             open = searchOpen,
             onOpenChange = { open ->
@@ -2740,8 +2751,10 @@ internal fun LyricsPanel(
 
     // The appearance menu, top-start to balance the search pill: the same
     // lyrics settings Settings carries, reachable without leaving the song.
-    if (!picking) {
+    if (!picking && (controlsOpen || appearanceExpanded)) {
         LyricsAppearanceOverlay(
+            expanded = appearanceExpanded,
+            onExpandedChange = { appearanceExpanded = it },
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(top = 4.dp, start = PLAYER_GUTTER, end = PLAYER_GUTTER),
@@ -2904,9 +2917,12 @@ private fun LyricsSearchOverlay(
  * and nothing here is a preview: what is picked is what the panel does.
  */
 @Composable
-private fun LyricsAppearanceOverlay(modifier: Modifier = Modifier) {
+private fun LyricsAppearanceOverlay(
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val haptics = rememberHaptics()
-    var expanded by remember { mutableStateOf(false) }
     val fontSizeSp by PlayerSettings.lyricsFontSizeSp.collectAsStateWithLifecycle()
     val highlightIntensity by PlayerSettings.lyricsHighlightIntensity.collectAsStateWithLifecycle()
     val background by PlayerSettings.lyricsBackground.collectAsStateWithLifecycle()
@@ -2925,7 +2941,7 @@ private fun LyricsAppearanceOverlay(modifier: Modifier = Modifier) {
             IconButton(
                 onClick = {
                     haptics.play(Haptic.Select)
-                    expanded = true
+                    onExpandedChange(true)
                 },
             ) {
                 Icon(
@@ -2938,7 +2954,7 @@ private fun LyricsAppearanceOverlay(modifier: Modifier = Modifier) {
         }
         DropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false },
+            onDismissRequest = { onExpandedChange(false) },
             modifier = Modifier.width(300.dp),
         ) {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {

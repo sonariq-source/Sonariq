@@ -4,8 +4,11 @@ import com.music.sonariq.sharedui.resources.*
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -505,6 +508,13 @@ internal fun LandscapeLyricsPane(
     lines: List<LyricLine> = emptyList(),
     /** Whether lines are being picked, which is what the bar stands in for. */
     picking: Boolean = false,
+    /**
+     * Whether the player's controls are up. The bar under the sheet is
+     * chrome over the reading view, so it stands down with the rest of the
+     * controls and the lyrics take the whole column; the panel's reveal
+     * gestures bring it back with them.
+     */
+    controlsOpen: Boolean = true,
     /** The pick bar itself, drawn in place of the row below. */
     pickBar: @Composable () -> Unit = {},
     romanizationToggle: @Composable () -> Unit,
@@ -541,6 +551,11 @@ internal fun LandscapeLyricsPane(
         if (picking) {
             Box(Modifier.fillMaxWidth()) { pickBar() }
         } else {
+        AnimatedVisibility(
+            visible = controlsOpen,
+            enter = fadeIn(tween(220)) + slideInVertically(tween(220)) { it },
+            exit = fadeOut(tween(160)) + slideOutVertically(tween(160)) { it },
+        ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -563,6 +578,7 @@ internal fun LandscapeLyricsPane(
                 )
             }
             Box(Modifier.size(34.dp)) { if (hasLyrics) translationToggle() }
+        }
         }
         }
     }

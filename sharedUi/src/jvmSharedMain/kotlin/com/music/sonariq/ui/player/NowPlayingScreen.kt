@@ -14,9 +14,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -1167,6 +1169,7 @@ fun NowPlayingScreen(
                                 onStatusClick = {},
                                 lines = lyricsTranslation.displayedLyrics,
                                 picking = lyricPicker.picking,
+                                controlsOpen = lyricsControlsOpen,
                                 pickBar = {
                                     LyricsPickBar(
                                         shareEnabled = lyricPicker.picks.isNotEmpty() &&
@@ -1206,9 +1209,9 @@ fun NowPlayingScreen(
                                             looking = !lyricsUnavailable,
                                             isPlaying = isPlaying && position.advancing,
                                             onSeekToLine = seekToLyric,
-                                            controlsOpen = true,
-                                            onRevealControls = {},
-                                            onHideControls = {},
+                                            controlsOpen = lyricsControlsOpen,
+                                            onRevealControls = { lyricsControlsOpen = true },
+                                            onHideControls = { lyricsControlsOpen = false },
                                             translationProgress = particleProgress,
                                             canPick = lyricsShareEnabled,
                                             picking = lyricPicker.picking,
@@ -1235,9 +1238,15 @@ fun NowPlayingScreen(
                                         loadingText = lyricsLoadingText,
                                         lyricsUnavailable = lyricsUnavailable,
                                         blurEnabled = ambientBlurEnabled,
+                                        // The end reserve keeps every glyph
+                                        // out of the vocal button's column
+                                        // at this area's bottom-right (52 dp
+                                        // of button, 16 dp of air), however
+                                        // far down the lines flow.
                                         modifier = Modifier
                                             .align(Alignment.TopStart)
-                                            .fillMaxWidth(),
+                                            .fillMaxWidth()
+                                            .padding(end = 68.dp),
                                     )
                                 }
                                 if (swipeHintShown) {
@@ -1449,15 +1458,11 @@ fun NowPlayingScreen(
                                     .align(Alignment.BottomStart)
                                     .padding(bottom = 10.dp),
                             )
-                            if (PlayerSettings.vocalRemoverAvailable) {
-                                FloatingVocalButton(
-                                    highlighted = vocalLevel < DEFAULT_VOCAL_LEVEL,
-                                    onClick = { showVocalRemover = true },
-                                    modifier = Modifier
-                                        .align(Alignment.BottomEnd)
-                                        .padding(bottom = 8.dp),
-                                )
-                            }
+                            // No vocal button in here any more: it floated
+                            // at this area's bottom-right, over the ambient
+                            // lines' last line. It sits above the bottom
+                            // block now, where no text renders — see the
+                            // AnimatedVisibility below.
                         }
                     }
                 }
@@ -1473,6 +1478,25 @@ fun NowPlayingScreen(
                         .padding(horizontal = PLAYER_GUTTER)
                         .padding(bottom = 14.dp),
                 ) {
+                    // The vocal button's new home in player mode: the
+                    // right margin directly above the scrubber, below the
+                    // ambient area — a strip no lyric text ever renders
+                    // in, so the button can never sit on the words. In
+                    // lyrics and queue modes it is not composed here at
+                    // all; the Vocal Remover stays reachable from the
+                    // header's overflow there, as it already was.
+                    if (!lyricsOpen && !queueOpen && PlayerSettings.vocalRemoverAvailable) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            FloatingVocalButton(
+                                highlighted = vocalLevel < DEFAULT_VOCAL_LEVEL,
+                                onClick = { showVocalRemover = true },
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
                     bottomBlock()
                 }
             }

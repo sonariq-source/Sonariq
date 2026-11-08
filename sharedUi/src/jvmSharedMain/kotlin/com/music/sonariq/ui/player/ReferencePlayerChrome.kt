@@ -388,10 +388,13 @@ internal fun AmbientLyricLines(
 }
 
 /**
- * The floating circular glass vocal button at the middle area's
- * bottom-right: a microphone with sparkles, in the player's glass
- * material. It is a vocal control — it opens the Vocal Remover sheet —
- * and it lights while the centre channel is turned down at all.
+ * The circular glass vocal button: a microphone with sparkles, in the
+ * player's glass material. It is a vocal control — it opens the Vocal
+ * Remover sheet — and it lights while the centre channel is turned down
+ * at all. Its homes are chosen so it never sits on lyric text: above the
+ * portrait player's bottom block, and at the landscape middle area's
+ * bottom-right with the ambient lines reserved out of its column. It is
+ * never composed in lyrics mode.
  */
 @Composable
 internal fun FloatingVocalButton(
