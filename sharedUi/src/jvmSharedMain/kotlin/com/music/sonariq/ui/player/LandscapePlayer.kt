@@ -47,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
@@ -133,6 +134,14 @@ private val LANDSCAPE_HANDLE_STRIP = 24.dp
  * lyric lines) filling its middle, and the scrubber / transport /
  * volume / utility block grouped at its bottom.
  *
+ * With the lyrics open the bottom block steps aside entirely
+ * ([showBottom] false): the right column is the header and the lyrics
+ * alone over the artwork card, the way the reference's landscape shot
+ * itself is composed. The card's top edge aligns with the header's, so
+ * the two columns share one top line in every pane, and the middle is
+ * clipped to its bounds so ambient lines in a short window yield —
+ * cut off — rather than painting over the controls below them.
+ *
  * Purely the arrangement. Every slot is built by [NowPlayingScreen],
  * which is where the state behind all of them lives — the same state
  * the portrait player reads, so rotating mid-song carries the open
@@ -155,6 +164,12 @@ internal fun LandscapePlayerLayout(
     middle: @Composable () -> Unit,
     /** Scrubber, transport, volume and utility. [compact] is a phone-height window. */
     bottom: @Composable (compact: Boolean) -> Unit,
+    /**
+     * Whether the bottom block is composed at all. False only for the
+     * lyrics pane: no transport, scrubber, volume or utility row stands
+     * under the words, and the middle takes the whole column height.
+     */
+    showBottom: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -179,13 +194,15 @@ internal fun LandscapePlayerLayout(
                     ),
             ) {
                 // The artwork card: square, taking whichever of the two
-                // axes runs out first in its 42% column.
+                // axes runs out first in its 42% column, and top-aligned
+                // so its top edge shares the header's line rather than
+                // floating at the column's centre.
                 BoxWithConstraints(
                     modifier = Modifier
                         .weight(LANDSCAPE_ARTWORK_COLUMN_WEIGHT)
                         .fillMaxHeight()
                         .padding(horizontal = gutter),
-                    contentAlignment = Alignment.Center,
+                    contentAlignment = Alignment.TopCenter,
                 ) {
                     artwork(Modifier.size(minOf(maxWidth, maxHeight)))
                 }
@@ -201,12 +218,15 @@ internal fun LandscapePlayerLayout(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxWidth(),
+                            .fillMaxWidth()
+                            .clipToBounds(),
                     ) {
                         middle()
                     }
-                    Spacer(Modifier.height(if (compact) 4.dp else 10.dp))
-                    bottom(compact)
+                    if (showBottom) {
+                        Spacer(Modifier.height(if (compact) 4.dp else 10.dp))
+                        bottom(compact)
+                    }
                 }
             }
 

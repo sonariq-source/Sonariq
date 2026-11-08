@@ -1236,7 +1236,7 @@ fun NowPlayingScreen(
                                         lyricsUnavailable = lyricsUnavailable,
                                         blurEnabled = ambientBlurEnabled,
                                         modifier = Modifier
-                                            .align(Alignment.CenterStart)
+                                            .align(Alignment.TopStart)
                                             .fillMaxWidth(),
                                     )
                                 }
@@ -1272,6 +1272,12 @@ fun NowPlayingScreen(
                     }
                 },
                 bottom = { bottomBlock() },
+                // Lyrics open in landscape is the reference's composition:
+                // artwork card, header and the words, nothing else — the
+                // whole control block steps aside and the lyrics take the
+                // column. Back and a tap on the artwork card (above) are
+                // the way back to the player.
+                showBottom = !lyricsOpen,
             )
             playerOverlays()
         }
