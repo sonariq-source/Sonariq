@@ -169,16 +169,209 @@ object LyricsLookupPolicy {
      * the caller; it no longer changes the pick itself, because the tiers
      * already rank syllable sync above word sync above line sync, which
      * is all the mode ever asked the deadline to prefer.
+     *
+     * Within the best tier, a candidate whose timings fit the track
+     * ([durationMs], where the caller knows it) beats one whose cannot —
+     * the same tiebreak [isUpgradeWithFit] applies — and where every
+     * candidate in the tier fails the fit, priority order decides as
+     * ever: a misfit is still worth surfacing over silence.
      */
     fun pickDeadlineWinner(
         completedInOrder: List<LyricsRepository.Result?>,
         prioritizeSyllableSync: Boolean,
         fallback: LyricsRepository.Result? = null,
+        durationMs: Long = 0L,
     ): LyricsRepository.Result? {
         val candidates = listOfNotNull(fallback) + completedInOrder.filterNotNull()
         if (candidates.isEmpty()) return null
         val bestTier = candidates.minOf { tierOf(it) }
-        return candidates.first { tierOf(it) == bestTier }
+        val inTier = candidates.filter { tierOf(it) == bestTier }
+        if (durationMs > 0L) {
+            inTier.firstOrNull { fitsTrack(it, durationMs) }?.let { return it }
+        }
+        return inTier.first()
+    }
+
+    // ---- Version fit ------------------------------------------------
+
+    /**
+     * How far a candidate's lyric span may run past the track's end
+     * before the timings are judged to belong to a longer recording.
+     *
+     * Generous on purpose: providers round, tracks carry a few seconds
+     * of tail the lyric file never claimed, and this check only ever
+     * re-ranks — a candidate it condemns is still delivered when nothing
+     * better exists. What it exists to catch is not rounding but a
+     * different edit: an album cut's timings against a single's audio
+     * overshoot by the length of a verse, not by a breath.
+     */
+    const val FIT_OVERSHOOT_TOLERANCE_MS = 10_000L
+
+    /**
+     * How much track may run on after a candidate's last *known* lyric
+     * end before the timings are judged to belong to a shorter recording.
+     * Only judged when the candidate states an end (word timings or a
+     * line's own stated end): a line-synced file's last stamp is a start,
+     * not an end, and long outros are a real shape of song. A minute of
+     * stated silence after the singing stops is not an outro shape any
+     * catalogue entry needs.
+     */
+    const val FIT_TRAILING_TOLERANCE_MS = 60_000L
+
+    /**
+     * How late a candidate's first vocal may start, in absolute terms,
+     * before onset is itself a fit signal — combined with
+     * [FIT_ONSET_LATE_SHARE] of the track's length, so a long track's
+     * long intro is not condemned by the absolute term alone.
+     */
+    const val FIT_ONSET_LATE_MS = 60_000L
+
+    /** The share of the track that may pass before the first vocal; see [FIT_ONSET_LATE_MS]. */
+    const val FIT_ONSET_LATE_SHARE_NUMERATOR = 3L
+    const val FIT_ONSET_LATE_SHARE_DENOMINATOR = 5L
+
+    /**
+     * The verdict of [assessFit]: whether a candidate's timings can
+     * belong to the track they would be shown against, and the spans the
+     * verdict was read off, so a caller (or a test) can see *why*.
+     */
+    data class FitAssessment(
+        val fits: Boolean,
+        /** The first sung moment the candidate claims, or null when it claims none. */
+        val firstStartMs: Long?,
+        /** The last sung moment the candidate claims, or null when it claims none. */
+        val lastEndMs: Long?,
+        /** How far [lastEndMs] runs past the track's duration, floored at zero. */
+        val overshootMs: Long,
+        /** How far the track runs past [lastEndMs], floored at zero. */
+        val trailingGapMs: Long,
+    )
+
+    /**
+     * Whether [lines]' timings can belong to a track [durationMs] long.
+     *
+     * The evidence is the sung span the lines claim — the first line's
+     * start (its first word's start where words exist) to the last
+     * line's end (its last word's end, its stated end, or its stamp,
+     * whichever reaches furthest; an answering vocal's end counts,
+     * being sung content of its line) — read against the track's real
+     * duration:
+     *
+     *  - A span ending more than [FIT_OVERSHOOT_TOLERANCE_MS] past the
+     *    track cannot be this recording: a longer edit's words would
+     *    still be singing after this track has stopped.
+     *  - A span whose *known* end leaves more than
+     *    [FIT_TRAILING_TOLERANCE_MS] of track after it cannot be this
+     *    recording either: a shorter edit's words, done a minute before
+     *    the music is.
+     *  - A first vocal arriving after [FIT_ONSET_LATE_MS] *and* after
+     *    three fifths of the track is not an intro, it is a different
+     *    structure.
+     *
+     * Anything without evidence answers "fits": an unknown duration, a
+     * candidate with no timed sung line, plain text (which claims no
+     * timings at all). The check condemns only what the numbers rule
+     * out, because its only power is re-ranking — see [isUpgradeWithFit]
+     * — and a candidate it condemns is still the answer when it is the
+     * only one.
+     */
+    fun assessFit(lines: List<LyricLine>, durationMs: Long): FitAssessment {
+        if (durationMs <= 0L) return FitAssessment(true, null, null, 0L, 0L)
+        var firstStart = Long.MAX_VALUE
+        var lastEnd = Long.MIN_VALUE
+        var lastEndKnown = false
+        for (line in lines) {
+            if (line.text.isBlank()) continue
+            val start = lineStartMs(line)
+            if (start < firstStart) firstStart = start
+            val (end, known) = lineEndMs(line)
+            if (end > lastEnd) {
+                lastEnd = end
+                lastEndKnown = known
+            } else if (end == lastEnd && known) {
+                lastEndKnown = true
+            }
+        }
+        if (firstStart == Long.MAX_VALUE) {
+            // No sung line claims any timing: nothing to rule out.
+            return FitAssessment(true, null, null, 0L, 0L)
+        }
+        val overshoot = maxOf(0L, lastEnd - durationMs)
+        val trailing = maxOf(0L, durationMs - lastEnd)
+        val lateOnset = firstStart > FIT_ONSET_LATE_MS &&
+            firstStart * FIT_ONSET_LATE_SHARE_DENOMINATOR >
+            durationMs * FIT_ONSET_LATE_SHARE_NUMERATOR
+        val fits = overshoot <= FIT_OVERSHOOT_TOLERANCE_MS &&
+            !(lastEndKnown && trailing > FIT_TRAILING_TOLERANCE_MS) &&
+            !lateOnset
+        return FitAssessment(fits, firstStart, lastEnd, overshoot, trailing)
+    }
+
+    /** [assessFit] answered for a whole [result]. */
+    fun fitsTrack(result: LyricsRepository.Result, durationMs: Long): Boolean =
+        assessFit(result.lines, durationMs).fits
+
+    /**
+     * The first sung moment [line] claims: its first word's start where
+     * it has words (an answering vocal's first word counts — it is sung
+     * as part of this line), else its stamp.
+     */
+    private fun lineStartMs(line: LyricLine): Long {
+        var start = line.words.firstOrNull()?.startMs ?: line.timeMs
+        line.background?.let { start = minOf(start, lineStartMs(it)) }
+        return start
+    }
+
+    /**
+     * The last sung moment [line] claims and whether anything actually
+     * stated it: the furthest of its last word's end, its stated end and
+     * its stamp, with an answering vocal's end counted the same way.
+     * The stamp alone is a start, not an end, so a line with neither
+     * words nor a stated end reports its end as *not known* — the fact
+     * the trailing-gap judgement in [assessFit] stands on.
+     */
+    private fun lineEndMs(line: LyricLine): Pair<Long, Boolean> {
+        var end = line.timeMs
+        var known = false
+        line.words.lastOrNull()?.let {
+            end = maxOf(end, it.endMs)
+            known = true
+        }
+        line.sungUntilMs?.let {
+            end = maxOf(end, it)
+            known = true
+        }
+        line.background?.let { background ->
+            val (backgroundEnd, backgroundKnown) = lineEndMs(background)
+            end = maxOf(end, backgroundEnd)
+            known = known || backgroundKnown
+        }
+        return end to known
+    }
+
+    /**
+     * [isUpgrade] with version fit as the same-tier tiebreak: a
+     * candidate that is strictly better by tier or timing strength is an
+     * upgrade as ever; a candidate of the *same* tier and the same
+     * timing strength is an upgrade when its timings can belong to a
+     * track [durationMs] long and [current]'s cannot.
+     *
+     * Fit never crosses tiers — true word timings still outrank line
+     * sync whatever either's fit — and it never manufactures a win from
+     * nothing: when both fit, or neither does, priority order decides
+     * exactly as [isUpgrade] leaves it.
+     */
+    fun isUpgradeWithFit(
+        current: LyricsRepository.Result?,
+        candidate: LyricsRepository.Result?,
+        durationMs: Long,
+    ): Boolean {
+        candidate ?: return false
+        current ?: return true
+        if (isUpgrade(current, candidate)) return true
+        if (tierOf(candidate) != tierOf(current)) return false
+        if (timingRank(candidate.timing) != timingRank(current.timing)) return false
+        return fitsTrack(candidate, durationMs) && !fitsTrack(current, durationMs)
     }
 
     /** Whether a remembered miss at [missedAtMs] is still fresh at [nowMs]. */

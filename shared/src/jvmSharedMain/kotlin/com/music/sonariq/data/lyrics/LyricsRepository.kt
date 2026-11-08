@@ -58,6 +58,13 @@ import java.util.zip.GZIPOutputStream
  * highest-priority source that had it — better a whole line lighting up in
  * sync than the right animation on lyrics that don't exist.
  *
+ * Within a tier, an answer whose timings cannot belong to this track — a
+ * different edit's, whose sung span overshoots the track's duration or
+ * ends long before it — is demoted below a fitting answer of the same
+ * tier (see [LyricsLookupPolicy.assessFit]). The check only re-ranks: an
+ * answer it condemns is still delivered when nothing better exists, and
+ * it never crosses tiers.
+ *
  * ### Matching on the recording
  *
  * Everything above matches a *name*, and a name is ambiguous in a way that
@@ -251,7 +258,16 @@ object LyricsRepository {
         // hunting for a final result to replace it with.
         var provisionalSeed: Result? = null
         readCache(videoId, known)?.let { cached ->
-            if (LyricsLookupPolicy.isFinal(cached)) return@coroutineScope cached
+            // A final entry settles the lookup outright — unless its
+            // timings cannot belong to this track (a different edit's,
+            // settled by an earlier lookup), in which case it only seeds
+            // the race like a provisional entry: shown if nothing better
+            // turns up, replaced by anything that fits.
+            if (LyricsLookupPolicy.isFinal(cached) &&
+                LyricsLookupPolicy.fitsTrack(cached, durationMs)
+            ) {
+                return@coroutineScope cached
+            }
             provisionalSeed = cached
         }
         val hit = if (known == null) {
@@ -298,8 +314,10 @@ object LyricsRepository {
             // answer the race turns up. Kept so the panel is never empty
             // while the hunt for real word sync goes on.
             var lineSynced: Result? = provisionalSeed
-            // The best final (tiers 1–3) answer so far. Tier 0 returns the
-            // moment it lands, so it is never stored here.
+            // The best final answer so far. Tier 0 returns the moment it
+            // lands — unless its timings cannot belong to this track, in
+            // which case it is held here like any other final result
+            // while a fitting same-tier rival is hunted.
             var bestFinal: Result? = null
             // Writes a winner through to the disk cache before handing it up,
             // so the next lookup for this track skips the providers entirely.
@@ -347,6 +365,7 @@ object LyricsRepository {
                     completedInOrder = completed,
                     prioritizeSyllableSync = prioritizeSyllableSync,
                     fallback = lineSynced,
+                    durationMs = durationMs,
                 ) ?: return
                 // Surfacing the provisional seed itself writes nothing: the
                 // seed is already the cache entry, and returning it later
@@ -428,27 +447,50 @@ object LyricsRepository {
                     val tier = LyricsLookupPolicy.tierOf(found)
                     if (tier == 0) {
                         // The best tier there is: nothing still racing can
-                        // beat it, so the lookup is decided.
-                        return@coroutineScope deliver(found)
+                        // beat it, so the lookup is decided — unless its
+                        // timings cannot belong to this track, in which
+                        // case it is held like any other final result and
+                        // the hunt goes on for a same-tier one that fits.
+                        // A held tier 0 still wins at the end if no fitting
+                        // rival lands: fit re-ranks, it never blocks.
+                        if (LyricsLookupPolicy.fitsTrack(found, durationMs)) {
+                            return@coroutineScope deliver(found)
+                        }
+                        if (LyricsLookupPolicy.isUpgradeWithFit(bestFinal, found, durationMs)) {
+                            bestFinal = found
+                        }
+                        continue
                     }
                     if (tier <= 3) {
                         // A final result. Without syllable prioritization the
                         // first timed answer was always taken as-is, and a
                         // word-synced one was taken outright — keep that
-                        // early return. Otherwise hold it as the best so far
-                        // (an upgrade only when strictly better than the best
-                        // held, and, where the deadline already surfaced
-                        // something, only when it upgrades that too) and keep
-                        // hunting for a better tier while word-capable
-                        // sources remain.
-                        if (!prioritizeSyllableSync) {
+                        // early return, for an answer whose timings can
+                        // belong to this track. One that provably cannot is
+                        // held like a prioritized answer instead, and the
+                        // hunt goes on for a fitting one: fit re-ranks
+                        // within the tier, it never blocks. Otherwise hold
+                        // it as the best so far (an upgrade only when
+                        // strictly better than the best held — by tier, by
+                        // timing strength, or, within a tier, by fit — and,
+                        // where the deadline already surfaced something,
+                        // only when it upgrades that too) and keep hunting
+                        // for a better tier while word-capable sources
+                        // remain.
+                        if (!prioritizeSyllableSync &&
+                            LyricsLookupPolicy.fitsTrack(found, durationMs)
+                        ) {
                             // Past the deadline, that early return is an
                             // upgrade claim over what was surfaced, so it is
-                            // held to the same isUpgrade test as everything
+                            // held to the same upgrade test as everything
                             // else; before it, it is unconditional, as ever.
                             val surfacedBefore = deadlineResult
                             if (surfacedBefore == null ||
-                                LyricsLookupPolicy.isUpgrade(surfacedBefore, found)
+                                LyricsLookupPolicy.isUpgradeWithFit(
+                                    surfacedBefore,
+                                    found,
+                                    durationMs,
+                                )
                             ) {
                                 return@coroutineScope deliver(found)
                             }
@@ -456,8 +498,8 @@ object LyricsRepository {
                         }
                         val surfaced = deadlineResult
                         if ((surfaced == null ||
-                                LyricsLookupPolicy.isUpgrade(surfaced, found)) &&
-                            LyricsLookupPolicy.isUpgrade(bestFinal, found)
+                                LyricsLookupPolicy.isUpgradeWithFit(surfaced, found, durationMs)) &&
+                            LyricsLookupPolicy.isUpgradeWithFit(bestFinal, found, durationMs)
                         ) {
                             bestFinal = found
                         }
@@ -466,20 +508,34 @@ object LyricsRepository {
                     // Tier 5: fallback only, as ever — the first one is kept,
                     // except that one which upgrades the provisional seed (or,
                     // past the deadline, upgrades what was surfaced) replaces
-                    // it, since the seed exists to be improved on.
+                    // it, since the seed exists to be improved on. The early
+                    // return, like the final tiers', now also asks that the
+                    // answer's timings can belong to this track; and within
+                    // the tier a fitting answer replaces a held one whose
+                    // timings cannot, seed included — the seed exists to be
+                    // improved on, and a cached misfit is the first thing
+                    // the check exists to correct.
                     if (!prioritizeSyllableSync && deadlineResult == null &&
-                        found.lines.any { it.timeMs > 0 }
+                        found.lines.any { it.timeMs > 0 } &&
+                        LyricsLookupPolicy.fitsTrack(found, durationMs)
                     ) {
                         return@coroutineScope deliver(found)
                     }
                     when {
                         lineSynced == null -> lineSynced = found
                         lineSynced === provisionalSeed &&
-                            LyricsLookupPolicy.isUpgrade(lineSynced, found) ->
+                            LyricsLookupPolicy.isUpgradeWithFit(lineSynced, found, durationMs) ->
                             lineSynced = found
                         deadlineResult != null &&
-                            LyricsLookupPolicy.isUpgrade(deadlineResult, found) &&
-                            LyricsLookupPolicy.isUpgrade(lineSynced, found) ->
+                            LyricsLookupPolicy.isUpgradeWithFit(deadlineResult, found, durationMs) &&
+                            LyricsLookupPolicy.isUpgradeWithFit(lineSynced, found, durationMs) ->
+                            lineSynced = found
+                        !LyricsLookupPolicy.fitsTrack(lineSynced, durationMs) &&
+                            LyricsLookupPolicy.fitsTrack(found, durationMs) &&
+                            LyricsLookupPolicy.tierOf(lineSynced) ==
+                            LyricsLookupPolicy.tierOf(found) &&
+                            LyricsLookupPolicy.timingRank(lineSynced.timing) ==
+                            LyricsLookupPolicy.timingRank(found.timing) ->
                             lineSynced = found
                     }
                 }
@@ -489,9 +545,13 @@ object LyricsRepository {
             bestFinal?.let { best ->
                 val surfaced = deadlineResult
                 // A held final result replaces what the deadline surfaced
-                // only as an upgrade over it; anything else leaves the
-                // surfaced (already delivered) result as the answer.
-                if (surfaced != null && !LyricsLookupPolicy.isUpgrade(surfaced, best)) {
+                // only as an upgrade over it — by tier, by timing
+                // strength, or, within a tier, by fit; anything else
+                // leaves the surfaced (already delivered) result as the
+                // answer.
+                if (surfaced != null &&
+                    !LyricsLookupPolicy.isUpgradeWithFit(surfaced, best, durationMs)
+                ) {
                     return@coroutineScope surfaced
                 }
                 return@coroutineScope deliver(best)
@@ -503,7 +563,7 @@ object LyricsRepository {
                 // seed itself, it is returned as-is — never re-delivered.
                 val fallback = lineSynced
                 if (fallback != null && fallback !== provisionalSeed &&
-                    LyricsLookupPolicy.isUpgrade(surfaced, fallback)
+                    LyricsLookupPolicy.isUpgradeWithFit(surfaced, fallback, durationMs)
                 ) {
                     return@coroutineScope deliver(fallback)
                 }

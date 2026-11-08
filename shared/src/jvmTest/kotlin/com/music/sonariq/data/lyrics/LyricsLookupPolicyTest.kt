@@ -578,4 +578,214 @@ class LyricsLookupPolicyTest {
             listOf(estimated).withoutEstimatedWords().lyricTiming(),
         )
     }
+
+    /** A result over caller-built [lines], for the fit judgements below. */
+    private fun spanResult(
+        timing: LyricTiming,
+        lines: List<LyricLine>,
+        source: LyricsSource = LyricsSource.LRCLIB,
+    ): LyricsRepository.Result = LyricsRepository.Result(source, lines, timing)
+
+    /** A line-synced result sung from [firstMs] to [lastMs] over a track [durationMs] long. */
+    private fun lineResult(
+        firstMs: Long,
+        lastMs: Long,
+        lastEndKnown: Boolean = false,
+    ): LyricsRepository.Result = spanResult(
+        LyricTiming.LINE_SYNCED,
+        listOf(
+            LyricLine(firstMs, "verse"),
+            LyricLine(
+                lastMs,
+                "outro",
+                sungUntilMs = if (lastEndKnown) lastMs + 3_000 else null,
+            ),
+        ),
+    )
+
+    @Test
+    fun fitAcceptsSpanInsideTheTrack() {
+        // The fitting candidate: singing from ten seconds in to ten
+        // seconds before the end of a three-minute track.
+        val assessment = LyricsLookupPolicy.assessFit(
+            lineResult(10_000, 170_000).lines,
+            durationMs = 180_000,
+        )
+        assertTrue(assessment.fits)
+        assertEquals(10_000L, assessment.firstStartMs)
+        assertEquals(170_000L, assessment.lastEndMs)
+        assertEquals(0L, assessment.overshootMs)
+        assertEquals(10_000L, assessment.trailingGapMs)
+    }
+
+    @Test
+    fun fitRejectsOvershootingDifferentEdit() {
+        // The different-edit candidate: word timings that keep singing
+        // for four minutes against a three-minute track. Those words
+        // belong to a longer recording, whatever their tier.
+        val lines = listOf(
+            LyricLine(
+                10_000,
+                "verse",
+                words = listOf(LyricWord(10_000, 10_600, "verse")),
+            ),
+            LyricLine(
+                230_000,
+                "finale",
+                words = listOf(LyricWord(230_000, 240_000, "finale")),
+            ),
+        )
+        val assessment = LyricsLookupPolicy.assessFit(lines, durationMs = 180_000)
+        assertFalse(assessment.fits)
+        assertEquals(240_000L, assessment.lastEndMs)
+        assertEquals(60_000L, assessment.overshootMs)
+    }
+
+    @Test
+    fun fitToleratesSmallOvershoot() {
+        // Ten seconds of grace: a span ending a breath past the track is
+        // rounding and tail, not a different edit.
+        val assessment = LyricsLookupPolicy.assessFit(
+            lineResult(10_000, 185_000, lastEndKnown = true).lines,
+            durationMs = 180_000,
+        )
+        assertTrue(assessment.fits)
+        assertEquals(8_000L, assessment.overshootMs)
+    }
+
+    @Test
+    fun fitRejectsKnownEndWithLongTrailingGap() {
+        // The words state their own end — and the track then runs on
+        // for another hundred seconds. A shorter edit's timings.
+        val assessment = LyricsLookupPolicy.assessFit(
+            lineResult(10_000, 100_000, lastEndKnown = true).lines,
+            durationMs = 203_000,
+        )
+        assertFalse(assessment.fits)
+        assertEquals(100_000L, assessment.trailingGapMs)
+    }
+
+    @Test
+    fun fitIgnoresTrailingGapWhenNoEndIsKnown() {
+        // The same numbers without a stated end: the last stamp is a
+        // start, not an end, and a long outro is a real shape of song.
+        val assessment = LyricsLookupPolicy.assessFit(
+            lineResult(10_000, 100_000, lastEndKnown = false).lines,
+            durationMs = 203_000,
+        )
+        assertTrue(assessment.fits)
+    }
+
+    @Test
+    fun fitRejectsImplausiblyLateOnset() {
+        // Nothing sung until three quarters through the track: not an
+        // intro, a different structure.
+        val assessment = LyricsLookupPolicy.assessFit(
+            lineResult(150_000, 190_000).lines,
+            durationMs = 200_000,
+        )
+        assertFalse(assessment.fits)
+        assertEquals(150_000L, assessment.firstStartMs)
+    }
+
+    @Test
+    fun fitAcceptsLongIntroOnLongTrack() {
+        // Seventy seconds of intro on a ten-minute track fails the
+        // absolute onset term but not the share term — and both must
+        // hold before onset condemns.
+        val assessment = LyricsLookupPolicy.assessFit(
+            lineResult(70_000, 500_000).lines,
+            durationMs = 600_000,
+        )
+        assertTrue(assessment.fits)
+    }
+
+    @Test
+    fun fitHasNoVerdictWithoutEvidence() {
+        val lines = lineResult(10_000, 240_000).lines
+        // No known duration: nothing can be ruled out.
+        assertTrue(LyricsLookupPolicy.assessFit(lines, durationMs = 0).fits)
+        // Plain text claims no timings at all.
+        val plain = listOf(LyricLine(0, "verse"), LyricLine(0, "chorus"))
+        assertTrue(LyricsLookupPolicy.assessFit(plain, durationMs = 180_000).fits)
+        // No lines at all.
+        assertTrue(LyricsLookupPolicy.assessFit(emptyList(), durationMs = 180_000).fits)
+    }
+
+    @Test
+    fun fitUpgradeReplacesSameTierMisfitWithFitting() {
+        val misfit = lineResult(10_000, 240_000)
+        val fitting = lineResult(10_000, 170_000)
+        // Same tier, same timing strength: fit is the only difference,
+        // and it decides.
+        assertTrue(LyricsLookupPolicy.isUpgradeWithFit(misfit, fitting, 180_000))
+        assertFalse(LyricsLookupPolicy.isUpgradeWithFit(fitting, misfit, 180_000))
+        // Both fit, or neither does: no upgrade — priority order stands.
+        assertFalse(
+            LyricsLookupPolicy.isUpgradeWithFit(fitting, lineResult(20_000, 160_000), 180_000),
+        )
+        assertFalse(
+            LyricsLookupPolicy.isUpgradeWithFit(misfit, lineResult(10_000, 250_000), 180_000),
+        )
+    }
+
+    @Test
+    fun fitNeverCrossesTiers() {
+        // A fitting line-synced candidate never displaces word sync,
+        // even word sync whose span overshoots: tier rules first.
+        val wordMisfit = spanResult(
+            LyricTiming.WORD_SYNCED,
+            listOf(
+                LyricLine(
+                    230_000,
+                    "finale",
+                    words = listOf(LyricWord(230_000, 240_000, "finale")),
+                ),
+            ),
+        )
+        val lineFitting = lineResult(10_000, 170_000)
+        assertFalse(LyricsLookupPolicy.isUpgradeWithFit(wordMisfit, lineFitting, 180_000))
+        // And a misfitting word-synced candidate still upgrades plain
+        // line sync on tier alone.
+        assertTrue(LyricsLookupPolicy.isUpgradeWithFit(lineFitting, wordMisfit, 180_000))
+    }
+
+    @Test
+    fun deadlineWinnerPrefersFittingWithinTier() {
+        val misfit = lineResult(10_000, 240_000)
+        val fitting = lineResult(10_000, 170_000)
+        val picked = LyricsLookupPolicy.pickDeadlineWinner(
+            completedInOrder = listOf(misfit, fitting),
+            prioritizeSyllableSync = false,
+            durationMs = 180_000,
+        )
+        assertEquals(fitting, picked)
+    }
+
+    @Test
+    fun deadlineWinnerKeepsPriorityOrderWhenAllFailFit() {
+        // The all-fail set: every candidate is a different edit's
+        // timings. The check re-ranks but never blocks, so the first in
+        // priority order is still surfaced — misfit lyrics over silence.
+        val first = lineResult(10_000, 240_000)
+        val second = lineResult(10_000, 250_000)
+        val picked = LyricsLookupPolicy.pickDeadlineWinner(
+            completedInOrder = listOf(first, second),
+            prioritizeSyllableSync = false,
+            durationMs = 180_000,
+        )
+        assertEquals(first, picked)
+    }
+
+    @Test
+    fun deadlineWinnerIgnoresFitWithoutDuration() {
+        // No duration, no verdict: the pick is priority order as ever.
+        val misfit = lineResult(10_000, 240_000)
+        val fitting = lineResult(10_000, 170_000)
+        val picked = LyricsLookupPolicy.pickDeadlineWinner(
+            completedInOrder = listOf(misfit, fitting),
+            prioritizeSyllableSync = false,
+        )
+        assertEquals(misfit, picked)
+    }
 }
