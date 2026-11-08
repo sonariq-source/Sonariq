@@ -78,6 +78,11 @@ private val HEADER_THUMB_SIZE = 52.dp
  * (marquee, album/artist navigation as the old credits row had), the
  * star like toggle, and the ••• button.
  *
+ * The landscape player's name block is this same header with
+ * [showThumbnail] off: the big artwork card is already on screen beside
+ * it, so the name stands on its own — title, artist, badge, star and
+ * menu, nothing else.
+ *
  * A tap on ••• opens the song menu, exactly as it always has
  * ([onOpenMenu] is the host's menu, which is where the sleep timer, the
  * quality/version switch and the lyrics offset live). A long-press on
@@ -108,6 +113,8 @@ internal fun ReferencePlayerHeader(
     onListenTogether: (() -> Unit)? = null,
     /** Drawn under the artist — the vibe badge's home. */
     badge: @Composable () -> Unit = {},
+    /** The leading artwork thumbnail; off where a big card already shows it. */
+    showThumbnail: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val haptics = rememberHaptics()
@@ -116,16 +123,18 @@ internal fun ReferencePlayerHeader(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AsyncImage(
-            model = artRequest,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(HEADER_THUMB_SIZE)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color.White.copy(alpha = 0.08f)),
-        )
-        Spacer(Modifier.width(12.dp))
+        if (showThumbnail) {
+            AsyncImage(
+                model = artRequest,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(HEADER_THUMB_SIZE)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White.copy(alpha = 0.08f)),
+            )
+            Spacer(Modifier.width(12.dp))
+        }
         Column(Modifier.weight(1f)) {
             var titleOverflowing by remember { mutableStateOf(false) }
             MarqueeText(
@@ -392,8 +401,8 @@ internal fun AmbientLyricLines(
  * player's glass material. It is a vocal control — it opens the Vocal
  * Remover sheet — and it lights while the centre channel is turned down
  * at all. Its homes are chosen so it never sits on lyric text: above the
- * portrait player's bottom block, and at the landscape middle area's
- * bottom-right with the ambient lines reserved out of its column. It is
+ * portrait player's bottom block, and in the landscape player's control
+ * cluster under the artwork card, right-aligned over the scrubber. It is
  * never composed in lyrics mode.
  */
 @Composable

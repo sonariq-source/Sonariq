@@ -518,9 +518,21 @@ internal fun AppleTransportRow(
     onNext: () -> Unit,
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
+    /**
+     * The landscape player's under-artwork cluster, where the row gets
+     * the artwork column's width rather than the screen's: same five
+     * controls, tighter — a smaller play disc and touch targets — so
+     * the whole cluster fits under the card.
+     */
+    compact: Boolean = false,
 ) {
     val playSize = 74.dp
-    val playTouch = 92.dp
+    val playTouch = if (compact) 68.dp else 92.dp
+    val playDisc = if (compact) 56.dp else 80.dp
+    val playGlyph = if (compact) 30.dp else 40.dp
+    val skipSize = if (compact) 40.dp else PLAYER_SKIP_ICON_SIZE
+    val skipTouch = if (compact) 48.dp else PLAYER_SKIP_TOUCH_SIZE
+    val sideIconSize = if (compact) 24.dp else 30.dp
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -535,12 +547,14 @@ internal fun AppleTransportRow(
             highlighted = shuffleEnabled,
             haptic = if (shuffleEnabled) Haptic.ToggleOff else Haptic.ToggleOn,
             tapWindowMs = SHUFFLE_TAP_WINDOW_MS,
+            touchSize = skipTouch,
+            iconSize = sideIconSize,
         )
         TransportGlyph(
             icon = Res.drawable.ic_player_previous,
             contentDescription = stringResource(Res.string.widget_previous),
-            size = PLAYER_SKIP_ICON_SIZE,
-            touchSize = PLAYER_SKIP_TOUCH_SIZE,
+            size = skipSize,
+            touchSize = skipTouch,
             heightScale = PLAYER_SKIP_HEIGHT_SCALE,
             onClick = onPrevious,
             enabled = previousEnabled,
@@ -555,7 +569,7 @@ internal fun AppleTransportRow(
                     // the app module's theme.
                     color = Color(0xFF1DB954),
                     strokeWidth = 3.dp,
-                    modifier = Modifier.size(38.dp),
+                    modifier = Modifier.size(if (compact) 30.dp else 38.dp),
                 )
             }
         } else {
@@ -564,7 +578,7 @@ internal fun AppleTransportRow(
             Box(Modifier.size(playTouch), contentAlignment = Alignment.Center) {
                 Box(
                     modifier = Modifier
-                        .size(80.dp)
+                        .size(playDisc)
                         .clip(CircleShape)
                         .background(Color(0xFF1DB954)),
                     contentAlignment = Alignment.Center,
@@ -572,8 +586,8 @@ internal fun AppleTransportRow(
                     TransportGlyph(
                         icon = if (isPlaying) Res.drawable.ic_player_pause else Res.drawable.ic_player_play,
                         contentDescription = stringResource(if (isPlaying) Res.string.pause else Res.string.play),
-                        size = 40.dp,
-                        touchSize = 80.dp,
+                        size = playGlyph,
+                        touchSize = playDisc,
                         onClick = onPlayPause,
                         haptic = if (isPlaying) Haptic.Pause else Haptic.Resume,
                         tint = Color(0xFF04140B),
@@ -584,8 +598,8 @@ internal fun AppleTransportRow(
         TransportGlyph(
             icon = Res.drawable.ic_player_next,
             contentDescription = stringResource(Res.string.widget_next),
-            size = PLAYER_SKIP_ICON_SIZE,
-            touchSize = PLAYER_SKIP_TOUCH_SIZE,
+            size = skipSize,
+            touchSize = skipTouch,
             heightScale = PLAYER_SKIP_HEIGHT_SCALE,
             onClick = onNext,
             enabled = nextEnabled,
@@ -609,6 +623,8 @@ internal fun AppleTransportRow(
                 RepeatModes.ONE -> Haptic.ToggleOff
                 else -> Haptic.Select
             },
+            touchSize = skipTouch,
+            iconSize = sideIconSize,
         )
     }
 }
@@ -634,6 +650,10 @@ private fun TransportVectorGlyph(
      * speed; repeat cycles instantly and takes none.
      */
     tapWindowMs: Long = 0L,
+    /** Touch box; the compact transport row narrows it with the skip glyphs'. */
+    touchSize: Dp = PLAYER_SKIP_TOUCH_SIZE,
+    /** The glyph itself; the compact transport row draws it smaller. */
+    iconSize: Dp = 30.dp,
 ) {
     val haptics = rememberHaptics()
     val lastTap = remember { mutableLongStateOf(-tapWindowMs) }
@@ -642,7 +662,7 @@ private fun TransportVectorGlyph(
     val tint = if (highlighted) Color(0xFF1DB954) else Color.White.copy(alpha = 0.92f)
     Box(
         modifier = Modifier
-            .size(PLAYER_SKIP_TOUCH_SIZE)
+            .size(touchSize)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -662,7 +682,7 @@ private fun TransportVectorGlyph(
                 imageVector = icon,
                 contentDescription = null,
                 tint = tint,
-                modifier = Modifier.size(30.dp),
+                modifier = Modifier.size(iconSize),
             )
         }
         if (badge != null) {

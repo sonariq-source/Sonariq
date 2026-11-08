@@ -85,17 +85,19 @@ private val LANDSCAPE_PLAYER_MAX_WIDTH = 1100.dp
 
 /**
  * The two columns' shares of that width in the rebuilt landscape player:
- * the artwork card keeps 42% — the reference's left card — and the
- * content column gets the wider 58% for its header, lyrics and controls.
+ * the artwork column keeps 42% — the reference's left card, with the
+ * name and the compact control cluster under it — and the lyrics
+ * column gets the wider 58% for the words alone.
  */
 private const val LANDSCAPE_ARTWORK_COLUMN_WEIGHT = 0.42f
 private const val LANDSCAPE_CONTENT_COLUMN_WEIGHT = 0.58f
 
 /**
- * Below this height the landscape player tightens its right column — smaller
- * transport, shorter gaps — so a phone on its side fits the credits, the
- * scrubber, the transport and the volume bar between its status and
- * navigation bars without any of them falling off the bottom.
+ * Below this height the landscape player tightens the stack under the
+ * artwork — shorter gaps, narrower gutters — so a phone on its side
+ * fits the name, the scrubber, the transport and the volume bar
+ * between its status and navigation bars without any of them falling
+ * off the bottom.
  */
 private val LANDSCAPE_COMPACT_HEIGHT = 440.dp
 
@@ -130,20 +132,26 @@ private val LANDSCAPE_HANDLE_STRIP = 24.dp
  * The player in a landscape window — a tablet, or a phone on its side. See
  * [landscapePlayerAvailable].
  *
- * The rebuilt arrangement, following the reference's landscape shot: a
- * big artwork card with rounded corners and a soft shadow occupies the
- * left 42% of the width, and the right column carries the rest — the
- * shared header at its top, the lyrics (or the queue, or the ambient
- * lyric lines) filling its middle, and the scrubber / transport /
- * volume / utility block grouped at its bottom.
+ * The arrangement the owner drew on his own screenshot: everything that
+ * belongs to the track lives in the left 42% — a big artwork card with
+ * rounded corners and a soft shadow on top, the name block under it
+ * (title, artist, like and menu — the shared header without its
+ * thumbnail, the card already being on screen), and a compact control
+ * cluster under that: the vocal button, the scrubber, the transport,
+ * the volume and utility rows and the output caption, all sized to the
+ * column. The right 58% is the lyrics alone, top to bottom — ambient
+ * lines in the player pane, the full panel in the lyrics pane, the
+ * queue in its own — with no header over them any more.
  *
- * With the lyrics open the bottom block steps aside entirely
- * ([showBottom] false): the right column is the header and the lyrics
- * alone over the artwork card, the way the reference's landscape shot
- * itself is composed. The card's top edge aligns with the header's, so
- * the two columns share one top line in every pane, and the middle is
- * clipped to its bounds so ambient lines in a short window yield —
- * cut off — rather than painting over the controls below them.
+ * The artwork gives way first: the name block and the cluster are
+ * measured at their full height and the card takes whatever height is
+ * left, square, so on a short window the card shrinks rather than
+ * anything below it clipping or overlapping.
+ *
+ * With the lyrics open the whole under-artwork stack steps aside
+ * ([showBelowArtwork] false): the screen is the artwork card and the
+ * lyrics alone, the way the owner specified. Back and a tap on the
+ * artwork card are the way back to the player.
  *
  * Purely the arrangement. Every slot is built by [NowPlayingScreen],
  * which is where the state behind all of them lives — the same state
@@ -161,18 +169,20 @@ internal fun LandscapePlayerLayout(
     background: @Composable (Modifier) -> Unit,
     /** The artwork card; handed a modifier that already fixes its square size. */
     artwork: @Composable (Modifier) -> Unit,
-    /** The shared header, at the top of the right column. */
-    header: @Composable () -> Unit,
-    /** Lyrics, queue or ambient lines — the right column's middle. */
-    middle: @Composable () -> Unit,
-    /** Scrubber, transport, volume and utility. [compact] is a phone-height window. */
-    bottom: @Composable (compact: Boolean) -> Unit,
     /**
-     * Whether the bottom block is composed at all. False only for the
-     * lyrics pane: no transport, scrubber, volume or utility row stands
-     * under the words, and the middle takes the whole column height.
+     * The name block and the compact control cluster, under the artwork
+     * card in its column. [compact] is a phone-height window.
      */
-    showBottom: Boolean = true,
+    belowArtwork: @Composable (compact: Boolean) -> Unit,
+    /** Lyrics, queue or ambient lines — the whole right column. */
+    middle: @Composable () -> Unit,
+    /**
+     * Whether the under-artwork stack is composed at all. False only
+     * for the lyrics pane: no name, transport, scrubber, volume or
+     * utility row stands beside the words, and the artwork card takes
+     * the whole column height.
+     */
+    showBelowArtwork: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -196,40 +206,43 @@ internal fun LandscapePlayerLayout(
                         bottom = if (compact) 8.dp else 20.dp,
                     ),
             ) {
-                // The artwork card: square, taking whichever of the two
-                // axes runs out first in its 42% column, and top-aligned
-                // so its top edge shares the header's line rather than
-                // floating at the column's centre.
-                BoxWithConstraints(
+                // The left column: the artwork card over the name block
+                // and the control cluster. The card's box is the one
+                // weighted child, so it is measured last and takes
+                // whatever height the stack under it leaves — square,
+                // top-aligned, shrinking on short windows rather than
+                // pushing anything off the bottom.
+                Column(
                     modifier = Modifier
                         .weight(LANDSCAPE_ARTWORK_COLUMN_WEIGHT)
                         .fillMaxHeight()
                         .padding(horizontal = gutter),
-                    contentAlignment = Alignment.TopCenter,
                 ) {
-                    artwork(Modifier.size(minOf(maxWidth, maxHeight)))
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.TopCenter,
+                    ) {
+                        artwork(Modifier.size(minOf(maxWidth, maxHeight)))
+                    }
+                    if (showBelowArtwork) {
+                        Spacer(Modifier.height(if (compact) 8.dp else 14.dp))
+                        belowArtwork(compact)
+                    }
                 }
 
-                Column(
+                // The right column is the words alone now, clipped to
+                // its bounds so ambient lines in a short window yield —
+                // cut off — rather than painting past the column.
+                Box(
                     modifier = Modifier
                         .weight(LANDSCAPE_CONTENT_COLUMN_WEIGHT)
                         .fillMaxHeight()
-                        .padding(end = gutter),
+                        .padding(end = gutter)
+                        .clipToBounds(),
                 ) {
-                    header()
-                    Spacer(Modifier.height(if (compact) 8.dp else 16.dp))
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .clipToBounds(),
-                    ) {
-                        middle()
-                    }
-                    if (showBottom) {
-                        Spacer(Modifier.height(if (compact) 4.dp else 10.dp))
-                        bottom(compact)
-                    }
+                    middle()
                 }
             }
 

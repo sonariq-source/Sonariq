@@ -809,10 +809,12 @@ fun NowPlayingScreen(
         }
     }
 
-    // The header both shapes open with — see [ReferencePlayerHeader]. The
-    // ••• tap is the song menu as always; its long-press overflow carries
-    // the player-local utilities (share, vocal remover, audio pipeline,
-    // visualizer, Listen Together).
+    // The header the portrait player opens with — see
+    // [ReferencePlayerHeader]. The ••• tap is the song menu as always;
+    // its long-press overflow carries the player-local utilities
+    // (share, vocal remover, audio pipeline, visualizer, Listen
+    // Together). The landscape name block below is the same header
+    // without its thumbnail, moved under the artwork card.
     val header: @Composable () -> Unit = {
         ReferencePlayerHeader(
             song = song,
@@ -855,7 +857,141 @@ fun NowPlayingScreen(
         )
     }
 
-    // The bottom block both shapes end on: (in lyrics mode) the lyrics
+    // The landscape player's under-artwork stack: the name block — the
+    // shared header without its thumbnail, the big card already being
+    // on screen — over a compact control cluster: the vocal button,
+    // the waveform scrubber, the compact transport, the volume row,
+    // the utility row and the output caption, all at the artwork
+    // column's width. Every control is wired to the same callbacks the
+    // portrait bottom block uses; only the sizes and the home differ.
+    val landscapeBelowArtwork: @Composable (compact: Boolean) -> Unit = { compact ->
+        Column(Modifier.fillMaxWidth()) {
+            ReferencePlayerHeader(
+                song = song,
+                artRequest = art.request,
+                signedIn = signedIn,
+                likeStatus = likeStatus,
+                showRevertCue = showRevertCue,
+                marqueeEnabled = !lyricsOpen && !queueOpen,
+                onToggleLike = onToggleLike,
+                onOpenMenu = onOpenMenu,
+                onOpenAlbum = onOpenAlbum,
+                onOpenArtist = onOpenArtist,
+                onShareSong = if (shareSongEnabled) {
+                    { onShareSong(remoteArt ?: song.thumbnailUrl) }
+                } else {
+                    null
+                },
+                onOpenVocalRemover = if (PlayerSettings.vocalRemoverAvailable) {
+                    { showVocalRemover = true }
+                } else {
+                    null
+                },
+                onOpenAudioPipeline = { showAudioPipeline = true },
+                onToggleVisualizer = if (visualizerCanRun) {
+                    { visualizerShown = !visualizerShown }
+                } else {
+                    null
+                },
+                visualizerShown = visualizerShown,
+                onListenTogether = openParty,
+                badge = {
+                    if (vibeBadgeText.isNotEmpty()) {
+                        Spacer(Modifier.height(4.dp))
+                        VibeBadge(
+                            text = vibeBadgeText,
+                            onLongPress = onVibeBadgeLongPress,
+                        )
+                    }
+                },
+                showThumbnail = false,
+            )
+            Spacer(Modifier.height(if (compact) 8.dp else 14.dp))
+            if (PlayerSettings.vocalRemoverAvailable) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    FloatingVocalButton(
+                        highlighted = vocalLevel < DEFAULT_VOCAL_LEVEL,
+                        onClick = { showVocalRemover = true },
+                    )
+                }
+                Spacer(Modifier.height(if (compact) 4.dp else 8.dp))
+            }
+            PlayerScrubber(
+                shown = shown,
+                durationMs = durationMs,
+                seedKey = song.videoId,
+                loading = versionSwitching,
+                mixing = mixing && !scrub.scrubbing,
+                transitionWindow = transitionWindow
+                    ?.takeIf { !scrub.scrubbing && it.end > it.start }
+                    ?.let { it.start..it.end },
+                onScrub = onScrub,
+                onScrubFinished = onScrubFinished,
+            ) {
+                PlaybackQualityLabel(
+                    song = song,
+                    isLoading = isLoading,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(horizontal = 8.dp),
+                )
+            }
+            Spacer(Modifier.height(if (compact) 6.dp else 10.dp))
+            AppleTransportRow(
+                isPlaying = isPlaying,
+                isLoading = isLoading || audioVersionSwitching,
+                previousEnabled = !controlsLocked &&
+                    (hasPrevious || pastRestartPoint),
+                nextEnabled = !controlsLocked && hasNext,
+                shuffleEnabled = shuffleEnabled,
+                repeatMode = repeatMode,
+                onPrevious = onPrevious,
+                onPlayPause = onPlayPause,
+                onNext = onNext,
+                onToggleShuffle = onToggleShuffle,
+                onCycleRepeat = onCycleRepeat,
+                compact = true,
+            )
+            Spacer(Modifier.height(if (compact) 6.dp else 10.dp))
+            if (!hideVolumeBar) {
+                VolumeRow(
+                    value = { volume.level.value },
+                    onValueChange = onVolumeChange,
+                    onValueChangeFinished = onVolumeChangeFinished,
+                )
+            } else {
+                Spacer(Modifier.height(VOLUME_ROW_HEIGHT))
+            }
+            Spacer(Modifier.height(if (compact) 4.dp else 8.dp))
+            ReferenceUtilityRow(
+                lyricsOpen = lyricsOpen,
+                queueOpen = queueOpen,
+                partyActive = party.inParty,
+                onToggleLyrics = toggleLyrics,
+                onOpenOutput = openAudioOutput,
+                onOpenParty = openParty,
+                onToggleQueue = toggleQueue,
+            )
+            Spacer(Modifier.height(if (compact) 2.dp else 6.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(20.dp),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                OutputCaption(
+                    accountName = accountName,
+                    onOpenOutput = openAudioOutput,
+                    onOpenMembers = openListenTogetherMembers,
+                )
+            }
+        }
+    }
+
+    // The portrait player's bottom block: (in lyrics mode) the lyrics
     // status line, the waveform scrubber with its elapsed/remaining times
     // and the quality label between them, the five-up transport (shuffle
     // and repeat flanking previous/play/next, as the deck had them), the
@@ -1100,7 +1236,7 @@ fun NowPlayingScreen(
         )
     }
 
-    // ---- Landscape: artwork card left, header/lyrics/controls right ----
+    // ---- Landscape: artwork, name and controls left; lyrics right ----
     if (landscapePlayerAvailable(windowWidth, windowHeight)) {
         val panelOpen = lyricsOpen || queueOpen
         Box(
@@ -1153,7 +1289,7 @@ fun NowPlayingScreen(
                         }
                     }
                 },
-                header = header,
+                belowArtwork = landscapeBelowArtwork,
                 middle = {
                     when {
                         queueOpen -> queueContent(false)
@@ -1238,15 +1374,13 @@ fun NowPlayingScreen(
                                         loadingText = lyricsLoadingText,
                                         lyricsUnavailable = lyricsUnavailable,
                                         blurEnabled = ambientBlurEnabled,
-                                        // The end reserve keeps every glyph
-                                        // out of the vocal button's column
-                                        // at this area's bottom-right (52 dp
-                                        // of button, 16 dp of air), however
-                                        // far down the lines flow.
+                                        // The whole column is the words'
+                                        // now — no button shares this area
+                                        // any more, so no end reserve is
+                                        // held out of the lines' width.
                                         modifier = Modifier
                                             .align(Alignment.TopStart)
-                                            .fillMaxWidth()
-                                            .padding(end = 68.dp),
+                                            .fillMaxWidth(),
                                     )
                                 }
                                 if (swipeHintShown) {
@@ -1267,26 +1401,17 @@ fun NowPlayingScreen(
                                             },
                                     )
                                 }
-                                if (PlayerSettings.vocalRemoverAvailable) {
-                                    FloatingVocalButton(
-                                        highlighted = vocalLevel < DEFAULT_VOCAL_LEVEL,
-                                        onClick = { showVocalRemover = true },
-                                        modifier = Modifier
-                                            .align(Alignment.BottomEnd)
-                                            .padding(bottom = 8.dp),
-                                    )
-                                }
                             }
                         }
                     }
                 },
-                bottom = { bottomBlock() },
-                // Lyrics open in landscape is the reference's composition:
-                // artwork card, header and the words, nothing else — the
-                // whole control block steps aside and the lyrics take the
-                // column. Back and a tap on the artwork card (above) are
-                // the way back to the player.
-                showBottom = !lyricsOpen,
+                // Lyrics open in landscape is the owner's composition:
+                // the artwork card and the words, nothing else — the
+                // name block and the whole control cluster step aside
+                // with each other and the lyrics take the right column.
+                // Back and a tap on the artwork card (above) are the
+                // way back to the player.
+                showBelowArtwork = !lyricsOpen,
             )
             playerOverlays()
         }
