@@ -157,6 +157,9 @@ internal const val STRETCH = 0.16f
  */
 internal const val SQUASH = 0.5f
 
+/** The docked bar's outline: square to the screen edge it is flush with. */
+private val DOCK_SHAPE = RoundedCornerShape(0.dp)
+
 /**
  * Sonariq's navigation: a docked, full-width glass bar flush with the bottom
  * of the screen. Every destination shows its icon over its label; the
@@ -165,6 +168,12 @@ internal const val SQUASH = 0.5f
  * with the edge light along its top edge, and it pads itself by the
  * navigation-bar inset so it sits correctly over gesture and three-button
  * navigation alike.
+ *
+ * With Liquid Glass on (and supported, and dynamic blur allowed) the bar's
+ * surface is the real sampled material — [Modifier.liquidGlass] over the
+ * recorded page backdrop — so page content visibly blurs and refracts
+ * behind it as it scrolls. Off, or on any fallback, it is the matte
+ * navigation tint with the drawn edge light, exactly as before.
  */
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
@@ -176,19 +185,29 @@ fun FloatingBottomBar(
     modifier: Modifier = Modifier,
 ) {
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
+    val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val glassActive = LocalLiquidGlassEnabled.current && isGlassSupported() && !reduceDynamicBlur
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(GlassTokens.navSurface)
+            .then(
+                if (glassActive) {
+                    Modifier.liquidGlass(DOCK_SHAPE)
+                } else {
+                    Modifier.background(GlassTokens.navSurface)
+                },
+            )
             .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(GlassTokens.edgeLight),
-        )
+        if (!glassActive) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(GlassTokens.edgeLight),
+            )
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()

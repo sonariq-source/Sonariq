@@ -376,7 +376,14 @@ fun MiniPlayer(
     // navigation bar: uniform 18 dp corners, the elevated glass surface and
     // a hairline edge — a designed part of the bottom stack, not a pill
     // floating inside the tab bar.
+    //
+    // With Liquid Glass on (and supported, and dynamic blur allowed) the
+    // card's surface is the real sampled material — [Modifier.liquidGlass]
+    // over the recorded page backdrop — so the page blurs behind the card
+    // as it scrolls under it. Off, or on any fallback, it is the matte
+    // elevated surface with the drawn hairline, exactly as before.
     val shape = RoundedCornerShape(18.dp)
+    val glassActive = LocalLiquidGlassEnabled.current && isGlassSupported() && !reduceDynamicBlur
     Box(
         modifier = modifier
             .padding(horizontal = 12.dp)
@@ -395,8 +402,15 @@ fun MiniPlayer(
                 onBlocked = onBlockedControl,
             )
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .border(1.dp, Color.White.copy(alpha = 0.10f), shape)
+            .then(
+                if (glassActive) {
+                    Modifier.liquidGlass(shape)
+                } else {
+                    Modifier
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .border(1.dp, Color.White.copy(alpha = 0.10f), shape)
+                },
+            )
             // The whole card expands the player; transport controls keep their own click targets.
             .clickable(onClick = onExpand),
     ) {

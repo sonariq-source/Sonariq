@@ -74,7 +74,7 @@ object GlassTokens {
     val controlTint = Color.White.copy(alpha = 0.05f)
 
     /** The hairline that separates a glass surface from what is behind it. */
-    val hairline = Color.White.copy(alpha = 0.12f)
+    val hairline = Color.White.copy(alpha = 0.15f)
     val hairlineWidth = 1.dp
 
     /** A sheet's grab handle. */
@@ -98,15 +98,15 @@ object GlassTokens {
 
     /** Panel glass: cards, panels, section surfaces. */
     val panelGlass = Color(0xFF121D17)
-    const val panelGlassAlpha = 0.88f
+    const val panelGlassAlpha = 0.86f
 
     /** Playback glass: transport and pills floating over artwork. Most translucent. */
     val playbackGlass = Color(0xFF17251D)
-    const val playbackGlassAlpha = 0.58f
+    const val playbackGlassAlpha = 0.52f
 
     /** Sheet glass: dialogs, menus and bottom sheets. Nearly solid. */
     val sheetGlass = Color(0xFF17251D)
-    const val sheetGlassAlpha = 0.94f
+    const val sheetGlassAlpha = 0.92f
 
     /** The tier colours at their tier alphas, ready to paint with. */
     val navSurface: Color get() = navGlass.copy(alpha = navGlassAlpha)
@@ -120,7 +120,7 @@ object GlassTokens {
      * rest of the outline, so the surface reads as a physical sheet with
      * light falling on it rather than a translucent rectangle.
      */
-    val edgeLight = Color.White.copy(alpha = 0.16f)
+    val edgeLight = Color.White.copy(alpha = 0.20f)
 
     /** The edge light at the strength used on the smallest controls. */
     val edgeLightSoft = Color.White.copy(alpha = 0.10f)
@@ -145,7 +145,7 @@ object GlassTokens {
 @Stable
 fun Modifier.glassEdge(
     shape: Shape,
-    topAlpha: Float = 0.16f,
+    topAlpha: Float = 0.20f,
     restAlpha: Float = 0.08f,
 ): Modifier = this
     .border(
