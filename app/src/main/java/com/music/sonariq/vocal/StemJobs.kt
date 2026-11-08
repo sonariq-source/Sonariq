@@ -205,7 +205,7 @@ object StemJobs {
         // The flag exists before the job does, so the pipeline reads the
         // very instance a later supersede will set — no map lookup race.
         val superseded = AtomicBoolean(false)
-        lateinit var entry: Running
+        var entry: Running? = null
         val job = scope.launch {
             try {
                 runPipeline(key, source, userDriven, superseded)
@@ -221,7 +221,8 @@ object StemJobs {
             } finally {
                 // Only the entry still registered under this key removes
                 // itself; a superseded job must not evict its replacement.
-                if (::entry.isInitialized && running[key] === entry) running.remove(key)
+                val finished = entry
+                if (finished != null && running[key] === finished) running.remove(key)
                 if (running.isEmpty()) umxSeparator?.let { runCatching { it.release() } }
             }
         }
