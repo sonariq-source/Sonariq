@@ -10,7 +10,6 @@ import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -151,7 +150,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -669,7 +667,7 @@ fun SettingsScreen(
         // above lists that as the module's own row now. Lossless itself is no
         // longer a setting at all — see
         // [SourceResolver.requestForNow][com.music.sonariq.data.sources.SourceResolver.requestForNow].
-        if (settingsCategoryVisible("playback")) SearchableSettingsGroup(search, header = stringResource(R.string.audio_quality), headerIcon = Icons.Rounded.GraphicEq, defaultExpanded = true) {
+        if (settingsCategoryVisible("playback")) SearchableSettingsGroup(search, header = stringResource(R.string.audio_quality), headerIcon = Icons.Rounded.GraphicEq) {
             val sourceTitle = stringResource(R.string.source)
             val sourceSubtitle = stringResource(R.string.sources_subtitle)
             row(sourceTitle, sourceSubtitle, "addon", "lossless") {
@@ -3948,18 +3946,18 @@ private fun SettingsCategoryCard(
  * One Settings category: a card of rows filtered by the search field, which
  * takes itself off the screen when none of them are left.
  *
- * Headed categories are collapsible "category boxes": the card's first row
- * is the category's title and icon, and tapping it expands or collapses the
- * controls inside the card. Expansion is remembered per category (keyed by
- * its title); only the first headed category starts expanded. While a
- * search query is active every category that still has matching rows is
- * shown expanded, so a match is never hidden behind a collapsed header —
- * and the remembered state underneath is left untouched, so clearing the
- * query restores the layout the user left.
+ * Headed categories are static, always-open cards: the card's first row is
+ * the category's title and icon, and every control inside the card is
+ * composed underneath it, always. There is deliberately no expand or
+ * collapse behaviour here — the groups used to be drop-downs whose toggle
+ * swapped the whole row block in and out of the scrolling column under an
+ * animated chevron, and on device that presented as rows doubling and
+ * overlapping while the state changed. The drop-downs were removed on the
+ * owner's order so the mechanism cannot come back: no toggle state, no
+ * conditional composition of the rows, no animation.
  *
  * The one headerless group (the account rows at the top of the screen) has
- * no title to tap, so it keeps the plain [SettingsGroup] rendering and is
- * always shown.
+ * no title, so it keeps the plain [SettingsGroup] rendering.
  */
 @Composable
 private fun SearchableSettingsGroup(
@@ -3968,16 +3966,10 @@ private fun SearchableSettingsGroup(
     headerIcon: ImageVector? = null,
     footer: String? = null,
     topSpacing: Dp = 26.dp,
-    defaultExpanded: Boolean = false,
     content: @Composable SettingsGroupScope.() -> Unit,
 ) {
     val scope = SettingsGroupScope(search, header)
     scope.content()
-    // Read before the empty check so this category's remembered state keeps
-    // its slot even on passes where the search filters the category out.
-    var storedExpanded by rememberSaveable(header ?: "settings_top_group") {
-        mutableStateOf(defaultExpanded)
-    }
     if (scope.entries.isEmpty()) return
     if (header == null) {
         SettingsGroup(header = null, headerIcon = headerIcon, footer = footer, topSpacing = topSpacing) {
@@ -3985,15 +3977,6 @@ private fun SearchableSettingsGroup(
         }
         return
     }
-    val searching = search.isActive
-    val expanded = searching || storedExpanded
-    // The chevron turns as the card opens rather than swapping glyphs, so
-    // the header reads as one control changing state.
-    val chevronRotation by animateFloatAsState(
-        targetValue = if (expanded) 90f else 0f,
-        animationSpec = tween(200),
-        label = "settingsCategoryChevron",
-    )
     Spacer(Modifier.height(14.dp))
     Column(
         // Same glass card as [SettingsGroup]: the glass tone over the
@@ -4009,7 +3992,6 @@ private fun SearchableSettingsGroup(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { if (!searching) storedExpanded = !storedExpanded }
                 .padding(horizontal = ROW_INSET, vertical = 14.dp),
         ) {
             if (headerIcon != null) {
@@ -4035,19 +4017,9 @@ private fun SearchableSettingsGroup(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            Icon(
-                imageVector = Icons.Rounded.ChevronRight,
-                contentDescription = stringResource(
-                    if (expanded) R.string.settings_category_collapse else R.string.settings_category_expand,
-                ),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp).rotate(chevronRotation),
-            )
         }
-        if (expanded) {
-            RowDivider()
-            SettingsGroupEntries(scope.entries)
-        }
+        RowDivider()
+        SettingsGroupEntries(scope.entries)
     }
     if (footer != null) {
         Text(
