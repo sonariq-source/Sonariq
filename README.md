@@ -108,7 +108,7 @@
 - **Dynamic themes** — the UI accent follows your album artwork's colours (toggle in Settings).
 - **Liquid glass, buttery edition** — faster, smoother glass nav with a proper on/off toggle; animations stay on either way.
 - **Your logo everywhere** — the white Sonariq waveform mark replaces every leftover placeholder.
-- **Full-cover Now Playing** — the album artwork fills the whole player screen edge to edge; behind the lyrics it becomes a strong, darkened blur of the cover's own colours — processed once and cached, crossfading between tracks — across the portrait player and both landscape columns, while the landscape sleeve itself stays sharp; toggle it in Settings (on by default).
+- **Ambient Now Playing backdrop** — behind the player and the lyrics, a strong, darkened blur of the cover's own colours fills the screen — processed once and cached, crossfading between tracks; the landscape artwork card itself stays sharp; toggle it in Settings (on by default).
 
 ### Widgets & sharing
 - **Share songs** — story cards, text share and Sonariq links. Tap "Share with lyrics" to pick your favourite lines (up to 5) and share the 1080×1920 lyrics card — the same theme as the lyrics screen, everywhere. Copy link gives a Sonariq link that opens the song straight in the app.
@@ -124,7 +124,7 @@
 - **Emerald Liquid Glass design system** — deep green-black surfaces, emerald primary, bright green and mint accents, and translucent glass panels with fine light borders throughout.
 - **Recomposed layout** — an asymmetric Home led by a full-bleed spotlight with a glass caption panel, mixed-scale shelves and wide discovery bands; a card-based Library with category chips and spine-accented feature collections; eyebrow-and-title headers on every screen; and one clean sans type hierarchy, set large and tight at display sizes.
 - **Reorganised Settings** — seven clear categories (Playback & audio, Lyrics, Appearance, Library & downloads, Accounts & services, Your data & privacy, App & updates), each with its own page, on phone and desktop alike; search still finds every setting across all of them.
-- **Redesigned Now Playing** — echo-layered artwork on an ambient backdrop, a waveform seek bar whose bars are a stable fingerprint of each track, a big emerald circular play button, a glass action pill-bar, live audio visualiser, and a gently drifting animated backdrop. The caption under the player shows your phone's real model, and the lyrics screen has a one-tap share button for story cards.
+- **Redesigned Now Playing** — a clean header of artwork thumbnail, title, favourite star and menu over an ambient artwork backdrop; the player view floats blurred lyric lines behind the controls with a waveform seek bar whose bars are a stable fingerprint of each track, big transport, volume row and a bottom utility row; the lyrics view fills the screen with the playing line sharp and the lines around it softly blurred by distance, in portrait and landscape alike.
 - **Mini-player progress** — a slim progress line along the mini player card's bottom edge follows the song.
 - **Animated album canvas** — motion artwork on the now-playing screen.
 
@@ -145,7 +145,7 @@
 - **7-band EQ** with user presets and tone trims.
 - **Per-device EQ profiles** — your EQ follows the output: one setting for earbuds, another for the speaker.
 - **Mono audio mix** — downmix to mono for single-ear listening.
-- **Vocal Remover** — turn the centre channel of a stereo mix down from Now Playing to soften the lead vocal; the level is yours, and the original is one reset away.
+- **Vocal Remover** — on-device AI separation lifts the lead vocal out of a song and leaves the music intact; the slider then fades the real vocal stem from full down to gone, prepared in the background and cached per song, with a standard centre-channel mode covering songs that are not ready yet.
 - **Admin Control Center** — a one-time owner claim turns on a private control center for your installation: real listening totals and analytics from your own device, autoplay and lyrics-cache management with measured timing quality, vocal remover status, system health and storage, announcements, feature switches and a full audit log of every administrative action.
 - **EQ preset sharing** — send your sound to friends as a Sonariq link.
 - **Playback speed control** (0.5×–2.0×) and **skip silence**.
