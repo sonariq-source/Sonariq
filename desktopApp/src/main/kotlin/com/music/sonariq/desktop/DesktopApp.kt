@@ -5357,6 +5357,40 @@ private enum class DesktopSettingsSection {
 }
 
 /**
+ * The desktop settings categories: the same seven-way split the phone's
+ * settings uses, with each existing section mapped to exactly one category.
+ * Desktop has no data/privacy section of its own, so it has six.
+ */
+private enum class DesktopSettingsCategory(val title: String) {
+    PLAYBACK("Playback & audio"),
+    LYRICS("Lyrics"),
+    APPEARANCE("Appearance"),
+    LIBRARY("Library & downloads"),
+    ACCOUNTS("Accounts & services"),
+    APP("App & updates"),
+}
+
+private fun desktopCategoryOf(section: DesktopSettingsSection): DesktopSettingsCategory =
+    when (section) {
+        DesktopSettingsSection.ACCOUNT,
+        DesktopSettingsSection.LISTEN_TOGETHER,
+        DesktopSettingsSection.SOURCES -> DesktopSettingsCategory.ACCOUNTS
+        DesktopSettingsSection.AUDIO_QUALITY,
+        DesktopSettingsSection.PLAYBACK,
+        DesktopSettingsSection.DESKTOP_PLAYBACK,
+        DesktopSettingsSection.OUTPUT_PRECISION,
+        DesktopSettingsSection.AUDIO_OUTPUT -> DesktopSettingsCategory.PLAYBACK
+        DesktopSettingsSection.LYRICS -> DesktopSettingsCategory.LYRICS
+        DesktopSettingsSection.APPEARANCE -> DesktopSettingsCategory.APPEARANCE
+        DesktopSettingsSection.DOWNLOADS,
+        DesktopSettingsSection.LOCAL_MUSIC,
+        DesktopSettingsSection.STORAGE -> DesktopSettingsCategory.LIBRARY
+        DesktopSettingsSection.MISCELLANEOUS,
+        DesktopSettingsSection.LANGUAGE,
+        DesktopSettingsSection.ADVANCED -> DesktopSettingsCategory.APP
+    }
+
+/**
  * Settings as a page of inset groups, the way Android presents it, held to the width the old card
  * had so the rows do not stretch across a wide window. Its query and scroll belong to the caller,
  * so they are where they were when back returns from one of the pages it opens.
@@ -5452,6 +5486,13 @@ private fun DesktopSettingsScreen(
     DesktopSettingsPageFrame {
             Column(Modifier.fillMaxSize()) {
                 val settingsQuery = query
+                // Category navigation, mirroring the phone: no category
+                // chosen shows the index; a typed query bypasses the
+                // categories and filters every section, as before.
+                var activeDesktopCategory by remember { mutableStateOf<DesktopSettingsCategory?>(null) }
+                fun desktopSectionVisible(section: DesktopSettingsSection): Boolean =
+                    settingsQuery.isNotBlank() ||
+                        (activeDesktopCategory != null && desktopCategoryOf(section) == activeDesktopCategory)
                 Row(
                     Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -5476,8 +5517,62 @@ private fun DesktopSettingsScreen(
                     state = listState,
                     contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp),
                 ) {
+            if (settingsQuery.isBlank()) {
+                if (activeDesktopCategory == null) {
+                    item {
+                        SettingsGroup(DesktopStrings["categories", "Categories"]) {
+                            SettingsNavigationRow(
+                                DesktopSettingsCategory.PLAYBACK.title,
+                                "Audio quality, playback, output and precision",
+                                onClick = { activeDesktopCategory = DesktopSettingsCategory.PLAYBACK },
+                            )
+                            SettingsNavigationRow(
+                                DesktopSettingsCategory.LYRICS.title,
+                                "Synced lyrics and translation",
+                                onClick = { activeDesktopCategory = DesktopSettingsCategory.LYRICS },
+                            )
+                            SettingsNavigationRow(
+                                DesktopSettingsCategory.APPEARANCE.title,
+                                "Theme, accent and artwork",
+                                onClick = { activeDesktopCategory = DesktopSettingsCategory.APPEARANCE },
+                            )
+                            SettingsNavigationRow(
+                                DesktopSettingsCategory.LIBRARY.title,
+                                "Downloads, local music and storage",
+                                onClick = { activeDesktopCategory = DesktopSettingsCategory.LIBRARY },
+                            )
+                            SettingsNavigationRow(
+                                DesktopSettingsCategory.ACCOUNTS.title,
+                                "Account, sources and Listen Together",
+                                onClick = { activeDesktopCategory = DesktopSettingsCategory.ACCOUNTS },
+                            )
+                            SettingsNavigationRow(
+                                DesktopSettingsCategory.APP.title,
+                                "Language, miscellaneous and advanced",
+                                onClick = { activeDesktopCategory = DesktopSettingsCategory.APP },
+                            )
+                        }
+                    }
+                } else {
+                    item {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .desktopRowClickable { activeDesktopCategory = null }
+                                .padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "←  ${activeDesktopCategory!!.title}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    }
+                }
+            }
             DesktopSettingsSection.entries.forEach { section ->
-            if (section == DesktopSettingsSection.PLAYBACK) item {
+            if (section == DesktopSettingsSection.PLAYBACK && desktopSectionVisible(section)) item {
                     SettingsGroup(DesktopStrings["playback", "Playback"]) {
                     if (!automix) {
                         if (settingsRowVisible(DesktopStrings["crossfade", "Crossfade"])) {
@@ -5568,7 +5663,7 @@ private fun DesktopSettingsScreen(
                     )
                 }
             }
-            if (section == DesktopSettingsSection.DESKTOP_PLAYBACK) item {
+            if (section == DesktopSettingsSection.DESKTOP_PLAYBACK && desktopSectionVisible(section)) item {
                 SettingsGroup(DesktopStrings["d_desktop_playback", "Desktop playback"]) {
                     SettingsToggle(
                         DesktopStrings["autoplay", "Autoplay"],
@@ -5612,7 +5707,7 @@ private fun DesktopSettingsScreen(
                     ) { onSleepTimerCycle() }
                 }
             }
-            if (section == DesktopSettingsSection.LYRICS) item {
+            if (section == DesktopSettingsSection.LYRICS && desktopSectionVisible(section)) item {
                 SettingsGroup(DesktopStrings["open_lyrics", "Lyrics"]) {
                     SettingsToggle(
                         DesktopStrings["synced_lyrics", "Synced lyrics"],
@@ -5645,7 +5740,7 @@ private fun DesktopSettingsScreen(
                     }
                 }
             }
-            if (section == DesktopSettingsSection.LANGUAGE) item {
+            if (section == DesktopSettingsSection.LANGUAGE && desktopSectionVisible(section)) item {
                 SettingsGroup(DesktopStrings["language", "Language"]) {
                     var languageMenuOpen by remember { mutableStateOf(false) }
                     val chosen by DesktopStrings.language.collectAsState()
@@ -5674,7 +5769,7 @@ private fun DesktopSettingsScreen(
                     }
                 }
             }
-            if (section == DesktopSettingsSection.STORAGE) item {
+            if (section == DesktopSettingsSection.STORAGE && desktopSectionVisible(section)) item {
                 SettingsGroup(DesktopStrings["storage", "Storage"]) {
                     var limitMb by remember { mutableStateOf(DesktopMediaCache.limitMb()) }
                     var cleared by remember { mutableStateOf<String?>(null) }
@@ -5722,7 +5817,7 @@ private fun DesktopSettingsScreen(
                     }
                 }
             }
-            if (section == DesktopSettingsSection.LOCAL_MUSIC) item {
+            if (section == DesktopSettingsSection.LOCAL_MUSIC && desktopSectionVisible(section)) item {
                 SettingsGroup(DesktopStrings["local_music", "Local Music"]) {
                     var folderLabel by remember { mutableStateOf(DesktopLocalMusic.folderLabel()) }
                     SettingsRow(
@@ -5754,7 +5849,7 @@ private fun DesktopSettingsScreen(
                     )
                 }
             }
-            if (section == DesktopSettingsSection.APPEARANCE) item {
+            if (section == DesktopSettingsSection.APPEARANCE && desktopSectionVisible(section)) item {
                 SettingsGroup(DesktopStrings["appearance", "Appearance"]) {
                     val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
                     SettingsToggle(
@@ -5859,7 +5954,7 @@ private fun DesktopSettingsScreen(
                     }
                 }
             }
-            if (section == DesktopSettingsSection.MISCELLANEOUS) item {
+            if (section == DesktopSettingsSection.MISCELLANEOUS && desktopSectionVisible(section)) item {
                 SettingsGroup(DesktopStrings["miscellaneous", "Miscellaneous"]) {
                     SettingsToggle(
                         DesktopStrings["d_dont_repeat_songs_in_current_session", "Don\u2019t repeat songs in current session"],
@@ -5896,7 +5991,7 @@ private fun DesktopSettingsScreen(
                     )
                 }
             }
-            if (section == DesktopSettingsSection.AUDIO_QUALITY) item {
+            if (section == DesktopSettingsSection.AUDIO_QUALITY && desktopSectionVisible(section)) item {
                 SettingsGroup(DesktopStrings["audio_quality", "Audio quality"]) {
                     if (settingsRowVisible(DesktopStrings["audio_quality", "Audio quality"])) {
                     Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
@@ -5922,7 +6017,7 @@ private fun DesktopSettingsScreen(
                     }
                 }
             }
-            if (section == DesktopSettingsSection.LISTEN_TOGETHER) item {
+            if (section == DesktopSettingsSection.LISTEN_TOGETHER && desktopSectionVisible(section)) item {
                 SettingsGroup(DesktopStrings["listen_together", "Listen together"]) {
                     SettingsNavigationRow(
                         DesktopStrings["listen_together", "Listen together"],
@@ -5930,7 +6025,7 @@ private fun DesktopSettingsScreen(
                     ) { onOpenListenTogether() }
                 }
             }
-            if (section == DesktopSettingsSection.AUDIO_OUTPUT) item {
+            if (section == DesktopSettingsSection.AUDIO_OUTPUT && desktopSectionVisible(section)) item {
                 SettingsGroup(DesktopStrings["audio_output", "Audio output"]) {
                     SettingsNavigationRow(
                         DesktopStrings["pipeline_output_device", "Output device"],
@@ -5938,7 +6033,7 @@ private fun DesktopSettingsScreen(
                     ) { onOpenAudioOutput() }
                 }
             }
-            if (section == DesktopSettingsSection.OUTPUT_PRECISION) item {
+            if (section == DesktopSettingsSection.OUTPUT_PRECISION && desktopSectionVisible(section)) item {
                 SettingsGroup(DesktopStrings["d_output_precision", "Output precision"]) {
                     if (settingsRowVisible(DesktopStrings["d_output_precision", "Output precision"])) {
                     Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
@@ -5965,7 +6060,7 @@ private fun DesktopSettingsScreen(
                     }
                 }
             }
-            if (section == DesktopSettingsSection.DOWNLOADS) item {
+            if (section == DesktopSettingsSection.DOWNLOADS && desktopSectionVisible(section)) item {
                 SettingsGroup(DesktopStrings["download_channel_name", "Downloads"]) {
                     if (settingsRowVisible(DesktopStrings["download_channel_name", "Downloads"])) {
                     Row(
@@ -5984,7 +6079,7 @@ private fun DesktopSettingsScreen(
                     }
                 }
             }
-            if (section == DesktopSettingsSection.SOURCES) item {
+            if (section == DesktopSettingsSection.SOURCES && desktopSectionVisible(section)) item {
                 SettingsGroup(DesktopStrings["sources_order_header", "Sources · tried in this order"]) {
                     val sourcesHeading = DesktopStrings["sources_order_header", "Sources · tried in this order"]
                     val userAddedIds = sourceConfigs.inSourceOrder()
@@ -6028,7 +6123,7 @@ private fun DesktopSettingsScreen(
                     }
                 }
             }
-            if (section == DesktopSettingsSection.ACCOUNT) item {
+            if (section == DesktopSettingsSection.ACCOUNT && desktopSectionVisible(section)) item {
                 // One row rather than the four groups this used to be. Every
                 // integration option Android has lives behind it; inline, the
                 // list was longer than the rest of Settings put together.
@@ -6041,7 +6136,7 @@ private fun DesktopSettingsScreen(
                     )
                 }
             }
-            if (section == DesktopSettingsSection.ADVANCED) item {
+            if (section == DesktopSettingsSection.ADVANCED && desktopSectionVisible(section)) item {
                 SettingsGroup(DesktopStrings["advanced_options", "Advanced options"]) {
                     SettingsToggle(
                         DesktopStrings["show_nerd_stats", "Show stats for nerds"],
