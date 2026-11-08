@@ -106,7 +106,7 @@
 
 ### Personalisation
 - **Dynamic themes** — the UI accent follows your album artwork's colours (toggle in Settings).
-- **Liquid glass, buttery edition** — faster, smoother glass nav with a proper on/off toggle; animations stay on either way.
+- **Liquid glass** — the navigation bar and mini player are real glass over the page scrolling behind them, with a proper on/off toggle in Appearance; off, they rest as flat panels.
 - **Your logo everywhere** — the white Sonariq waveform mark replaces every leftover placeholder.
 - **Ambient Now Playing backdrop** — behind the player and the lyrics, a strong, darkened blur of the cover's own colours fills the screen — processed once and cached, crossfading between tracks; the landscape artwork card itself stays sharp; toggle it in Settings (on by default).
 
@@ -123,8 +123,8 @@
 - **Living Sound design identity** — Sonariq's own visual language: the six-bar soundline from the logo runs through the interface as header glyphs, section eyebrows and the selected-tab marker; glass comes in four material tiers (navigation, panel, playback, sheet) with a lit top edge; and hero artwork carries an "echo" — an offset, emerald-washed copy of itself layered behind the artwork for depth without blur.
 - **Emerald Liquid Glass design system** — deep green-black surfaces, emerald primary, bright green and mint accents, and translucent glass panels with fine light borders throughout.
 - **Recomposed layout** — an asymmetric Home led by a full-bleed spotlight with a glass caption panel, mixed-scale shelves and wide discovery bands; a card-based Library with category chips and spine-accented feature collections; eyebrow-and-title headers on every screen; and one clean sans type hierarchy, set large and tight at display sizes.
-- **Settings, one scroll** — every settings group on a single scrollable page again, on phone and desktop alike; search still finds every setting across all of them.
-- **Redesigned Now Playing** — a clean header of artwork thumbnail, title, favourite star and menu over an ambient artwork backdrop; the player view floats blurred lyric lines behind the controls with a waveform seek bar whose bars are a stable fingerprint of each track, big transport, volume row and a bottom utility row; the lyrics view fills the screen with the playing line sharp and the lines around it softly blurred by distance, in portrait and landscape alike. In landscape the artwork card and header share one top line, and opening the lyrics gives them the whole right column — no transport, scrubber or utility row in the way.
+- **Settings in categories** — seven categories on an index page, each opening its own page, on phone and desktop alike; search still finds every setting across all of them.
+- **Redesigned Now Playing** — a clean header of artwork thumbnail, title, favourite star and menu over an ambient artwork backdrop; the player view floats blurred lyric lines behind the controls with a waveform seek bar whose bars are a stable fingerprint of each track, big transport, volume row and a bottom utility row; the lyrics view fills the screen with the playing line sharp and the lines around it softly blurred by distance, in portrait and landscape alike. In landscape the artwork card and header share one top line, and opening the lyrics gives them the whole right column — no transport, scrubber or utility row in the way. The lyrics view is a pure reading view in both orientations: every control floating over the words stands down after a few seconds and a tap on the lyrics brings it back, and in the player view the vocal button sits clear of the lyric lines.
 - **Mini-player progress** — a slim progress line along the mini player card's bottom edge follows the song.
 - **Animated album canvas** — motion artwork on the now-playing screen.
 
