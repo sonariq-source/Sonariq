@@ -105,9 +105,11 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -343,21 +345,27 @@ private val GAP_ROW_SPACING = 16.dp
  * depth model for the whole panel, so the list, the tests and the draw code
  * can never disagree about what a line at a given distance looks like.
  *
- * Depth is carried by dimming and a slight shrink only. Every lyric
- * stays completely sharp at every distance: blur belongs to the cached
- * artwork backdrop behind the panel, never to the words in front of it.
- * The playing line is full and full size; lines already sung dim at
- * least as fast as lines still to come, while upcoming lines brighten
- * as they approach the focus. Alpha never falls below its floor (0.45
- * for lines still to come, 0.40 for lines already sung), so every line
- * in the song stays readable however far from the focus it sits, and
- * nothing fades a line out at the column's edges either.
+ * Depth is carried by dimming, a slight shrink, and — for lines away from
+ * the focus — a text blur that grows with distance, as the reference
+ * player's lyrics view does it: the playing line is large, sharp and
+ * full; lines already sung sit slightly faded with a gentle blur, while
+ * lines still to come blur progressively harder the further away they
+ * sit. The blur is capped ([MAX_BLUR_DP] ahead, less behind) so a far
+ * line still reads as text-shaped rather than dissolving, and the panel
+ * only applies it while the lyrics-blur settings allow it (see the glow
+ * gate in [LyricsPanel]: the `lyricsBlur` setting, reduced dynamic blur
+ * and reduced motion all stand it down to zero).
  *
- * Both values are continuous functions of distance: the anchors below
- * are joined by smooth interpolation, so a line travelling toward or
- * away from the focus brightens and grows without a step, and the row's
- * own handover animation carries it between evaluations on the panel's
- * one curve. Nothing here is stepped.
+ * Alpha never falls below its floor (0.45 for lines still to come, 0.40
+ * for lines already sung), so every line in the song stays present
+ * however far from the focus it sits, and nothing fades a line out at
+ * the column's edges either.
+ *
+ * All three values are continuous functions of distance: the anchors
+ * below are joined by smooth interpolation, so a line travelling toward
+ * or away from the focus brightens, grows and sharpens without a step,
+ * and the row's own handover animation carries it between evaluations
+ * on the panel's one curve. Nothing here is stepped.
  */
 internal object LyricDepth {
 
@@ -376,6 +384,29 @@ internal object LyricDepth {
     private const val UPCOMING_ALPHA_FLOOR = 0.45f
     private const val SUNG_ALPHA_FLOOR = 0.40f
 
+    /**
+     * Blur anchors by distance, in dp, upcoming lines, 0 through 5.
+     *
+     * Zero at the focus and rising steadily: the lines below the playing
+     * one are the ones the reference view blurs hardest, dissolving
+     * toward the cap so the eye stays on the line being sung.
+     */
+    private val UPCOMING_BLUR = floatArrayOf(0f, 2.5f, 5f, 7.5f, 10f, 12f)
+
+    /**
+     * Blur anchors by distance, in dp, lines already sung, 0 through 5.
+     *
+     * Gentler than the upcoming ladder: sung lines sit slightly faded
+     * rather than dissolved, so what was just sung can still be re-read.
+     */
+    private val SUNG_BLUR = floatArrayOf(0f, 1.5f, 3f, 4.5f, 6f, 7f)
+
+    /** The hardest blur any line takes, either side — see [UPCOMING_BLUR]. */
+    const val MAX_BLUR_DP = 12f
+
+    /** Where the sung side's blur settles once its anchors run out. */
+    private const val SUNG_BLUR_CAP = 7f
+
     /** Inactive lines sit this far back; the playing line is full size. */
     private const val INACTIVE_SCALE = 0.97f
 
@@ -383,6 +414,8 @@ internal object LyricDepth {
     data class Depth(
         val alpha: Float,
         val scale: Float,
+        /** Text blur radius in dp: 0 at the focus, capped with distance. */
+        val blurDp: Float,
     )
 
     private fun smooth(fraction: Float): Float = fraction * fraction * (3f - 2f * fraction)
@@ -411,10 +444,13 @@ internal object LyricDepth {
         val sung = signedDistance < 0f
         val alphaAnchors = if (sung) SUNG_ALPHA else UPCOMING_ALPHA
         val alphaFloor = if (sung) SUNG_ALPHA_FLOOR else UPCOMING_ALPHA_FLOOR
+        val blurAnchors = if (sung) SUNG_BLUR else UPCOMING_BLUR
+        val blurCap = if (sung) SUNG_BLUR_CAP else MAX_BLUR_DP
         return Depth(
             alpha = at(distance, alphaAnchors, alphaFloor),
             scale = if (distance <= 0f) 1f
             else 1f - (1f - INACTIVE_SCALE) * smooth(distance.coerceAtMost(1f)),
+            blurDp = at(distance, blurAnchors, blurCap),
         )
     }
 
@@ -1764,14 +1800,17 @@ internal fun rememberPlayerControlsOnScroll(
 }
 
 /**
- * Apple Music's lyrics view: big tight type, the playing line crisp and
- * full, and everything else dimming the further it is from it — the words
- * themselves are never blurred; the softness lives in the backdrop behind
- * the panel, and alpha carries the hierarchy here.
+ * The lyrics view: big tight type, the playing line large, crisp and
+ * full, and everything else dimming and blurring the further it is from
+ * it — dimming, shrink and the capped text blur of [LyricDepth] carry
+ * the hierarchy together, the way the reference player's lyrics view
+ * stacks its lines. The blur is a static render effect per row state,
+ * never a per-frame backdrop blur, and it stands down entirely while
+ * browsing or whenever the lyrics-blur settings say so.
  *
- * Scrolling by hand flattens the dimming and suspends the auto-follow, so
- * you can read ahead; a couple of seconds after you stop it snaps back to
- * the song.
+ * Scrolling by hand flattens the dimming and the blur and suspends the
+ * auto-follow, so you can read ahead; a couple of seconds after you stop
+ * it snaps back to the song.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -2127,12 +2166,14 @@ internal fun LyricsPanel(
             val offset = if (scrollLine < 0) 0 else index - scrollLine
             val isActive = isSynced && index in activeRows
             // One depth for the row, off the pure model — see [LyricDepth].
-            // Dimming and shrink carry the distance together, lines already
-            // sung fall faster than lines still to come, and the dimming has
-            // a floor, so a far line is quiet but still there to be read.
-            // No blur is applied to the words at any distance: sharpness is
-            // part of readability, and the only blurred artwork is the
-            // separate cached backdrop behind the panel.
+            // Dimming, shrink and blur carry the distance together, lines
+            // already sung fall faster than lines still to come, and the
+            // dimming has a floor, so a far line is quiet but still there
+            // to be read. The blur only applies while the same gate that
+            // allows the playing line's bloom is open — the lyrics-blur
+            // setting on, dynamic blur not reduced, motion not reduced —
+            // and it flattens to zero while browsing, when every line has
+            // to be readable at once.
             //
             // Position is read here as the *derived* active rows, which
             // change only when the singing crosses a line — never per
@@ -2140,6 +2181,18 @@ internal fun LyricsPanel(
             // per-frame clock is read only inside each row's own draw and
             // derived states.
             val depth = LyricDepth.forDistance(offset)
+            val rowBlur = animateFloatAsState(
+                targetValue = when {
+                    !isSynced || isActive || browsing || !glowing -> 0f
+                    else -> depth.blurDp
+                },
+                animationSpec = if (panelReducedMotion) {
+                    snap()
+                } else {
+                    tween(LYRIC_SETTLE_MS, easing = LYRIC_EASING)
+                },
+                label = "lyricBlur",
+            )
             val lineAlpha by animateFloatAsState(
                 targetValue = when {
                     !isSynced -> 0.95f
@@ -2350,6 +2403,19 @@ internal fun LyricsPanel(
                         scaleY = scale
                         transformOrigin = TransformOrigin(if (alignEnd) 1f else 0f, 0.5f)
                         alpha = lineAlpha
+                        // The depth blur, read in the layer like the rest of
+                        // the row's depth so a handover costs a redraw of
+                        // this row and nothing else. A static render effect
+                        // per row state — the radius only moves while the
+                        // row's own settle animation runs — and null (no
+                        // effect at all) at the focus, while browsing, and
+                        // whenever the blur gate above is closed.
+                        val blurPx = rowBlur.value.dp.toPx()
+                        renderEffect = if (blurPx > 0.05f) {
+                            BlurEffect(blurPx, blurPx, TileMode.Decal)
+                        } else {
+                            null
+                        }
                         // Held back against the list's own movement: the list
                         // has already taken this row part of the way, so giving
                         // back what it has not earned yet is what leaves it
@@ -2521,9 +2587,10 @@ internal fun LyricsPanel(
                         } else {
                             null
                         },
-                        // No depth modifier on the words: the lead voice
-                        // stays as sharp as the answering voice and the
-                        // translation under it, at every distance.
+                        // No per-voice depth modifier: the row's own layer
+                        // above carries the depth blur for the whole row at
+                        // once, so the lead voice, the answering voice and
+                        // the translation under it soften together.
                         modifier = Modifier.fillMaxWidth(),
                     )
                     // A line the service handed back unchanged ("falling

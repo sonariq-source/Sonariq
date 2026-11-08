@@ -1,18 +1,20 @@
 package com.music.sonariq.ui.player
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The panel's depth model: distance carried by dimming and a slight
- * shrink only. The model has no text-blur value to apply, so every line
- * stays sharp; the dimming keeps its floor (0.45 upcoming, 0.40 sung),
- * so no line ever disappears however far from the focus it sits. Lines
- * already sung fall at least as fast as lines still to come, and
- * upcoming lines brighten as they approach the focus. The model is a
- * continuous function of distance, not a step table.
+ * The panel's depth model: distance carried by dimming, a slight shrink
+ * and a capped text blur. The playing line itself is sharp — blur is 0
+ * at distance 0 — and the blur grows with distance on both sides,
+ * harder ahead of the focus than behind it, capped so a far line still
+ * reads as text-shaped (12dp upcoming, 7dp sung). The dimming keeps
+ * its floor (0.45 upcoming, 0.40 sung), so no line ever disappears
+ * however far from the focus it sits. Lines already sung fall at least
+ * as fast as lines still to come, and upcoming lines brighten as they
+ * approach the focus. The model is a continuous function of distance,
+ * not a step table.
  */
 class LyricDepthTest {
 
@@ -21,21 +23,98 @@ class LyricDepthTest {
         val depth = LyricDepth.forDistance(0)
         assertEquals(1f, depth.alpha, 0f)
         assertEquals(1f, depth.scale, 0f)
+        assertEquals(0f, depth.blurDp, 0f)
     }
 
     @Test
-    fun `the depth model carries no lyric text blur`() {
+    fun `the depth model carries a blur that is zero at the focus`() {
         val fieldNames = LyricDepth.Depth::class.java.declaredFields.map { it.name }
-        assertFalse(
-            "lyric depth fields must not carry blur: $fieldNames",
+        assertTrue(
+            "lyric depth fields must carry blur: $fieldNames",
             fieldNames.any { it.contains("blur", ignoreCase = true) },
         )
-        // Sharpness does not vary with distance either side of the focus:
-        // distance changes only how bright and how large a line is.
+        // Sharp only at the focus itself: any distance either side takes
+        // some blur, and it never exceeds the caps.
+        assertEquals(0f, LyricDepth.forDistance(0).blurDp, 0f)
         for (distance in -60..60) {
             val depth = LyricDepth.forDistance(distance)
             assertTrue("alpha at $distance", depth.alpha in 0.40f..1f)
             assertTrue("scale at $distance", depth.scale in 0.97f..1f)
+            assertTrue(
+                "blur at $distance",
+                depth.blurDp in 0f..LyricDepth.MAX_BLUR_DP,
+            )
+            if (distance != 0) {
+                assertTrue("blur at $distance", depth.blurDp > 0f)
+            }
+        }
+    }
+
+    @Test
+    fun `blur anchors follow their ladders`() {
+        // Upcoming lines blur progressively harder with distance; sung
+        // lines take the gentler ladder.
+        val upcoming = listOf(0f, 2.5f, 5f, 7.5f, 10f, 12f)
+        val sung = listOf(0f, 1.5f, 3f, 4.5f, 6f, 7f)
+        for (distance in upcoming.indices) {
+            assertEquals(
+                "upcoming blur at $distance",
+                upcoming[distance],
+                LyricDepth.forDistance(distance).blurDp,
+                0.0001f,
+            )
+            assertEquals(
+                "sung blur at $distance",
+                sung[distance],
+                LyricDepth.forDistance(-distance).blurDp,
+                0.0001f,
+            )
+        }
+    }
+
+    @Test
+    fun `blur increases with distance and is capped`() {
+        // Monotonic on both sides, never past the cap, and settled at
+        // the cap once the anchors run out — a line forty rows off is
+        // blurred exactly like one at the cap, not more.
+        for (side in listOf(1, -1)) {
+            var previous = -1f
+            for (distance in 0..12) {
+                val blur = LyricDepth.forDistance(side * distance).blurDp
+                assertTrue("blur at $distance", blur >= previous)
+                previous = blur
+            }
+        }
+        assertEquals(LyricDepth.MAX_BLUR_DP, LyricDepth.forDistance(40).blurDp, 0f)
+        assertEquals(LyricDepth.MAX_BLUR_DP, LyricDepth.forDistance(6).blurDp, 0f)
+        assertEquals(7f, LyricDepth.forDistance(-40).blurDp, 0f)
+        assertEquals(7f, LyricDepth.forDistance(-6).blurDp, 0f)
+        // Ahead of the focus blurs at least as hard as behind it.
+        for (distance in 1..8) {
+            assertTrue(
+                "upcoming blur at $distance",
+                LyricDepth.forDistance(distance).blurDp >=
+                    LyricDepth.forDistance(-distance).blurDp,
+            )
+        }
+    }
+
+    @Test
+    fun `blur is continuous between anchors, not stepped`() {
+        val halfUp = LyricDepth.forSignedDistance(0.5f)
+        assertTrue(halfUp.blurDp > 0f && halfUp.blurDp < 2.5f)
+        val halfSung = LyricDepth.forSignedDistance(-0.5f)
+        assertTrue(halfSung.blurDp > 0f && halfSung.blurDp < 1.5f)
+        // Fine steps never jump and never reverse, either side.
+        for (side in listOf(1f, -1f)) {
+            var previousBlur = -1f
+            var d = 0f
+            while (d <= 6.001f) {
+                val blur = LyricDepth.forSignedDistance(side * d).blurDp
+                assertTrue("blur at $d", blur >= previousBlur)
+                previousBlur = blur
+                d += 0.05f
+            }
         }
     }
 

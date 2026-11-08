@@ -80,12 +80,12 @@ import com.music.sonariq.data.model.Song
 private val LANDSCAPE_PLAYER_MAX_WIDTH = 1100.dp
 
 /**
- * The two columns' shares of that width: the player keeps 48%, and the
- * content column — lyrics most of the time — gets the wider 52%, so long
- * lines have the room they need without squeezing the sleeve.
+ * The two columns' shares of that width in the rebuilt landscape player:
+ * the artwork card keeps 42% — the reference's left card — and the
+ * content column gets the wider 58% for its header, lyrics and controls.
  */
-private const val LANDSCAPE_PLAYER_COLUMN_WEIGHT = 0.48f
-private const val LANDSCAPE_CONTENT_COLUMN_WEIGHT = 0.52f
+private const val LANDSCAPE_ARTWORK_COLUMN_WEIGHT = 0.42f
+private const val LANDSCAPE_CONTENT_COLUMN_WEIGHT = 0.58f
 
 /**
  * Below this height the landscape player tightens its right column — smaller
@@ -126,36 +126,35 @@ private val LANDSCAPE_HANDLE_STRIP = 24.dp
  * The player in a landscape window — a tablet, or a phone on its side. See
  * [landscapePlayerAvailable].
  *
- * Two columns, 48% player to 52% content. The left one is the same in
- * every state: the sleeve, and under it the lyrics / output / queue row
- * with the output name — the controls for *which* of the three the right
- * column shows. The right one
- * is that one thing: the credits and transport, the lyric sheet or the queue.
- * Nothing else is drawn twice and nothing moves between columns, so opening
- * the lyrics or the queue is only ever the right column's page being turned.
+ * The rebuilt arrangement, following the reference's landscape shot: a
+ * big artwork card with rounded corners and a soft shadow occupies the
+ * left 42% of the width, and the right column carries the rest — the
+ * shared header at its top, the lyrics (or the queue, or the ambient
+ * lyric lines) filling its middle, and the scrubber / transport /
+ * volume / utility block grouped at its bottom.
  *
- * Purely the arrangement. Every slot is built by [NowPlayingScreen], which is
- * where the state behind all of them lives — the same state the portrait
- * player reads, so rotating mid-song carries the open panel, the scrub and the
- * translation mode straight across.
+ * Purely the arrangement. Every slot is built by [NowPlayingScreen],
+ * which is where the state behind all of them lives — the same state
+ * the portrait player reads, so rotating mid-song carries the open
+ * panel, the scrub and the translation mode straight across.
  *
- * Held to [LANDSCAPE_PLAYER_MAX_WIDTH] and centred, inside the safe-drawing
- * insets: a phone on its side has its status bar, navigation bar and camera
- * cutout down the short edges, and the player's content keeps clear of all
- * three while its backdrop still runs underneath them.
+ * Held to [LANDSCAPE_PLAYER_MAX_WIDTH] and centred, inside the
+ * safe-drawing insets: a phone on its side has its status bar,
+ * navigation bar and camera cutout down the short edges, and the
+ * player's content keeps clear of all three while its backdrop still
+ * runs underneath them.
  */
 @Composable
 internal fun LandscapePlayerLayout(
-    pane: PlayerPane,
     background: @Composable (Modifier) -> Unit,
-    /** The sleeve; handed a modifier that already fixes its square size. */
+    /** The artwork card; handed a modifier that already fixes its square size. */
     artwork: @Composable (Modifier) -> Unit,
-    /** The row under the sleeve, emitted into its column. */
-    actions: @Composable () -> Unit,
-    /** Credits and transport. [compact] is a phone-height window. */
-    mainPane: @Composable (compact: Boolean) -> Unit,
-    lyricsPane: @Composable () -> Unit,
-    queuePane: @Composable () -> Unit,
+    /** The shared header, at the top of the right column. */
+    header: @Composable () -> Unit,
+    /** Lyrics, queue or ambient lines — the right column's middle. */
+    middle: @Composable () -> Unit,
+    /** Scrubber, transport, volume and utility. [compact] is a phone-height window. */
+    bottom: @Composable (compact: Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -179,75 +178,35 @@ internal fun LandscapePlayerLayout(
                         bottom = if (compact) 8.dp else 20.dp,
                     ),
             ) {
-                Column(
+                // The artwork card: square, taking whichever of the two
+                // axes runs out first in its 42% column.
+                BoxWithConstraints(
                     modifier = Modifier
-                        .weight(LANDSCAPE_PLAYER_COLUMN_WEIGHT)
+                        .weight(LANDSCAPE_ARTWORK_COLUMN_WEIGHT)
                         .fillMaxHeight()
                         .padding(horizontal = gutter),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                    contentAlignment = Alignment.Center,
                 ) {
-                    // The sleeve is square and takes whichever of the two axes
-                    // runs out first once the row below has had its height —
-                    // the column's width on a big tablet, the height on
-                    // anything shorter. Measured here rather than estimated,
-                    // so the row under it can never be pushed off the bottom.
-                    BoxWithConstraints(
+                    artwork(Modifier.size(minOf(maxWidth, maxHeight)))
+                }
+
+                Column(
+                    modifier = Modifier
+                        .weight(LANDSCAPE_CONTENT_COLUMN_WEIGHT)
+                        .fillMaxHeight()
+                        .padding(end = gutter),
+                ) {
+                    header()
+                    Spacer(Modifier.height(if (compact) 8.dp else 16.dp))
+                    Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
                     ) {
-                        artwork(Modifier.size(minOf(maxWidth, maxHeight)))
+                        middle()
                     }
-                    Spacer(Modifier.height(if (compact) 12.dp else 24.dp))
-                    actions()
-                }
-
-                AnimatedContent(
-                    targetState = pane,
-                    transitionSpec = {
-                        fadeIn(
-                            tween(
-                                LANDSCAPE_PANE_FADE_IN_MS,
-                                delayMillis = LANDSCAPE_PANE_FADE_IN_DELAY_MS,
-                            ),
-                        ) togetherWith fadeOut(tween(LANDSCAPE_PANE_FADE_OUT_MS))
-                    },
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .weight(LANDSCAPE_CONTENT_COLUMN_WEIGHT)
-                        .fillMaxHeight(),
-                    label = "landscapePane",
-                ) { shown ->
-                    when (shown) {
-                        PlayerPane.Main -> Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = gutter),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            mainPane(compact)
-                        }
-                        // The lyric sheet and the queue both reach back across
-                        // [PLAYER_GUTTER] on their own (see
-                        // [bleedHorizontally]), so that is the padding they
-                        // get: their scroll areas then run exactly to the
-                        // column's edges.
-                        PlayerPane.Lyrics -> Box(
-                            Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = PLAYER_GUTTER),
-                        ) {
-                            lyricsPane()
-                        }
-                        PlayerPane.Queue -> Box(
-                            Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = PLAYER_GUTTER),
-                        ) {
-                            queuePane()
-                        }
-                    }
+                    Spacer(Modifier.height(if (compact) 4.dp else 10.dp))
+                    bottom(compact)
                 }
             }
 
@@ -302,37 +261,10 @@ internal fun LandscapeArtwork(
 ) {
     val casts = artLoaded || canvasRendered
     Box(modifier = modifier) {
-        // The echo: an offset, faded duplicate of the still cover behind the
-        // sleeve, the portrait player's Living Sound treatment carried across.
-        // Still art only — the clip, when there is one, plays in front of it
-        // exactly as it plays in front of the cover itself.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .offset(x = GlassTokens.echoOffset, y = GlassTokens.echoOffset)
-                .graphicsLayer {
-                    scaleX = 0.97f
-                    scaleY = 0.97f
-                    alpha = 0.38f
-                    // Asked in the layer, as the sleeve's own shape is: a
-                    // docking player can move it without recomposing.
-                    shape = sleeveShape()
-                    clip = true
-                }
-                .background(GlassTokens.panelGlass),
-        ) {
-            AsyncImage(
-                model = artRequest,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(GlassTokens.accent.copy(alpha = 0.22f)),
-            )
-        }
+        // The rebuilt card carries no echo treatment: one clean card with
+        // rounded corners and a soft shadow, as in the reference's
+        // landscape shot. The still cover, and over it the looping clip
+        // when there is one, fill the card itself.
         Box(
             modifier = Modifier
                 .fillMaxSize()
