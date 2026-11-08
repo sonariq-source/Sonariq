@@ -139,9 +139,9 @@ private val LANDSCAPE_HANDLE_STRIP = 24.dp
  * thumbnail, the card already being on screen), and a compact control
  * cluster under that: the vocal button, the scrubber, the transport,
  * the volume and utility rows and the output caption, all sized to the
- * column. The right 58% is the lyrics alone, top to bottom — ambient
- * lines in the player pane, the full panel in the lyrics pane, the
- * queue in its own — with no header over them any more.
+ * column. The right 58% is the lyrics alone, top to bottom — the
+ * full panel in both the player and lyrics panes, the queue in its
+ * own — with no header over them any more.
  *
  * The artwork gives way first: the name block and the cluster are
  * measured at their full height and the card takes whatever height is
@@ -174,7 +174,7 @@ internal fun LandscapePlayerLayout(
      * card in its column. [compact] is a phone-height window.
      */
     belowArtwork: @Composable (compact: Boolean) -> Unit,
-    /** Lyrics, queue or ambient lines — the whole right column. */
+    /** Lyrics or queue — the whole right column. */
     middle: @Composable () -> Unit,
     /**
      * Whether the under-artwork stack is composed at all. False only
@@ -233,7 +233,7 @@ internal fun LandscapePlayerLayout(
                 }
 
                 // The right column is the words alone now, clipped to
-                // its bounds so ambient lines in a short window yield —
+                // its bounds so the sheet in a short window yields —
                 // cut off — rather than painting past the column.
                 Box(
                     modifier = Modifier
@@ -503,12 +503,15 @@ internal fun LandscapeCredits(
 
 /**
  * The landscape player's right column with the lyrics open: the sheet, and
- * under it the romanize / source / translate bar.
+ * under it the status / translate bar.
  *
- * The bar is where the portrait player's status line and its two floating
+ * The bar is where the portrait player's status line and its floating
  * toggles went. There the line sits over the scrubber and the toggles float
- * over the foot of the words; here there is no scrubber beside the lyrics, and
- * the bar gives all three a place of their own that costs the sheet no lines.
+ * over the foot of the words; here there is no scrubber beside the lyrics,
+ * and the bar gives them a place of their own that costs the sheet no
+ * lines. The romanization toggle is the caller's choice: the standalone
+ * side panel passes one, the landscape player itself passes none — its
+ * left slot stays empty so the status line keeps its centre.
  */
 @Composable
 internal fun LandscapeLyricsPane(
@@ -530,7 +533,8 @@ internal fun LandscapeLyricsPane(
     controlsOpen: Boolean = true,
     /** The pick bar itself, drawn in place of the row below. */
     pickBar: @Composable () -> Unit = {},
-    romanizationToggle: @Composable () -> Unit,
+    /** Drawn in the bar's left slot when given; null leaves the slot empty. */
+    romanizationToggle: @Composable (() -> Unit)? = null,
     translationToggle: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     panel: @Composable (Modifier) -> Unit,
@@ -577,7 +581,7 @@ internal fun LandscapeLyricsPane(
         ) {
             // Fixed slots either side whether or not the toggles are drawn, so
             // the status line stays centred as lyrics arrive.
-            Box(Modifier.size(34.dp)) { if (hasLyrics) romanizationToggle() }
+            Box(Modifier.size(34.dp)) { if (hasLyrics) romanizationToggle?.invoke() }
             Box(
                 modifier = Modifier
                     .weight(1f)

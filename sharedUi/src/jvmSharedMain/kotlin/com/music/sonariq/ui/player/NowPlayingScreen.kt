@@ -1239,6 +1239,72 @@ fun NowPlayingScreen(
     // ---- Landscape: artwork, name and controls left; lyrics right ----
     if (landscapePlayerAvailable(windowWidth, windowHeight)) {
         val panelOpen = lyricsOpen || queueOpen
+        // The full lyric sheet stands in the right column in BOTH landscape
+        // modes — the words are all there before anyone presses the lyrics
+        // button, and pressing it only folds the left column's chrome away.
+        // The sheet's own floating pills and its romanization toggle are
+        // not part of this sheet: the pills would sit over the first line,
+        // and the toggle's setting lives on in the portrait panel.
+        val landscapeLyricsPane: @Composable () -> Unit = {
+            LandscapeLyricsPane(
+                hasLyrics = lyricsTranslation.displayedLyrics.isNotEmpty(),
+                placeholder = if (lyricsUnavailable) {
+                    stringResource(Res.string.lyrics_not_available)
+                } else {
+                    lyricsLoadingText
+                },
+                status = lyricsTranslation.status,
+                onStatusClick = {},
+                lines = lyricsTranslation.displayedLyrics,
+                picking = lyricPicker.picking,
+                controlsOpen = lyricsControlsOpen,
+                pickBar = {
+                    LyricsPickBar(
+                        shareEnabled = lyricPicker.picks.isNotEmpty() &&
+                            !lyricPicker.overBudget,
+                        onCancel = lyricPicker.cancel,
+                        onShare = lyricPicker.share,
+                        onCopy = copyPickedLyrics,
+                    )
+                },
+                translationToggle = {
+                    TranslationToggleButton(
+                        state = lyricsTranslation.translationState,
+                        showingTranslation = lyricsTranslation.showingTranslation,
+                        enabled = !lyrics.isNullOrEmpty(),
+                        onClick = lyricsTranslation.toggleTranslation,
+                    )
+                },
+                panel = { panelModifier ->
+                    LyricsTranslationMotion(
+                        trigger = lyricsTranslation.transition,
+                        reduceMotion = lyricsTranslation.reduceMotion,
+                        modifier = panelModifier,
+                    ) { particleProgress ->
+                        LyricsPanel(
+                            lines = lyrics.orEmpty(),
+                            subLines = lyricsTranslation.subLines,
+                            trackKey = song.videoId,
+                            playhead = lyricsPlayhead,
+                            looking = !lyricsUnavailable,
+                            isPlaying = isPlaying && position.advancing,
+                            onSeekToLine = seekToLyric,
+                            controlsOpen = lyricsControlsOpen,
+                            onRevealControls = { lyricsControlsOpen = true },
+                            onHideControls = { lyricsControlsOpen = false },
+                            translationProgress = particleProgress,
+                            canPick = lyricsShareEnabled,
+                            picking = lyricPicker.picking,
+                            picked = lyricPicker.picks,
+                            onPickLine = lyricPicker.pick,
+                            onTogglePick = lyricPicker.toggle,
+                            chromePills = false,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                },
+            )
+        }
         Box(
             modifier = modifier
                 .fillMaxSize()
@@ -1293,73 +1359,7 @@ fun NowPlayingScreen(
                 middle = {
                     when {
                         queueOpen -> queueContent(false)
-                        lyricsOpen -> {
-                            LandscapeLyricsPane(
-                                hasLyrics = lyricsTranslation.displayedLyrics.isNotEmpty(),
-                                placeholder = if (lyricsUnavailable) {
-                                    stringResource(Res.string.lyrics_not_available)
-                                } else {
-                                    lyricsLoadingText
-                                },
-                                status = lyricsTranslation.status,
-                                onStatusClick = {},
-                                lines = lyricsTranslation.displayedLyrics,
-                                picking = lyricPicker.picking,
-                                controlsOpen = lyricsControlsOpen,
-                                pickBar = {
-                                    LyricsPickBar(
-                                        shareEnabled = lyricPicker.picks.isNotEmpty() &&
-                                            !lyricPicker.overBudget,
-                                        onCancel = lyricPicker.cancel,
-                                        onShare = lyricPicker.share,
-                                        onCopy = copyPickedLyrics,
-                                    )
-                                },
-                                romanizationToggle = {
-                                    RomanizationToggleButton(
-                                        state = lyricsTranslation.romanizationState,
-                                        showingRomanization = lyricsTranslation.showingRomanization,
-                                        enabled = !lyrics.isNullOrEmpty(),
-                                        onClick = lyricsTranslation.toggleRomanization,
-                                    )
-                                },
-                                translationToggle = {
-                                    TranslationToggleButton(
-                                        state = lyricsTranslation.translationState,
-                                        showingTranslation = lyricsTranslation.showingTranslation,
-                                        enabled = !lyrics.isNullOrEmpty(),
-                                        onClick = lyricsTranslation.toggleTranslation,
-                                    )
-                                },
-                                panel = { panelModifier ->
-                                    LyricsTranslationMotion(
-                                        trigger = lyricsTranslation.transition,
-                                        reduceMotion = lyricsTranslation.reduceMotion,
-                                        modifier = panelModifier,
-                                    ) { particleProgress ->
-                                        LyricsPanel(
-                                            lines = lyrics.orEmpty(),
-                                            subLines = lyricsTranslation.subLines,
-                                            trackKey = song.videoId,
-                                            playhead = lyricsPlayhead,
-                                            looking = !lyricsUnavailable,
-                                            isPlaying = isPlaying && position.advancing,
-                                            onSeekToLine = seekToLyric,
-                                            controlsOpen = lyricsControlsOpen,
-                                            onRevealControls = { lyricsControlsOpen = true },
-                                            onHideControls = { lyricsControlsOpen = false },
-                                            translationProgress = particleProgress,
-                                            canPick = lyricsShareEnabled,
-                                            picking = lyricPicker.picking,
-                                            picked = lyricPicker.picks,
-                                            onPickLine = lyricPicker.pick,
-                                            onTogglePick = lyricPicker.toggle,
-                                            modifier = Modifier.fillMaxSize(),
-                                        )
-                                    }
-                                },
-                            )
-                        }
+                        lyricsOpen -> landscapeLyricsPane()
                         else -> {
                             Box(Modifier.fillMaxSize()) {
                                 if (visualizerShown && visualizerCanRun) {
@@ -1368,20 +1368,10 @@ fun NowPlayingScreen(
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 } else {
-                                    AmbientLyricLines(
-                                        lines = lyricsTranslation.displayedLyrics,
-                                        playhead = lyricsPlayhead,
-                                        loadingText = lyricsLoadingText,
-                                        lyricsUnavailable = lyricsUnavailable,
-                                        blurEnabled = ambientBlurEnabled,
-                                        // The whole column is the words'
-                                        // now — no button shares this area
-                                        // any more, so no end reserve is
-                                        // held out of the lines' width.
-                                        modifier = Modifier
-                                            .align(Alignment.TopStart)
-                                            .fillMaxWidth(),
-                                    )
+                                    // The whole sheet, not a preview of
+                                    // its first lines: every word is on
+                                    // the column from the first frame.
+                                    landscapeLyricsPane()
                                 }
                                 if (swipeHintShown) {
                                     Icon(

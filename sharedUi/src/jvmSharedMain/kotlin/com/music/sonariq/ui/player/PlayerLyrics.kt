@@ -1846,6 +1846,13 @@ internal fun LyricsPanel(
     onPickLine: (Int) -> Unit = {},
     /** Tap while picking: add or drop that line. */
     onTogglePick: (Int) -> Unit = {},
+    /**
+     * Whether the floating search and appearance pills are composed over
+     * the panel's top corners. The landscape player passes false: its sheet
+     * has no room for them over the first line, and both stay reachable in
+     * the portrait panel and in Settings.
+     */
+    chromePills: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val panelPlaying = isPlaying && active
@@ -2721,8 +2728,9 @@ internal fun LyricsPanel(
 
     // The floating in-lyrics search, top-end over the lines. Hidden while
     // picking: the pick bar owns the panel's chrome then, and a search that
-    // jumped the scroll would fight the choosing.
-    if (!picking && (controlsOpen || searchOpen)) {
+    // jumped the scroll would fight the choosing. Never composed at all
+    // where the caller stands the pills down (see [chromePills]).
+    if (chromePills && !picking && (controlsOpen || searchOpen)) {
         LyricsSearchOverlay(
             open = searchOpen,
             onOpenChange = { open ->
@@ -2751,7 +2759,9 @@ internal fun LyricsPanel(
 
     // The appearance menu, top-start to balance the search pill: the same
     // lyrics settings Settings carries, reachable without leaving the song.
-    if (!picking && (controlsOpen || appearanceExpanded)) {
+    // Never composed at all where the caller stands the pills down (see
+    // [chromePills]).
+    if (chromePills && !picking && (controlsOpen || appearanceExpanded)) {
         LyricsAppearanceOverlay(
             expanded = appearanceExpanded,
             onExpandedChange = { appearanceExpanded = it },
