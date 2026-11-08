@@ -368,7 +368,6 @@ object StemJobs {
         val separator = MdxSeparator(
             modelFile = model,
             inferenceThreads = { AppSettings.automixPerformanceMode.value.inferenceThreads },
-            configureOptions = nnapiHook,
         )
         return try {
             separator.separate(
@@ -488,36 +487,6 @@ object StemJobs {
             }
         }
         return file.absolutePath
-    }
-
-    /**
-     * An attempt at NNAPI acceleration for the MDX session, resolved by
-     * reflection: `addNnapi` exists on the Android ONNX Runtime artifact
-     * but not on the JVM artifact this module also compiles against in
-     * tests, and a hard reference would break the latter. Any failure —
-     * no such method, the provider refusing the device — is swallowed
-     * here and again by [MdxSeparator], which treats a throwing hook as
-     * "continue on CPU". Accelerated inference is an optimisation, never
-     * a requirement.
-     */
-    private val nnapiHook: (ai.onnxruntime.OrtSession.SessionOptions) -> Unit = { options ->
-        runCatching {
-            val methods = options.javaClass.methods.filter { it.name == "addNnapi" }
-            val noArg = methods.firstOrNull { it.parameterCount == 0 }
-            if (noArg != null) {
-                noArg.invoke(options)
-            } else {
-                val withFlags = methods.firstOrNull { it.parameterCount == 1 }
-                val flagsClass = runCatching {
-                    Class.forName("ai.onnxruntime.providers.NNAPIFlags")
-                }.getOrNull()
-                if (withFlags != null && flagsClass != null && flagsClass.isEnum) {
-                    @Suppress("UNCHECKED_CAST")
-                    val empty = java.util.EnumSet.noneOf(flagsClass as Class<out Enum<*>>)
-                    withFlags.invoke(options, empty)
-                }
-            }
-        }
     }
 
     /** The background gates, mirroring AiWordSync's: the Wi-Fi-only switch plus a metered check. */

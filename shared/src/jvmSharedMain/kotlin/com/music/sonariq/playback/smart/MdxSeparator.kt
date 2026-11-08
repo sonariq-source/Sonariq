@@ -158,13 +158,6 @@ class MdxSeparator(
     private val modelFile: File,
     /** How many threads inference may use; separation is the most expensive pass in the app. */
     private val inferenceThreads: () -> Int,
-    /**
-     * Platform hook applied to the session options after the shared configuration, so a caller
-     * can attempt a platform accelerator (for example an Android NNAPI attempt) without this
-     * module knowing the platform exists. A hook that throws is ignored — accelerated inference
-     * is an optimisation, never a requirement.
-     */
-    private val configureOptions: (OrtSession.SessionOptions) -> Unit = {},
 ) {
 
     @Volatile private var session: OrtSession? = null
@@ -191,8 +184,6 @@ class MdxSeparator(
                     setCPUArenaAllocator(false)
                     setMemoryPatternOptimization(false)
                 }
-                runCatching { configureOptions(options) }
-                    .onFailure { AnalysisLog.warn("MDX session option hook failed; continuing without it", it) }
                 OrtEnvironment.getEnvironment().createSession(modelFile.absolutePath, options)
                     .also {
                         session = it
