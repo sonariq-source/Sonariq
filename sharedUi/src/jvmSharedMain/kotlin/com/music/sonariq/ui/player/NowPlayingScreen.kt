@@ -69,9 +69,7 @@ import com.music.sonariq.data.model.LikeStatus
 import com.music.sonariq.data.model.PLAYER_ART_PX
 import com.music.sonariq.data.model.PlaybackSourceType
 import com.music.sonariq.data.model.Song
-import com.music.sonariq.data.settings.DEFAULT_VOCAL_LEVEL
 import com.music.sonariq.data.settings.LastPlayerScreen
-import com.music.sonariq.data.settings.PlayerSettings
 import com.music.sonariq.playback.BACK_RESTARTS_AFTER_MS
 import com.music.sonariq.playback.PlaybackPosition
 import com.music.sonariq.sharedui.resources.*
