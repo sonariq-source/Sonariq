@@ -116,6 +116,10 @@ class SonariqApplication : Application(), SingletonImageLoader.Factory {
         // AI word sync's context, held the same way: its triggers include
         // callers with no context of their own to pass.
         com.music.sonariq.download.AiWordSync.init(this)
+        // The Vocal Remover's AI stem jobs, with the same held context —
+        // and, inside it, the stem store and the downloadable pro model,
+        // whose state the Settings storage rows and the vocal sheet read.
+        com.music.sonariq.vocal.StemJobs.init(this)
         // Massive update integrations: persisted state each subsystem owns,
         // read once before anything else needs it; the download schedulers
         // only arm when their switch is on.

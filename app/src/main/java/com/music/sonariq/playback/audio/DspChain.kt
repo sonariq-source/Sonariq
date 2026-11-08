@@ -10,13 +10,21 @@ import com.music.sonariq.playback.TransitionFilterProcessor
 /**
  * Composite DSP chain executing Sonariq's custom audio processors in their canonical sequence:
  *
- * AudioBlock(Float32) -> VocalRemoverProcessor -> SpatialAudioProcessor
+ * AudioBlock(Float32) -> AiStemProcessor -> VocalRemoverProcessor -> SpatialAudioProcessor
  *   -> EqualizerProcessor -> MonoMixProcessor -> TransitionFilterProcessor
  *   -> LoudnessProcessor -> AudioBlock(Float32)
  *
- * The vocal remover runs first, on the untouched stereo image: widening
- * would move centre content into the sides before it could be scaled, and
- * the mono fold would destroy the side signal it recombines from.
+ * The AI stem stage runs first of all, ahead of even the vocal remover: it
+ * works from a pre-separated instrumental stem, and every other stage would
+ * only move the mix away from the one the stem was separated from. While a
+ * stem is engaged the service parks the vocal remover at unity (the stem
+ * stage *is* the vocal control then); without a stem the stem stage is
+ * bit-transparent and the vocal remover runs as it always has.
+ *
+ * The vocal remover runs before the spatial stage, on the untouched stereo
+ * image: widening would move centre content into the sides before it could
+ * be scaled, and the mono fold would destroy the side signal it recombines
+ * from.
  *
  * Operates purely on in-place Float32 audio blocks without intermediate fixed-point quantization,
  * preserving full dynamic range and headroom.
@@ -41,6 +49,7 @@ class DspChain(
     val loudness: LoudnessProcessor = LoudnessProcessor(),
     val mono: MonoMixProcessor = MonoMixProcessor(),
     val vocal: VocalRemoverProcessor = VocalRemoverProcessor(),
+    val stem: AiStemProcessor = AiStemProcessor(),
 ) : FloatAudioProcessor {
 
     private var currentSampleRate: Int = 0
@@ -48,6 +57,7 @@ class DspChain(
 
     override fun configure(sampleRate: Int, channelCount: Int) {
         this.currentSampleRate = sampleRate
+        stem.configure(sampleRate, channelCount)
         vocal.configure(sampleRate, channelCount)
         spatial.configure(sampleRate, channelCount)
         equalizer.configure(sampleRate, channelCount)
@@ -59,6 +69,17 @@ class DspChain(
     /** A new track has begun gaplessly on this sink; see [LoudnessProcessor.onStreamBoundary]. */
     fun onStreamBoundary() {
         loudness.onStreamBoundary()
+    }
+
+    /**
+     * The same gapless boundary, for the stem stage: a stem queued with
+     * [AiStemProcessor.queueStemFile] becomes the open one and its position
+     * restarts at the incoming track's head — see [AiStemProcessor.onStreamBoundary].
+     * Kept as its own entry point next to [onStreamBoundary] so the sink can
+     * fire both at the one moment it knows the boundary sample.
+     */
+    fun onStemStreamBoundary() {
+        stem.onStreamBoundary()
     }
 
     override fun process(block: AudioBlock) {
@@ -84,6 +105,7 @@ class DspChain(
             }
         }
 
+        stem.process(block)
         vocal.process(block)
         spatial.process(block)
         equalizer.process(block)
@@ -94,6 +116,7 @@ class DspChain(
 
     @Suppress("DEPRECATION")
     override fun flush() {
+        stem.flush()
         vocal.flush()
         spatial.flush()
         equalizer.flush()
@@ -104,6 +127,7 @@ class DspChain(
 
     override fun reset() {
         processCounter = 0L
+        stem.reset()
         vocal.reset()
         spatial.reset()
         equalizer.reset()

@@ -23,6 +23,12 @@ import com.music.sonariq.data.settings.LastPlayerScreen
 import com.music.sonariq.playback.AudioOutputStatus
 import com.music.sonariq.playback.AudioRouting
 import com.music.sonariq.playback.VisualizerController
+import com.music.sonariq.vocal.MdxModelManager
+import com.music.sonariq.vocal.StemCurrentTrack
+import com.music.sonariq.vocal.StemJobs
+import com.music.sonariq.vocal.StemState
+import com.music.sonariq.vocal.StemStore
+import com.music.sonariq.vocal.StemTier
 import com.music.sonariq.playback.cast.CastController
 import com.music.sonariq.util.DeviceInfo
 import dev.chrisbanes.haze.HazeState
@@ -35,6 +41,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.stateIn
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -108,6 +115,70 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         override fun setLyricsReducedMotion(value: Boolean) =
             AppSettings.setLyricsReducedMotion(value)
         override fun setVocalLevel(value: Float) = AppSettings.setVocalLevel(value)
+
+        /**
+         * The vocal sheet's status, derived from the three facts that
+         * decide it: the model manager's state, the stem store's state
+         * for the track the service says is current, and the tier that
+         * track actually has on disk (the store is the authority — a
+         * stem restored from a previous session is Ready before any job
+         * this session has mentioned it). Order matters: a stem in hand
+         * outranks a preparation, which outranks the model's own news.
+         */
+        override val vocalAiStatus: StateFlow<VocalAiStatus> by lazy {
+            combine(
+                MdxModelManager.state,
+                StemStore.states,
+                StemCurrentTrack.current,
+            ) { model, states, current ->
+                val key = current?.key
+                val tier = key?.let { StemStore.tierOf(it) }
+                val preparing = key?.let { states[it] as? StemState.Preparing }
+                val modelAbsent = model is MdxModelManager.ModelState.Absent ||
+                    model is MdxModelManager.ModelState.Failed
+                when {
+                    tier != null -> VocalAiStatus(
+                        stage = VocalAiStatus.Stage.AI_READY,
+                        highQuality = tier == StemTier.MDX,
+                        modelAbsent = modelAbsent,
+                    )
+                    preparing != null -> VocalAiStatus(
+                        stage = VocalAiStatus.Stage.PREPARING,
+                        progress = preparing.progress,
+                        highQuality = preparing.tier == StemTier.MDX,
+                        modelAbsent = modelAbsent,
+                    )
+                    model is MdxModelManager.ModelState.Downloading -> VocalAiStatus(
+                        stage = VocalAiStatus.Stage.MODEL_DOWNLOADING,
+                        progress = model.progress,
+                    )
+                    model is MdxModelManager.ModelState.Verifying -> VocalAiStatus(
+                        stage = VocalAiStatus.Stage.MODEL_DOWNLOADING,
+                        progress = 1f,
+                    )
+                    model is MdxModelManager.ModelState.Ready -> VocalAiStatus(
+                        stage = VocalAiStatus.Stage.MODEL_READY,
+                    )
+                    else -> VocalAiStatus(
+                        stage = VocalAiStatus.Stage.STANDARD,
+                        modelAbsent = modelAbsent,
+                    )
+                }
+            }.stateIn(scope, SharingStarted.Eagerly, VocalAiStatus())
+        }
+
+        override fun onVocalSliderLowered() {
+            // The service's vocalLevel collector prepares the audible
+            // track too; StemJobs dedupes the two offers, and this path
+            // covers a slider lowered while the sheet is up before the
+            // collector's own offer lands.
+            val current = StemCurrentTrack.current.value ?: return
+            StemJobs.prepareNow(current.key, current.source)
+        }
+
+        override fun requestVocalModelDownload() {
+            scope.launch { MdxModelManager.ensureModel() }
+        }
         override fun setLyricsOffsetMs(value: Int) = AppSettings.setLyricsOffsetMs(value)
         override fun setLyricsOffsetForTrack(videoId: String, offsetMs: Int?) =
             AppSettings.setLyricsOffsetForTrack(videoId, offsetMs)

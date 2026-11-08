@@ -77,9 +77,15 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.guava.future
+import com.music.sonariq.playback.audio.AiStemProcessor
 import com.music.sonariq.playback.audio.DspChain
 import com.music.sonariq.playback.audio.MonoMixProcessor
 import com.music.sonariq.playback.audio.VocalRemoverProcessor
+import com.music.sonariq.vocal.StemCurrentTrack
+import com.music.sonariq.vocal.StemJobs
+import com.music.sonariq.vocal.StemSource
+import com.music.sonariq.vocal.StemState
+import com.music.sonariq.vocal.StemStore
 import com.music.sonariq.playback.cast.CastController
 import com.music.sonariq.playback.cast.CastPlayback
 import com.music.sonariq.playback.cast.CastSink
@@ -666,6 +672,164 @@ class PlaybackService : MediaLibraryService() {
     private val monoMixB = MonoMixProcessor()
     private val vocalRemoverA = VocalRemoverProcessor()
     private val vocalRemoverB = VocalRemoverProcessor()
+
+    /**
+     * The AI stem stages, one per player exactly like the vocal removers
+     * they sit ahead of in [DspChain]. Fixed to the players that own them
+     * (A with the A processors, B with the B), and read by role through
+     * [activeStem] / [spareStem], whose pairing follows [activeFilter] the
+     * way [activeLoudness] already does.
+     */
+    private val stemA = AiStemProcessor()
+    private val stemB = AiStemProcessor()
+
+    /**
+     * Whether each player's stem stage is engaged for the track that player
+     * is on — the routing fact [refreshStemRouting] reads: an engaged stem
+     * parks that player's DSP vocal stage at unity, because the stem stage
+     * is the vocal control then. Set wherever a stem file is handed to a
+     * stage ([applyStemToPlayer], the crossfade's arm hook), never guessed
+     * from the store at routing time.
+     */
+    private var stemEngagedA = false
+    private var stemEngagedB = false
+
+    /** The stem stages on the session player and on the spare, by role. */
+    private fun activeStem(): AiStemProcessor =
+        if (activeFilter === transitionFilterA) stemA else stemB
+
+    private fun spareStem(): AiStemProcessor =
+        if (activeFilter === transitionFilterA) stemB else stemA
+
+    private fun setStemEngaged(stem: AiStemProcessor, engaged: Boolean) {
+        when (stem) {
+            stemA -> stemEngagedA = engaged
+            stemB -> stemEngagedB = engaged
+        }
+    }
+
+    /**
+     * The one place stem routing is decided, invoked from every event that
+     * can change it — the vocalLevel collector, [applySettings], and every
+     * track transition of both players:
+     *
+     *  - each player's **stem stage** always carries the listener's
+     *    [AppSettings.vocalLevel] — it is a true vocal fader when a stem is
+     *    open, and bit-transparent at 1.0 when none is;
+     *  - each player's **DSP vocal stage** carries vocalLevel only while
+     *    that player has *no* stem engaged; with a stem engaged it is
+     *    parked at 1.0 so the two layers never stack.
+     *
+     * Both directions are written every time, which is what keeps the hard
+     * bypass contract honest across transitions: a stem that goes away
+     * hands its player back to the DSP stage at the listener's level, and
+     * a level of 1.0 leaves both stages parked, stem or not.
+     */
+    private fun refreshStemRouting() {
+        val level = AppSettings.vocalLevel.value
+        stemA.level = level
+        stemB.level = level
+        vocalRemoverA.level = if (stemEngagedA) 1f else level
+        vocalRemoverB.level = if (stemEngagedB) 1f else level
+    }
+
+    /**
+     * The stem identity and audio source a queue [item] offers, or null
+     * when the item cannot be keyed or read locally at all.
+     *
+     * The key is the queue's own: `Song.videoId`, which is also the
+     * MediaItem's mediaId — a catalogue videoId for streamed and
+     * downloaded tracks, the MediaStore content URI for a local library
+     * track (whose Song carries the URI as its videoId), the file URI for
+     * an unrecorded downloads-folder file. See [StemJobs] for the full
+     * convention and why one key survives the stream/download boundary.
+     *
+     * The source follows the item's own URI: a `file://` / `content://`
+     * item (a download, a local file — [Song.toMediaItem] substitutes the
+     * download's URI into the item itself) is a [StemSource.LocalFile];
+     * anything else is a [StemSource.CachedStream] over the very URI the
+     * player plays, which [StemJobs] only honours once fully cached.
+     */
+    private fun stemEntryFor(item: MediaItem, target: ExoPlayer?): StemCurrentTrack.Entry? {
+        val song = item.toSong()
+        val key = song.videoId.ifBlank { item.mediaId }
+        if (key.isBlank()) return null
+        val expectedSeconds = song.durationMillis().takeIf { it > 0 }?.div(1000.0)
+            ?: target?.duration?.takeIf { it > 0 }?.div(1000.0)
+        val uri = item.localConfiguration?.uri
+        val source: StemSource = when {
+            uri != null && (uri.scheme == "file" || uri.scheme == "content") ->
+                StemSource.LocalFile(uri, expectedSeconds)
+            song.localUri != null ->
+                StemSource.LocalFile(Uri.parse(song.localUri), expectedSeconds)
+            uri != null -> StemSource.CachedStream(uri, expectedSeconds)
+            else -> return null
+        }
+        return StemCurrentTrack.Entry(key, source)
+    }
+
+    /** [target]'s playhead in chain-rate frames, for [AiStemProcessor.syncToFrame]. */
+    private fun stemSyncFrameFor(target: ExoPlayer): Long {
+        val rate = currentAudioInputFormat?.sampleRate?.takeIf { it > 0 } ?: 44_100
+        return target.currentPosition.coerceAtLeast(0L) * rate / 1000L
+    }
+
+    /**
+     * Points [stem] (the stage of [target]) at the stem stored for
+     * [target]'s [item]: opens the file (or closes the stage when the
+     * track has none), syncs it to the player's position, records the
+     * engagement for [refreshStemRouting], and queues the *next* item's
+     * stem behind it so a gapless same-player boundary can switch stems
+     * on the exact sample — see [AiStemProcessor.queueStemFile].
+     */
+    private fun applyStemToPlayer(target: ExoPlayer, stem: AiStemProcessor, item: MediaItem?) {
+        val entry = item?.let { stemEntryFor(it, target) }
+        val file = entry?.let { StemStore.stemFile(it.key) }
+        stem.setStemFile(file)
+        stem.syncToFrame(stemSyncFrameFor(target))
+        setStemEngaged(stem, file != null)
+        queueNextStemFor(target, stem)
+        refreshStemRouting()
+    }
+
+    /**
+     * Re-points both players' stem stages at whatever [StemStore] now holds
+     * for the tracks they are on — the mid-playback takeover when a stem
+     * finishes preparing under a track that is already playing. A stage
+     * whose file is unchanged is not touched (reopening it would restart
+     * its read and re-sync for nothing); the next item's queued stem *is*
+     * refreshed unconditionally, since that is the cheap half and the one
+     * a just-finished next-track stem needs.
+     */
+    private fun refreshStemsFromStore() {
+        val pairs = listOfNotNull(
+            player?.let { it to activeStem() },
+            spare?.takeIf { it !== player }?.let { it to spareStem() },
+        )
+        for ((target, stem) in pairs) {
+            val item = target.currentMediaItem
+            val entry = item?.let { stemEntryFor(it, target) }
+            val file = entry?.let { StemStore.stemFile(it.key) }
+            if (file != stem.currentStemFile) {
+                stem.setStemFile(file)
+                stem.syncToFrame(stemSyncFrameFor(target))
+                setStemEngaged(stem, file != null)
+            }
+            queueNextStemFor(target, stem)
+        }
+        refreshStemRouting()
+    }
+
+    /** Queues the stem of [target]'s next queue item for its gapless boundary, if it has one ready. */
+    private fun queueNextStemFor(target: ExoPlayer, stem: AiStemProcessor) {
+        val nextIndex = target.nextMediaItemIndex
+        if (nextIndex == C.INDEX_UNSET || nextIndex !in 0 until target.mediaItemCount) {
+            stem.queueStemFile(null)
+            return
+        }
+        val nextEntry = stemEntryFor(target.getMediaItemAt(nextIndex), null)
+        stem.queueStemFile(nextEntry?.let { StemStore.stemFile(it.key) })
+    }
     private val transitionFilterA = TransitionFilterProcessor()
     private val transitionFilterB = TransitionFilterProcessor()
 
@@ -1030,6 +1194,19 @@ class PlaybackService : MediaLibraryService() {
             reason: Int,
         ) {
             val exoPlayer = player ?: return
+            // Every seek path in the app — the session wrapper the UI and
+            // controllers drive, party catch-up, recovery retries — lands
+            // on the ExoPlayer itself, and this callback is the one place
+            // they all pass through. It is therefore where the audible
+            // player's stem is re-synced: a pending sync the sink's flush
+            // (or the next block) consumes, in chain-rate frames at the
+            // format the session player is decoding.
+            if (reason == Player.DISCONTINUITY_REASON_SEEK ||
+                reason == Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT
+            ) {
+                val rate = currentAudioInputFormat?.sampleRate?.takeIf { it > 0 } ?: 44_100
+                activeStem().syncToFrame(newPosition.positionMs.coerceAtLeast(0L) * rate / 1000L)
+            }
             if (reason == Player.DISCONTINUITY_REASON_SEEK) {
                 if (exoPlayer.isPlaying) pushDiscordPresence(exoPlayer)
                 updateLyricSubtitle()
@@ -1720,6 +1897,7 @@ class PlaybackService : MediaLibraryService() {
             loudnessA,
             monoMixA,
             vocalRemoverA,
+            stemA,
             ownsSession = true,
         )
         val sparePlayer = buildPlayer(
@@ -1729,6 +1907,7 @@ class PlaybackService : MediaLibraryService() {
             loudnessB,
             monoMixB,
             vocalRemoverB,
+            stemB,
             ownsSession = false,
         )
         player = exoPlayer
@@ -1892,7 +2071,23 @@ class PlaybackService : MediaLibraryService() {
             // the session player at the handoff — so the incoming track is
             // levelled on its own sink before it renders a frame, and the
             // outgoing track keeps its own gain for the rest of the blend.
-            onArmIncoming = { item, nextId -> spareLoudness().track(item.mediaId, nextId) },
+            onArmIncoming = { item, nextId ->
+                spareLoudness().track(item.mediaId, nextId)
+                // The incoming track's stem belongs on the spare's stage
+                // before it renders a frame, for the same reason its
+                // loudness does: a blend whose incoming half only gains
+                // its stem at the handoff would change vocal character
+                // mid-fade. The spare starts the track at its head, so
+                // the sync is to zero.
+                val stem = spareStem()
+                val entry = stemEntryFor(item, spare)
+                val file = entry?.let { StemStore.stemFile(it.key) }
+                stem.setStemFile(file)
+                stem.syncToFrame(0L)
+                setStemEngaged(stem, file != null)
+                refreshStemRouting()
+                if (entry != null) StemJobs.maybePrepare(entry.key, entry.source, background = true)
+            },
             // Both sinks, not a role: the trim is about what the pair sums to.
             onBlendHeadroom = { trim ->
                 loudnessA.setBlendTrim(trim)
@@ -2754,9 +2949,10 @@ class PlaybackService : MediaLibraryService() {
         loudness: LoudnessProcessor,
         mono: MonoMixProcessor,
         vocal: VocalRemoverProcessor,
+        stem: AiStemProcessor,
         ownsSession: Boolean,
     ): ExoPlayer = ExoPlayer.Builder(this)
-        .setRenderersFactory(silenceSkippingRenderers(spatial, equalizer, filter, loudness, mono, vocal))
+        .setRenderersFactory(silenceSkippingRenderers(spatial, equalizer, filter, loudness, mono, vocal, stem))
         .setMediaSourceFactory(requireNotNull(mediaSourceFactory))
         .setLoadControl(farBufferingLoadControl())
         .setAudioAttributes(AUDIO_ATTRIBUTES, /* handleAudioFocus = */ ownsSession)
@@ -2966,6 +3162,33 @@ class PlaybackService : MediaLibraryService() {
         // is precisely what carries the applied gain across the swap.
         setupLoudness(mediaItem?.mediaId)
         scheduleLoudnessRetry(mediaItem?.mediaId)
+
+        // The stem stage follows the track the same way loudness does, and
+        // for both players' shapes of arrival: an ordinary transition lands
+        // here via the listener, a crossfade handoff via [adoptPlayer]'s
+        // hand call. The session player's stage is pointed at the new
+        // track's stored stem (or closed), synced to the player's position
+        // in it, and the track is published for the player UI's vocal
+        // status and offered — with the next queue track — for background
+        // preparation, whose gates live in [StemJobs].
+        if (mediaItem != null) {
+            applyStemToPlayer(exoPlayer, activeStem(), mediaItem)
+            val entry = stemEntryFor(mediaItem, exoPlayer)
+            if (entry != null) {
+                StemCurrentTrack.publish(entry.key, entry.source)
+                StemJobs.maybePrepare(entry.key, entry.source, background = true)
+                val nextIndex = exoPlayer.nextMediaItemIndex
+                if (nextIndex != C.INDEX_UNSET && nextIndex in 0 until exoPlayer.mediaItemCount) {
+                    stemEntryFor(exoPlayer.getMediaItemAt(nextIndex), null)?.let { next ->
+                        StemJobs.maybePrepare(next.key, next.source, background = true)
+                    }
+                }
+            } else {
+                StemCurrentTrack.clear()
+            }
+        } else {
+            StemCurrentTrack.clear()
+        }
 
         // Keep a real, bounded history in the player rather than merely hiding
         // old rows in Compose. MediaController mirrors the playlist across the
@@ -5854,6 +6077,7 @@ class PlaybackService : MediaLibraryService() {
         loudness: LoudnessProcessor,
         mono: MonoMixProcessor,
         vocal: VocalRemoverProcessor,
+        stem: AiStemProcessor,
     ) = object : DefaultRenderersFactory(this) {
         init {
             // Do not force PCM_FLOAT onto an OEM speaker mixer merely because
@@ -5964,7 +6188,7 @@ class PlaybackService : MediaLibraryService() {
             // them for the same reason: it belongs to the listener and
             // the whole session, while the transition filter belongs to
             // one handoff and has to have the last word on it.
-            val dspChain = DspChain(spatial, equalizer, transition, loudness, mono, vocal)
+            val dspChain = DspChain(spatial, equalizer, transition, loudness, mono, vocal, stem)
             return PrecisionAudioSink(
                 delegate = defaultSink,
                 dspChain = dspChain,
@@ -5990,8 +6214,10 @@ class PlaybackService : MediaLibraryService() {
         player.applyPlaybackTuning()
         monoMixA.enabled = AppSettings.monoAudioEnabled.value
         monoMixB.enabled = AppSettings.monoAudioEnabled.value
-        vocalRemoverA.level = AppSettings.vocalLevel.value
-        vocalRemoverB.level = AppSettings.vocalLevel.value
+        // Stem routing, not a direct vocal assignment: whichever player has
+        // a stem engaged keeps its DSP vocal stage parked — see
+        // [refreshStemRouting].
+        refreshStemRouting()
         // Restore persisted shuffle and repeat states on startup. Assign both
         // values: Android can destroy and recreate the service while retaining
         // this process, so QueueShuffle's process-wide object may still hold
@@ -6221,6 +6447,7 @@ class PlaybackService : MediaLibraryService() {
             loudnessA,
             monoMixA,
             vocalRemoverA,
+            stemA,
             ownsSession = true,
         )
         val newSpare = buildPlayer(
@@ -6230,6 +6457,7 @@ class PlaybackService : MediaLibraryService() {
             loudnessB,
             monoMixB,
             vocalRemoverB,
+            stemB,
             ownsSession = false,
         )
         player = newActive
@@ -6249,6 +6477,11 @@ class PlaybackService : MediaLibraryService() {
             // listening, so the ordinary setup path in [onTrackBecameCurrent]
             // never runs for the track the rebuild resumes on.
             setupLoudness(items.getOrNull(index.coerceIn(items.indices))?.mediaId)
+            // The same by-hand setup for the stem stage: the rebuilt
+            // player's chain is fresh, so its stage is pointed at the
+            // resumed track's stem and synced to the resumed position
+            // rather than left wherever the old player's counters sat.
+            applyStemToPlayer(newActive, stemA, items.getOrNull(index.coerceIn(items.indices)))
         }
         newActive.addListener(playbackListener)
         newActive.addAnalyticsListener(formatListener)
@@ -6372,8 +6605,35 @@ class PlaybackService : MediaLibraryService() {
         }
         scope.launch {
             AppSettings.vocalLevel.collect { level ->
-                vocalRemoverA.level = level
-                vocalRemoverB.level = level
+                refreshStemRouting()
+                // The listener just asked for less vocal: if the audible
+                // track has no stem yet, prepare one now — user-driven, so
+                // no Wi-Fi gate, and [StemJobs] dedupes against any
+                // background job already running for it. At level 1.0
+                // nothing is prepared: the original mix needs no stem.
+                if (level < 1f) {
+                    val audible = player ?: return@collect
+                    val item = audible.currentMediaItem ?: return@collect
+                    val entry = stemEntryFor(item, audible) ?: return@collect
+                    if (StemStore.stemFile(entry.key) == null) {
+                        StemJobs.prepareNow(entry.key, entry.source)
+                    }
+                }
+            }
+        }
+        scope.launch {
+            // A stem landing for a track already playing takes over
+            // mid-playback: the store's Ready set changing is the trigger,
+            // and [refreshStemsFromStore] re-points each player's stage at
+            // its current track's stem (synced to its live position) only
+            // when the file actually changed, so the steady stream of
+            // Preparing progress updates costs nothing here.
+            var lastReadyKeys: Set<String> = emptySet()
+            StemStore.states.collect { states ->
+                val readyKeys = states.filterValues { it is StemState.Ready }.keys
+                if (readyKeys == lastReadyKeys) return@collect
+                lastReadyKeys = readyKeys
+                refreshStemsFromStore()
             }
         }
         scope.launch {
