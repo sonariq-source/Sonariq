@@ -757,14 +757,20 @@ internal class LyricPlayhead(
 }
 
 @Composable
-internal fun rememberLyricPlayhead(position: PlaybackPosition, videoId: String? = null): LyricPlayhead {
+internal fun rememberLyricPlayhead(
+    position: PlaybackPosition,
+    videoId: String? = null,
+    autoMs: Int = 0,
+): LyricPlayhead {
     val global = PlayerSettings.lyricsOffsetMs.collectAsStateWithLifecycle()
     val overrides = PlayerSettings.lyricsOffsetOverrides.collectAsStateWithLifecycle()
-    // The track's own offset when one exists, otherwise the global one. A
-    // derived state rather than a value computed in composition: the playhead
-    // reads it off-composition, in the frame loop and in effects.
-    val offset = remember(videoId) {
-        derivedStateOf { resolveLyricsOffsetMs(overrides.value, global.value, videoId) }
+    // The track's own offset when one exists, otherwise the global one
+    // with the track's measured auto offset composed under it (see
+    // [resolveLyricsOffsetMs]). A derived state rather than a value
+    // computed in composition: the playhead reads it off-composition, in
+    // the frame loop and in effects.
+    val offset = remember(videoId, autoMs) {
+        derivedStateOf { resolveLyricsOffsetMs(overrides.value, global.value, videoId, autoMs) }
     }
     return remember(position, offset) { LyricPlayhead(position, offset) }
 }

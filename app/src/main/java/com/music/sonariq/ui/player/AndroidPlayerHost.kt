@@ -83,6 +83,7 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         override val vocalLevel get() = AppSettings.vocalLevel
         override val lyricsOffsetMs get() = AppSettings.lyricsOffsetMs
         override val lyricsOffsetOverrides get() = AppSettings.lyricsOffsetOverrides
+        override val lyricsAutoOffsets get() = AppSettings.lyricsAutoOffsets
         override val lyricsSourceOrder get() = AppSettings.lyricsSourceOrder
         override val meteredConnection get() = AppSettings.meteredConnection
         override val preferUsbDac get() = AppSettings.preferUsbDac

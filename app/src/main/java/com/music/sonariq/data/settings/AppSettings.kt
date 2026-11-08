@@ -10,11 +10,14 @@ import androidx.media3.common.Player
 import com.music.sonariq.BuildConfig
 import com.music.sonariq.auth.AuthStore
 import com.music.sonariq.data.canvas.SpotifyToken
+import com.music.sonariq.data.lyrics.LyricsAutoOffset
 import com.music.sonariq.data.lyrics.LyricsSource
 import com.music.sonariq.data.sources.SourceKind
 import com.music.sonariq.playback.EqLayout
 import com.music.sonariq.playback.EqualizerPreset
+import com.music.sonariq.ui.player.decodeLyricAutoOffsets
 import com.music.sonariq.ui.player.decodeLyricOffsets
+import com.music.sonariq.ui.player.encodeLyricAutoOffsets
 import com.music.sonariq.ui.player.encodeLyricOffsets
 import com.music.sonariq.ui.player.LyricsBackground
 import com.music.sonariq.ui.player.VisualizerStyle
@@ -698,6 +701,14 @@ object AppSettings {
     /** Per-track lyric offsets, videoId to ms; a track without an entry follows [lyricsOffsetMs]. */
     val lyricsOffsetOverrides = MutableStateFlow<Map<String, Int>>(emptyMap())
 
+    /**
+     * Per-track *measured* lyric offsets, videoId to record — what the AI
+     * measurement found for that track's exact lines, beside the manual
+     * overrides above. Written only by the measurement job; the player
+     * reads it through the offset resolution.
+     */
+    val lyricsAutoOffsets = MutableStateFlow<Map<String, LyricsAutoOffset>>(emptyMap())
+
     /** Lyric line text size, in sp; the panel scales its line sizes around [DEFAULT_LYRICS_FONT_SIZE_SP]. */
     val lyricsFontSizeSp = MutableStateFlow(DEFAULT_LYRICS_FONT_SIZE_SP)
 
@@ -1256,6 +1267,8 @@ object AppSettings {
             .coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
         lyricsOffsetOverrides.value =
             decodeLyricOffsets(prefs.getString(KEY_LYRICS_OFFSET_OVERRIDES, null).orEmpty())
+        lyricsAutoOffsets.value =
+            decodeLyricAutoOffsets(prefs.getString(KEY_LYRICS_AUTO_OFFSETS, null).orEmpty())
         lyricsFontSizeSp.value =
             prefs.getFloat(KEY_LYRICS_FONT_SIZE_SP, DEFAULT_LYRICS_FONT_SIZE_SP)
                 .coerceIn(MIN_LYRICS_FONT_SIZE_SP, MAX_LYRICS_FONT_SIZE_SP)
@@ -1971,6 +1984,18 @@ object AppSettings {
         if (updated == lyricsOffsetOverrides.value) return
         lyricsOffsetOverrides.value = updated
         prefs.edit().putString(KEY_LYRICS_OFFSET_OVERRIDES, encodeLyricOffsets(updated)).apply()
+    }
+
+    /** Records a track's measured auto offset; null forgets it. Written only by the AI measurement job. */
+    fun setLyricsAutoOffset(videoId: String, record: LyricsAutoOffset?) {
+        val updated = if (record == null) {
+            lyricsAutoOffsets.value - videoId
+        } else {
+            lyricsAutoOffsets.value + (videoId to record)
+        }
+        if (updated == lyricsAutoOffsets.value) return
+        lyricsAutoOffsets.value = updated
+        prefs.edit().putString(KEY_LYRICS_AUTO_OFFSETS, encodeLyricAutoOffsets(updated)).apply()
     }
 
     fun setLyricsFontSizeSp(value: Float) {
@@ -2976,6 +3001,7 @@ object AppSettings {
     private const val KEY_LYRICS_BLUR = "lyrics_blur"
     private const val KEY_LYRICS_OFFSET_MS = "lyrics_offset_ms"
     private const val KEY_LYRICS_OFFSET_OVERRIDES = "lyrics_offset_overrides"
+    private const val KEY_LYRICS_AUTO_OFFSETS = "lyrics_auto_offsets"
     private const val KEY_LYRICS_FONT_SIZE_SP = "lyrics_font_size_sp"
     private const val KEY_LYRICS_AUTO_SCROLL = "lyrics_auto_scroll"
     private const val KEY_LYRICS_KARAOKE = "lyrics_karaoke"

@@ -7,7 +7,9 @@ import androidx.compose.ui.unit.IntSize
 import com.music.sonariq.data.canvas.CanvasArtwork
 import com.music.sonariq.data.listentogether.PartyMember
 import com.music.sonariq.data.lyrics.LyricLine
+import com.music.sonariq.data.lyrics.LyricsAutoOffset
 import com.music.sonariq.data.lyrics.LyricsSource
+import com.music.sonariq.data.lyrics.lyricsLinesFingerprint
 import com.music.sonariq.data.model.Song
 import com.music.sonariq.data.settings.AudioQuality
 import com.music.sonariq.data.settings.LastPlayerScreen
@@ -134,6 +136,7 @@ private val DefaultLyricsBackground = MutableStateFlow(LyricsBackground.ARTWORK)
 private val DefaultLyricsReducedMotion = MutableStateFlow(false)
 private val DefaultVocalLevel = MutableStateFlow(DEFAULT_VOCAL_LEVEL)
 private val DefaultVocalAiStatus = MutableStateFlow(VocalAiStatus())
+private val DefaultLyricsAutoOffsets = MutableStateFlow<Map<String, LyricsAutoOffset>>(emptyMap())
 
 /**
  * Where the Vocal Remover's AI layer stands, as the vocal sheet reports it.
@@ -234,6 +237,14 @@ interface PlayerSettingsSource {
     val lyricsOffsetMs: StateFlow<Int>
     /** Per-track lyric offsets, videoId to offsetMs; a track without an entry follows [lyricsOffsetMs]. */
     val lyricsOffsetOverrides: StateFlow<Map<String, Int>>
+    /**
+     * Per-track *measured* lyric offsets, videoId to record — the auto
+     * offset the AI measurement found for that track's exact lines, read
+     * through [applicableAutoOffsetMs]. Written by the measurement job,
+     * never by hand; a platform whose jobs do not measure keeps the
+     * empty default and its lyrics are never auto-shifted.
+     */
+    val lyricsAutoOffsets: StateFlow<Map<String, LyricsAutoOffset>> get() = DefaultLyricsAutoOffsets
     val lyricsSourceOrder: StateFlow<List<LyricsSource>>
     val meteredConnection: StateFlow<Boolean?>
     val preferUsbDac: StateFlow<Boolean>
@@ -327,9 +338,52 @@ const val MIN_VISUALIZER_INTENSITY = 0.25f
 const val MAX_VISUALIZER_INTENSITY = 2f
 const val DEFAULT_VISUALIZER_INTENSITY = 1f
 
-/** The offset a track actually reads: its own override when one exists, otherwise the global offset. */
-fun resolveLyricsOffsetMs(overrides: Map<String, Int>, globalMs: Int, videoId: String?): Int =
-    videoId?.let { overrides[it] } ?: globalMs
+/**
+ * The offset a track actually reads: its own override when one exists,
+ * otherwise the global offset with the track's measured auto offset
+ * composed under it.
+ *
+ * The layering is the manual system's own, extended by one layer at the
+ * bottom: a per-track override is the listener's explicit word for that
+ * track and wins outright, exactly as it has always beaten the global;
+ * beneath it the global (the listener's standing nudge for everything)
+ * and [autoMs] (what measurement found for this track's lines) add,
+ * because they answer different questions — taste and measurement —
+ * and neither was set with the other in hand. With no auto offset
+ * measured, [autoMs] is 0 and the resolution is the manual one,
+ * unchanged. The composed base is held to the offset range, as every
+ * stored offset already is.
+ */
+fun resolveLyricsOffsetMs(
+    overrides: Map<String, Int>,
+    globalMs: Int,
+    videoId: String?,
+    autoMs: Int = 0,
+): Int =
+    videoId?.let { overrides[it] }
+        ?: (globalMs + autoMs).coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
+
+/**
+ * The auto offset that applies to [lines] for [videoId], or 0 when none
+ * does: the track has no record, the record was written by another
+ * record version, or — the ordinary retirement — the lines on screen no
+ * longer carry the fingerprint the measurement was made against, so a
+ * shift measured on one set of lines is never silently applied to
+ * another. An AI-measured result keeps its provider lines' fingerprint
+ * (see [lyricsLinesFingerprint]), so a measurement survives the upgrade
+ * it produced and retires exactly when provider timings replace it.
+ */
+fun applicableAutoOffsetMs(
+    autoOffsets: Map<String, LyricsAutoOffset>,
+    videoId: String?,
+    lines: List<LyricLine>?,
+): Int {
+    if (videoId.isNullOrBlank() || lines.isNullOrEmpty()) return 0
+    val record = autoOffsets[videoId] ?: return 0
+    if (record.version != LyricsAutoOffset.CURRENT_VERSION) return 0
+    if (record.fingerprint != lyricsLinesFingerprint(lines)) return 0
+    return record.offsetMs.coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
+}
 
 /**
  * A per-track offset edit applied to the stored map: null removes the track's
@@ -365,6 +419,52 @@ fun decodeLyricOffsets(stored: String): Map<String, Int> {
                 ?: return@mapNotNull null
             if (!LYRIC_OFFSET_VIDEO_ID.matches(videoId)) return@mapNotNull null
             videoId to offsetMs.coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
+        }
+        .take(MAX_LYRIC_OFFSET_OVERRIDES)
+        .toMap()
+}
+
+/**
+ * `"videoId:version:ms:fingerprint,videoId:..."` — the stored form of
+ * the measured auto offsets, kept beside the manual overrides' codec
+ * above. A fingerprint is lowercase hex, so neither delimiter can
+ * appear inside one; the record version rides in every entry so a
+ * future shape retires old entries by reading, not by migration.
+ * Capped like the overrides: the oldest measurements fall off first.
+ */
+fun encodeLyricAutoOffsets(records: Map<String, LyricsAutoOffset>): String =
+    records.entries
+        .toList()
+        .takeLast(MAX_LYRIC_OFFSET_OVERRIDES)
+        .joinToString(",") { (videoId, record) ->
+            "$videoId:${record.version}:${record.offsetMs}:${record.fingerprint}"
+        }
+
+/**
+ * The inverse of [encodeLyricAutoOffsets]; malformed entries — and any
+ * written by a record version this build does not read — fall out
+ * quietly.
+ */
+fun decodeLyricAutoOffsets(stored: String): Map<String, LyricsAutoOffset> {
+    if (stored.isBlank()) return emptyMap()
+    return stored.split(",")
+        .mapNotNull { entry ->
+            val parts = entry.split(":")
+            if (parts.size != 4) return@mapNotNull null
+            val (videoId, version, offsetMs, fingerprint) = parts
+            if (!LYRIC_OFFSET_VIDEO_ID.matches(videoId)) return@mapNotNull null
+            if (version.toIntOrNull() != LyricsAutoOffset.CURRENT_VERSION) {
+                return@mapNotNull null
+            }
+            val offset = offsetMs.toIntOrNull() ?: return@mapNotNull null
+            if (fingerprint.length != 64 || !fingerprint.all { it in '0'..'9' || it in 'a'..'f' }) {
+                return@mapNotNull null
+            }
+            videoId to LyricsAutoOffset(
+                offsetMs = offset.coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS),
+                fingerprint = fingerprint,
+                version = LyricsAutoOffset.CURRENT_VERSION,
+            )
         }
         .take(MAX_LYRIC_OFFSET_OVERRIDES)
         .toMap()

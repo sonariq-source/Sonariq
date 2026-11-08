@@ -34,7 +34,10 @@ import com.music.sonariq.ui.player.PlayerHost
 import com.music.sonariq.ui.player.PlayerSettingsSource
 import com.music.sonariq.ui.player.SystemVolume
 import com.music.sonariq.ui.player.VisualizerStyle
+import com.music.sonariq.data.lyrics.LyricsAutoOffset
+import com.music.sonariq.ui.player.decodeLyricAutoOffsets
 import com.music.sonariq.ui.player.decodeLyricOffsets
+import com.music.sonariq.ui.player.encodeLyricAutoOffsets
 import com.music.sonariq.ui.player.encodeLyricOffsets
 import com.music.sonariq.ui.player.withLyricOffset
 import dev.chrisbanes.haze.HazeState
@@ -214,6 +217,10 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
     override val lyricsOffsetOverrides = MutableStateFlow(
         decodeLyricOffsets(persistence.string(KEY_LYRICS_OFFSET_OVERRIDES)),
     )
+    /** Per-track measured lyric offsets, beside the manual overrides; written only by the measurement job. */
+    override val lyricsAutoOffsets = MutableStateFlow(
+        decodeLyricAutoOffsets(persistence.string(KEY_LYRICS_AUTO_OFFSETS)),
+    )
     override val lyricsSourceOrder = MutableStateFlow<List<LyricsSource>>(LyricsSource.offered)
 
     // A desktop is never on a metered link as far as this app can tell.
@@ -257,6 +264,18 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
         persistence.saveString(KEY_LYRICS_OFFSET_OVERRIDES, encodeLyricOffsets(updated))
     }
 
+    /** Records a track's measured auto offset; null forgets it. Written only by the AI measurement job. */
+    fun setLyricsAutoOffset(videoId: String, record: LyricsAutoOffset?) {
+        val updated = if (record == null) {
+            lyricsAutoOffsets.value - videoId
+        } else {
+            lyricsAutoOffsets.value + (videoId to record)
+        }
+        if (updated == lyricsAutoOffsets.value) return
+        lyricsAutoOffsets.value = updated
+        persistence.saveString(KEY_LYRICS_AUTO_OFFSETS, encodeLyricAutoOffsets(updated))
+    }
+
     override fun setLyricsFontSizeSp(value: Float) {
         val clamped = value.coerceIn(MIN_LYRICS_FONT_SIZE_SP, MAX_LYRICS_FONT_SIZE_SP)
         lyricsFontSizeSp.value = clamped
@@ -292,6 +311,7 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
     private const val KEY_LAST_SCREEN = "last_player_screen"
     private const val KEY_LYRICS_OFFSET = "lyrics_offset_ms"
     private const val KEY_LYRICS_OFFSET_OVERRIDES = "lyrics_offset_overrides"
+    private const val KEY_LYRICS_AUTO_OFFSETS = "lyrics_auto_offsets"
     private const val KEY_LYRICS_FONT_SIZE_SP = "lyrics_font_size_sp"
     private const val KEY_LYRICS_AUTO_SCROLL = "lyrics_auto_scroll"
     private const val KEY_LYRICS_KARAOKE = "lyrics_karaoke"

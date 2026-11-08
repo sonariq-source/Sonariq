@@ -364,6 +364,132 @@ object AiLyricAligner {
         )
     }
 
+    /** What [measureUniformOffset] concluded about one set of lines. */
+    enum class OffsetVerdict {
+        /** A uniform offset was measured and agreed on; apply [OffsetMeasurement.offsetMs]. */
+        MEASURED,
+
+        /** The lines were measured and already sit on the audio as they are. */
+        NO_OFFSET_NEEDED,
+
+        /** Too few lines agreed, or they disagreed: no honest offset exists. */
+        UNRELIABLE,
+    }
+
+    /**
+     * The report of one [measureUniformOffset] run. [offsetMs] is the
+     * median per-line delta whenever enough lines agreed to compute one
+     * — including for [OffsetVerdict.NO_OFFSET_NEEDED], where it is the
+     * small median that fell under the noise floor — and only a
+     * [OffsetVerdict.MEASURED] verdict licenses applying it.
+     */
+    data class OffsetMeasurement(
+        val verdict: OffsetVerdict,
+        val offsetMs: Long,
+        /** How many lead lines passed acceptance and witnessed the verdict. */
+        val agreeingLines: Int,
+        /** The median absolute deviation of the witnesses' deltas, in milliseconds. */
+        val spreadMs: Long,
+    )
+
+    /**
+     * The one constant by which [lines]' stamps sit off the audio
+     * [tokens] were transcribed from — the "every line is the same
+     * second or two early" failure, measured rather than guessed.
+     *
+     * Each non-gap lead line is matched on its own, exactly as
+     * [alignDetailed] matches it (same windowing, same acceptance: at
+     * least half its words anchored, enough of them), except that its
+     * candidate window reaches [OFFSET_SEARCH_SLACK_MS] past its stamps
+     * at each end — a line whose words sit a constant offset away has to
+     * be findable before it can be measured — and its tokens are the
+     * transcription's raw times, never calibration-shifted: calibration
+     * presumes the provider stamps are the truth, which is the very
+     * thing being measured here. A passing line whose first word is
+     * among the anchored witnesses one delta, that word's measured start
+     * minus the line's stamp; a line matched only from a later word
+     * witnesses nothing, because what it would report is that word's
+     * place inside the line, not the line's place against the audio.
+     *
+     * The witnesses decide by their median, and only on conditions:
+     *
+     *  - At least [MIN_AGREEING_LINES] of them. Fewer is an anecdote.
+     *  - Their median absolute deviation is at most
+     *    [MAX_OFFSET_SPREAD_MS]. A constant offset clusters; deltas
+     *    scattered wider than that are per-line error or a different
+     *    edit's structure, and no single shift is honest for them.
+     *  - The median itself is at most [MAX_UNIFORM_OFFSET_MS]. A larger
+     *    "uniform" shift is a different recording wearing the same
+     *    words, not an offset.
+     *
+     * A median under [MIN_WORTHWHILE_OFFSET_MS] is inside the noise of
+     * matching a sung attack to a stamp — the verdict is
+     * [OffsetVerdict.NO_OFFSET_NEEDED], a positive measurement that the
+     * lines sit where the audio does. Everything here is a measurement
+     * of whole lines against the track's own audio; no timing is
+     * created, interpolated or moved per word.
+     */
+    fun measureUniformOffset(
+        lines: List<LyricLine>,
+        tokens: List<TranscribedWord>,
+        songEndMs: Long? = null,
+    ): OffsetMeasurement {
+        val leadIndices = lines.indices.filter { lines[it].text.isNotBlank() }
+        // The same unusable-token filter as [alignDetailed]: spans that
+        // do not run forwards and tokens that normalise to nothing are
+        // ignored, not repaired.
+        val usable = tokens.mapNotNull { token ->
+            if (token.endMs <= token.startMs) return@mapNotNull null
+            val normalized = normalizeTokenImpl(token.text)
+            if (normalized.isEmpty()) null else TimedToken(token, normalized)
+        }
+        if (usable.isEmpty() || leadIndices.isEmpty()) {
+            return OffsetMeasurement(OffsetVerdict.UNRELIABLE, 0L, 0, 0L)
+        }
+        val windows = lineWindows(lines, songEndMs, usable.maxOf { it.token.endMs })
+        // Lines in order, tokens consumed as they are matched — the
+        // aligner's own discipline, so one sung word witnesses one line.
+        val consumed = HashSet<Int>()
+        val deltas = ArrayList<Long>()
+        for (lineIndex in leadIndices) {
+            val line = lines[lineIndex]
+            val window = windows[lineIndex]
+            val match = matchLine(
+                line = line,
+                candidates = candidateUnits(usable, consumed) { timed ->
+                    val midpoint = (timed.token.startMs + timed.token.endMs) / 2
+                    midpoint >= window.startMs - OFFSET_SEARCH_SLACK_MS &&
+                        midpoint < window.endMs + OFFSET_SEARCH_SLACK_MS
+                },
+            ) ?: continue
+            consumed += match.matchedTokenIndices
+            val anchored = match.startBySpan.size
+            val total = match.spans.size
+            if (anchored < minAnchorsFor(total) || anchored * 2 < total) continue
+            // The witness is the line's own start: its first word has to
+            // be among the anchored, or what would be measured is where
+            // a later word sits inside the line, not where the line sits
+            // against the audio.
+            val firstWordStart = match.startBySpan[0] ?: continue
+            deltas += firstWordStart - line.timeMs
+        }
+        if (deltas.size < MIN_AGREEING_LINES) {
+            return OffsetMeasurement(OffsetVerdict.UNRELIABLE, 0L, deltas.size, 0L)
+        }
+        val median = medianOfLongs(deltas)
+        val spread = medianOfLongs(deltas.map { kotlin.math.abs(it - median) })
+        return when {
+            spread > MAX_OFFSET_SPREAD_MS ->
+                OffsetMeasurement(OffsetVerdict.UNRELIABLE, median, deltas.size, spread)
+            kotlin.math.abs(median) > MAX_UNIFORM_OFFSET_MS ->
+                OffsetMeasurement(OffsetVerdict.UNRELIABLE, median, deltas.size, spread)
+            kotlin.math.abs(median) < MIN_WORTHWHILE_OFFSET_MS ->
+                OffsetMeasurement(OffsetVerdict.NO_OFFSET_NEEDED, median, deltas.size, spread)
+            else ->
+                OffsetMeasurement(OffsetVerdict.MEASURED, median, deltas.size, spread)
+        }
+    }
+
     /**
      * The token windows of the top-level [lines]: line `i` runs from its
      * own stamp to the next top-level line's stamp, gap or not. The last
@@ -534,10 +660,39 @@ object AiLyricAligner {
         displayEndMs: Long,
         lowerBoundMs: Long,
     ): LineAttempt {
-        val spans = wordSpansOf(line.text)
-        if (spans.isEmpty()) {
-            return LineAttempt(words = null, matchedTokenIndices = emptySet())
+        val match = matchLine(line, candidates)
+            ?: return LineAttempt(words = null, matchedTokenIndices = emptySet())
+        val anchored = match.startBySpan.size
+        val total = match.spans.size
+        val minAnchors = minAnchorsFor(total)
+        if (anchored < minAnchors || anchored * 2 < total) {
+            return LineAttempt(words = null, matchedTokenIndices = match.matchedTokenIndices)
         }
+        return LineAttempt(
+            words = buildWords(line, match.spans, match.startBySpan, displayEndMs, lowerBoundMs),
+            matchedTokenIndices = match.matchedTokenIndices,
+        )
+    }
+
+    /**
+     * [line] matched against [candidates], without judging the result:
+     * the line's word spans, each anchored word's measured start, and the
+     * indices of the tokens the alignment matched. Null when there is
+     * nothing to match — a line with no words, a line whose words all
+     * normalise away, or an empty pool.
+     *
+     * The matching half of [attemptLine], split out so
+     * [measureUniformOffset] can read the same anchored starts as
+     * measurements instead of re-deriving them: one matching
+     * implementation, two readers, and the two can never disagree about
+     * what a line matched.
+     */
+    private fun matchLine(
+        line: LyricLine,
+        candidates: List<CandidateUnit>,
+    ): LineMatch? {
+        val spans = wordSpansOf(line.text)
+        if (spans.isEmpty()) return null
         val units = ArrayList<LyricUnit>()
         spans.forEachIndexed { spanIndex, span ->
             if (span.normalized.isEmpty()) return@forEachIndexed
@@ -545,9 +700,7 @@ object AiLyricAligner {
                 if (unit.isNotEmpty()) units += LyricUnit(spanIndex = spanIndex, normalized = unit)
             }
         }
-        if (units.isEmpty() || candidates.isEmpty()) {
-            return LineAttempt(words = null, matchedTokenIndices = emptySet())
-        }
+        if (units.isEmpty() || candidates.isEmpty()) return null
         val matches = alignSequences(units.map { it.normalized }, candidates.map { it.normalized })
         val matchedTokenIndices = matches.values.mapTo(HashSet()) { candidates[it].tokenIndex }
         // Each anchored word's start: its earliest matched unit's token
@@ -560,17 +713,19 @@ object AiLyricAligner {
                 startBySpan[spanIndex] = candidates[matches.getValue(unitIndex)].token.startMs
             }
         }
-        val anchored = startBySpan.size
-        val total = spans.size
-        val minAnchors = minAnchorsFor(total)
-        if (anchored < minAnchors || anchored * 2 < total) {
-            return LineAttempt(words = null, matchedTokenIndices = matchedTokenIndices)
-        }
-        return LineAttempt(
-            words = buildWords(line, spans, startBySpan, displayEndMs, lowerBoundMs),
+        return LineMatch(
+            spans = spans,
+            startBySpan = startBySpan,
             matchedTokenIndices = matchedTokenIndices,
         )
     }
+
+    /** One line's raw match — see [matchLine]. */
+    private data class LineMatch(
+        val spans: List<WordSpan>,
+        val startBySpan: Map<Int, Long>,
+        val matchedTokenIndices: Set<Int>,
+    )
 
     /** The fewest anchors a line of [totalWords] words needs: two, or one for a short line. */
     private fun minAnchorsFor(totalWords: Int): Int = if (totalWords >= 4) 2 else 1
@@ -843,6 +998,33 @@ object AiLyricAligner {
 
     /** How far a line's candidate window reaches past its stamps at each end. */
     private const val WINDOW_SLACK_MS = 500L
+
+    /**
+     * How far past a line's window [measureUniformOffset] looks for its
+     * words: wide enough to find a line sitting a few seconds off its
+     * stamps, narrow enough that a neighbouring line's singing is not
+     * the first place its words are found.
+     */
+    private const val OFFSET_SEARCH_SLACK_MS = 4_000L
+
+    /** The fewest agreeing lines before a uniform offset is believed. */
+    private const val MIN_AGREEING_LINES = 4
+
+    /**
+     * The widest disagreement, as a median absolute deviation of the
+     * per-line deltas, a uniform offset tolerates: a real constant shift
+     * clusters within a sung attack's width of itself.
+     */
+    private const val MAX_OFFSET_SPREAD_MS = 300L
+
+    /** A measured shift smaller than this is matching noise, not an offset. */
+    private const val MIN_WORTHWHILE_OFFSET_MS = 250L
+
+    /**
+     * The largest shift still read as an offset: beyond it the words
+     * belong to a different recording, and no constant shift is honest.
+     */
+    private const val MAX_UNIFORM_OFFSET_MS = 5_000L
 
     /** How far before a background line's stamp its window opens. */
     private const val BACKGROUND_LEAD_IN_MS = 1_500L

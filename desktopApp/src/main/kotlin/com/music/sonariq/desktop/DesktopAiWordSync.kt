@@ -4,9 +4,12 @@ import com.music.sonariq.data.innertube.StreamResolver
 import com.music.sonariq.data.lyrics.AiLyricAligner
 import com.music.sonariq.data.lyrics.LyricLine
 import com.music.sonariq.data.lyrics.LyricTiming
+import com.music.sonariq.data.lyrics.LyricsAutoOffset
 import com.music.sonariq.data.lyrics.LyricsLookupPolicy
 import com.music.sonariq.data.lyrics.LyricsRepository
+import com.music.sonariq.data.lyrics.TranscribedWord
 import com.music.sonariq.data.lyrics.TranscriptionClient
+import com.music.sonariq.data.lyrics.lyricsLinesFingerprint
 import com.music.sonariq.data.lyrics.buildTranscriptionPrompt
 import com.music.sonariq.data.lyrics.LyricLanguageDetector
 import com.music.sonariq.data.lyrics.lyricTiming
@@ -240,6 +243,10 @@ object DesktopAiWordSync {
             val plan = desktopAiAttemptPlan(LyricLanguageDetector.detect(settled.lines))
 
             val outcomes = mutableListOf<AiLyricAligner.AlignOutcome?>()
+            // Each attempt's transcription, in ladder order beside its
+            // outcome, for the uniform-offset measurement below — the
+            // phone job's twin behaviour.
+            val attemptTokens = mutableListOf<List<TranscribedWord>?>()
             var winning: AiLyricAligner.AlignOutcome? = null
             for (spec in plan) {
                 val tokens = TranscriptionClient.transcribe(
@@ -250,6 +257,7 @@ object DesktopAiWordSync {
                     language = spec.language,
                     prompt = if (spec.withPrompt) prompt else null,
                 )
+                attemptTokens += tokens
                 val outcome = tokens
                     ?.takeIf { it.isNotEmpty() }
                     ?.let { AiLyricAligner.alignDetailed(settled.lines, it, songEndMs) }
@@ -257,6 +265,16 @@ object DesktopAiWordSync {
                 winning = pickDesktopAiAttempt(outcomes)
                 if (winning != null) break
             }
+            // The uniform-offset measurement rides the same attempts,
+            // as on the phone: the winning attempt's transcription where
+            // there is one, else the last attempt that heard anything —
+            // the rungs after the first exist because the earlier ones
+            // fell short, so the final hearing is the most informed.
+            val measurementOutcome = winning ?: outcomes.lastOrNull { it != null }
+            val measurementTokens = measurementOutcome?.let { chosen ->
+                attemptTokens[outcomes.indexOfFirst { it === chosen }]
+            }
+            recordAutoOffset(videoId, settled.lines, measurementTokens, songEndMs)
             if (winning == null) {
                 // No rung timed the whole song. Store none of them — and
                 // remember the exhaustion, because audio was acquired
@@ -280,6 +298,43 @@ object DesktopAiWordSync {
             // A temp file exists only for this job. The track's own files
             // are never deleted here.
             if (acquired.owned) acquired.file.delete()
+        }
+    }
+
+    /**
+     * Measures the settled [lines]' uniform offset against one attempt's
+     * transcription and records the verdict, the phone job's twin — see
+     * [AiLyricAligner.measureUniformOffset]. A measured offset and a
+     * "no offset needed" verdict are both stored against the exact
+     * lines (their [lyricsLinesFingerprint] is the record's identity);
+     * an unreliable measurement stores nothing.
+     */
+    private fun recordAutoOffset(
+        videoId: String,
+        lines: List<LyricLine>,
+        tokens: List<TranscribedWord>?,
+        songEndMs: Long?,
+    ) {
+        val heard = tokens?.takeIf { it.isNotEmpty() } ?: return
+        val measurement = AiLyricAligner.measureUniformOffset(lines, heard, songEndMs)
+        when (measurement.verdict) {
+            AiLyricAligner.OffsetVerdict.MEASURED ->
+                DesktopPlayerSettings.setLyricsAutoOffset(
+                    videoId,
+                    LyricsAutoOffset(
+                        offsetMs = measurement.offsetMs.toInt(),
+                        fingerprint = lyricsLinesFingerprint(lines),
+                    ),
+                )
+            AiLyricAligner.OffsetVerdict.NO_OFFSET_NEEDED ->
+                DesktopPlayerSettings.setLyricsAutoOffset(
+                    videoId,
+                    LyricsAutoOffset(
+                        offsetMs = 0,
+                        fingerprint = lyricsLinesFingerprint(lines),
+                    ),
+                )
+            AiLyricAligner.OffsetVerdict.UNRELIABLE -> Unit
         }
     }
 

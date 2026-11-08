@@ -437,14 +437,27 @@ fun NowPlayingScreen(
     val syncedLyricsEnabled by PlayerSettings.syncedLyrics.collectAsStateWithLifecycle()
     val lyricsOffsetMs by PlayerSettings.lyricsOffsetMs.collectAsStateWithLifecycle()
     val lyricsOffsetOverrides by PlayerSettings.lyricsOffsetOverrides.collectAsStateWithLifecycle()
+    val lyricsAutoOffsets by PlayerSettings.lyricsAutoOffsets.collectAsStateWithLifecycle()
+    // The measured auto offset for the lines on screen, where one
+    // applies — recomputed when the track, the lines or the records
+    // change, so a measurement landing mid-play shifts the showing
+    // lines, and one retired by a lyrics upgrade stops applying.
+    val autoOffsetMs = remember(song.videoId, lyrics, lyricsAutoOffsets) {
+        applicableAutoOffsetMs(lyricsAutoOffsets, song.videoId, lyrics)
+    }
     // A lambda, not a value: read by the lyric strip and panel in scopes of
     // their own, so a tick recomposes them and not the player around them.
-    val lyricsPlayhead = rememberLyricPlayhead(position, song.videoId)
+    val lyricsPlayhead = rememberLyricPlayhead(position, song.videoId, autoOffsetMs)
     val seekToLyric: (Long) -> Unit = { lineTimeMs ->
         onSeek(
             adjustedLyricsSeekTarget(
                 lineTimeMs,
-                resolveLyricsOffsetMs(lyricsOffsetOverrides, lyricsOffsetMs, song.videoId),
+                resolveLyricsOffsetMs(
+                    lyricsOffsetOverrides,
+                    lyricsOffsetMs,
+                    song.videoId,
+                    autoOffsetMs,
+                ),
             ),
         )
     }

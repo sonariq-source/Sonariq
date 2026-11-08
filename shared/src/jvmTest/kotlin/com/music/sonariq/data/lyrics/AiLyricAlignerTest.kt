@@ -898,4 +898,115 @@ class AiLyricAlignerTest {
         assertEquals(0, outcome.passedLeadLines)
         assertFalse(outcome.calibrationDiscarded)
     }
+
+    // -- Uniform offset measurement --------------------------------------
+
+    private val offsetTexts = listOf(
+        "alpha bravo charlie delta",
+        "echo foxtrot golf hotel",
+        "india juliet kilo lima",
+        "mike november oscar papa",
+        "quebec romeo sierra tango",
+        "uniform victor whisky xray",
+    )
+
+    /**
+     * Six four-word lines ten seconds apart, and a transcription of them
+     * whose every word sits [shiftFor] milliseconds away from its line's
+     * stamp — the constant offset [AiLyricAligner.measureUniformOffset]
+     * exists to find. Words land 700 ms apart inside their line.
+     */
+    private fun offsetSong(
+        shiftFor: (Int) -> Long,
+    ): Pair<List<LyricLine>, List<TranscribedWord>> {
+        val lines = offsetTexts.mapIndexed { index, text ->
+            LyricLine(10_000L + index * 10_000L, text)
+        }
+        val tokens = lines.flatMapIndexed { index, line ->
+            line.text.split(' ').mapIndexed { wordIndex, word ->
+                val start = line.timeMs + shiftFor(index) + wordIndex * 700L
+                TranscribedWord(word, start, start + 500)
+            }
+        }
+        return lines to tokens
+    }
+
+    @Test
+    fun uniformOffsetLateSingingIsMeasured() {
+        // The rip carries a second and a half the stamps never heard of:
+        // every line is sung that much after its stamp.
+        val (lines, tokens) = offsetSong { 1_500L }
+        val measurement = AiLyricAligner.measureUniformOffset(lines, tokens, songEndMs = 75_000)
+        assertEquals(AiLyricAligner.OffsetVerdict.MEASURED, measurement.verdict)
+        assertEquals(1_500L, measurement.offsetMs)
+        assertEquals(6, measurement.agreeingLines)
+        assertEquals(0L, measurement.spreadMs)
+    }
+
+    @Test
+    fun uniformOffsetEarlySingingIsMeasured() {
+        // The stamps run late instead: the singing leads them by the
+        // same constant the other way.
+        val (lines, tokens) = offsetSong { -1_200L }
+        val measurement = AiLyricAligner.measureUniformOffset(lines, tokens, songEndMs = 75_000)
+        assertEquals(AiLyricAligner.OffsetVerdict.MEASURED, measurement.verdict)
+        assertEquals(-1_200L, measurement.offsetMs)
+        assertEquals(6, measurement.agreeingLines)
+    }
+
+    @Test
+    fun uniformOffsetInsideTheNoiseFloorNeedsNoOffset() {
+        // A hundred milliseconds is a sung attack's width, not an offset:
+        // measured, and honestly reported as nothing to correct.
+        val (lines, tokens) = offsetSong { 100L }
+        val measurement = AiLyricAligner.measureUniformOffset(lines, tokens, songEndMs = 75_000)
+        assertEquals(AiLyricAligner.OffsetVerdict.NO_OFFSET_NEEDED, measurement.verdict)
+        assertEquals(100L, measurement.offsetMs)
+        assertEquals(6, measurement.agreeingLines)
+    }
+
+    @Test
+    fun uniformOffsetScatteredAcrossLinesIsUnreliable() {
+        // Every line off by a different amount: per-line error, not a
+        // constant, and no single shift is honest for it.
+        val shifts = listOf(0L, 3_000L, -2_000L, 500L, 2_500L, -500L)
+        val (lines, tokens) = offsetSong { shifts[it] }
+        val measurement = AiLyricAligner.measureUniformOffset(lines, tokens, songEndMs = 75_000)
+        assertEquals(AiLyricAligner.OffsetVerdict.UNRELIABLE, measurement.verdict)
+        assertTrue(measurement.spreadMs > 300L)
+    }
+
+    @Test
+    fun uniformOffsetWithTooFewWitnessesIsUnreliable() {
+        // Only three lines have any transcription at all: an anecdote,
+        // however consistent.
+        val (lines, allTokens) = offsetSong { 1_500L }
+        val tokens = allTokens.filter { it.startMs < 35_000L }
+        val measurement = AiLyricAligner.measureUniformOffset(lines, tokens, songEndMs = 75_000)
+        assertEquals(AiLyricAligner.OffsetVerdict.UNRELIABLE, measurement.verdict)
+        assertEquals(3, measurement.agreeingLines)
+    }
+
+    @Test
+    fun uniformOffsetBeyondTheCapIsUnreliable() {
+        // Nine seconds is not an offset, it is a different recording.
+        val (lines, tokens) = offsetSong { 9_000L }
+        val measurement = AiLyricAligner.measureUniformOffset(lines, tokens, songEndMs = 75_000)
+        assertEquals(AiLyricAligner.OffsetVerdict.UNRELIABLE, measurement.verdict)
+    }
+
+    @Test
+    fun uniformOffsetSkipsLinesThatFailAcceptance() {
+        // One line's words are barely in the transcription — a single
+        // anchored word of four earns no witness — while the other five
+        // agree exactly. The measurement stands on the five.
+        val (lines, tokens) = offsetSong { 1_500L }
+        val thinned = tokens.filterNot { token ->
+            token.startMs in 41_500L..44_000L && token.text != "mike"
+        }
+        val measurement = AiLyricAligner.measureUniformOffset(lines, thinned, songEndMs = 75_000)
+        assertEquals(AiLyricAligner.OffsetVerdict.MEASURED, measurement.verdict)
+        assertEquals(1_500L, measurement.offsetMs)
+        assertEquals(5, measurement.agreeingLines)
+    }
 }

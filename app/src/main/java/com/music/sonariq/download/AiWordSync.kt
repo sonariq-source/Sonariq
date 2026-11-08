@@ -12,9 +12,12 @@ import com.music.sonariq.data.lyrics.AiLyricAligner
 import com.music.sonariq.data.lyrics.LyricLanguageDetector
 import com.music.sonariq.data.lyrics.LyricLine
 import com.music.sonariq.data.lyrics.LyricTiming
+import com.music.sonariq.data.lyrics.LyricsAutoOffset
 import com.music.sonariq.data.lyrics.LyricsLookupPolicy
 import com.music.sonariq.data.lyrics.LyricsRepository
+import com.music.sonariq.data.lyrics.TranscribedWord
 import com.music.sonariq.data.lyrics.TranscriptionClient
+import com.music.sonariq.data.lyrics.lyricsLinesFingerprint
 import com.music.sonariq.data.lyrics.buildTranscriptionPrompt
 import com.music.sonariq.data.lyrics.lyricTiming
 import com.music.sonariq.data.lyrics.toEnhancedLrc
@@ -253,6 +256,17 @@ internal fun bestAiAttempt(
  * gate itself closed), which may clear at any moment and must not be
  * remembered as failures.
  *
+ * The same attempts also feed the auto offset: the best attempt's
+ * transcription is measured for the one constant by which the settled
+ * lines sit off the audio (see [AiLyricAligner.measureUniformOffset]),
+ * and a verdict — a shift, or an honest "none needed" — is recorded
+ * against those exact lines in [AppSettings.lyricsAutoOffsets], where
+ * the player's offset resolution composes it under the listener's own
+ * offsets. It costs no extra listen: the measurement reads matches the
+ * ladder already made, off audio the job already holds, under the same
+ * gates — a background job on a metered connection never runs, so it
+ * never measures either.
+ *
  * The audio is only ever the track's file, and it has to be the *same*
  * audio the player would play: the stream the resolver settles on is the
  * reference, and a local file or a download stands in for fetching it
@@ -468,6 +482,11 @@ object AiWordSync {
             val plan = aiAttemptPlan(LyricLanguageDetector.detect(result.lines))
 
             val outcomes = mutableListOf<AiLyricAligner.AlignOutcome?>()
+            // Each attempt's transcription, in ladder order beside its
+            // outcome: the uniform-offset measurement below reads the
+            // per-line matches off one of these, and an outcome alone
+            // does not remember what was heard.
+            val attemptTokens = mutableListOf<List<TranscribedWord>?>()
             var winning: AiLyricAligner.AlignOutcome? = null
             for (spec in plan) {
                 val tokens = TranscriptionClient.transcribe(
@@ -478,6 +497,7 @@ object AiWordSync {
                     language = spec.language,
                     prompt = if (spec.withPrompt) prompt else null,
                 )
+                attemptTokens += tokens
                 // A transcription that failed, or heard nothing, is an
                 // attempt that produced no outcome at all: it takes its
                 // place in the list as null — so the reporting below
@@ -491,6 +511,18 @@ object AiWordSync {
                 winning = pickAiAttempt(outcomes)
                 if (winning != null) break
             }
+            // The uniform-offset measurement rides the same attempts —
+            // no second transcription, no second listen. It reads the
+            // best attempt's hearing (the winning one where there is
+            // one: bestAiAttempt prefers it), and its verdict is
+            // recorded whether or not the song earned word timings: a
+            // song that stays line-synced can still be uniformly off,
+            // and that is the failure the measurement exists to fix.
+            val measurementOutcome = bestAiAttempt(outcomes)
+            val measurementTokens = measurementOutcome?.let { chosen ->
+                attemptTokens[outcomes.indexOfFirst { it === chosen }]
+            }
+            recordAutoOffset(videoId, result.lines, measurementTokens, songEndMs)
             if (winning == null) {
                 // No rung timed the whole song. Report the best of them
                 // in the log and store none of them: the track stays
@@ -526,6 +558,51 @@ object AiWordSync {
             // A temp file exists only for this job. The track's own files —
             // a local file, a download — are never deleted here.
             if (acquired.owned) acquired.file.delete()
+        }
+    }
+
+    /**
+     * Measures the settled [lines]' uniform offset against one attempt's
+     * transcription and records the verdict — see
+     * [AiLyricAligner.measureUniformOffset] for what the verdicts mean.
+     *
+     * A measured offset is stored against the exact lines it was
+     * measured on — their [lyricsLinesFingerprint] is the record's
+     * identity — and so is a "no offset needed" verdict, as a zero
+     * record: both are knowledge about those lines, and both stop
+     * applying by themselves the moment the lines change. An unreliable
+     * measurement stores nothing: disagreement is not knowledge, and
+     * the job's own retry gates already govern when the track is
+     * offered again. Recording never fails the job — a settings write
+     * is the worst thing in here, and the lines keep their sync either
+     * way.
+     */
+    private fun recordAutoOffset(
+        videoId: String,
+        lines: List<LyricLine>,
+        tokens: List<TranscribedWord>?,
+        songEndMs: Long?,
+    ) {
+        val heard = tokens?.takeIf { it.isNotEmpty() } ?: return
+        val measurement = AiLyricAligner.measureUniformOffset(lines, heard, songEndMs)
+        when (measurement.verdict) {
+            AiLyricAligner.OffsetVerdict.MEASURED ->
+                AppSettings.setLyricsAutoOffset(
+                    videoId,
+                    LyricsAutoOffset(
+                        offsetMs = measurement.offsetMs.toInt(),
+                        fingerprint = lyricsLinesFingerprint(lines),
+                    ),
+                )
+            AiLyricAligner.OffsetVerdict.NO_OFFSET_NEEDED ->
+                AppSettings.setLyricsAutoOffset(
+                    videoId,
+                    LyricsAutoOffset(
+                        offsetMs = 0,
+                        fingerprint = lyricsLinesFingerprint(lines),
+                    ),
+                )
+            AiLyricAligner.OffsetVerdict.UNRELIABLE -> Unit
         }
     }
 

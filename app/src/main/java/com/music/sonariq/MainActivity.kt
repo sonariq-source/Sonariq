@@ -337,6 +337,7 @@ import com.music.sonariq.ui.replay.ReplayStoryPage
 import com.music.sonariq.ui.replay.rememberReplayState
 import com.music.sonariq.ui.share.SongShareSheet
 import com.music.sonariq.ui.share.lyricSnippet
+import com.music.sonariq.ui.player.applicableAutoOffsetMs
 import com.music.sonariq.ui.player.resolveLyricsOffsetMs
 import com.music.sonariq.ui.theme.SonariqTheme
 import com.music.sonariq.ui.theme.rememberArtworkPalette
@@ -2437,6 +2438,11 @@ private fun SonariqApp(
                         AppSettings.lyricsOffsetOverrides.value,
                         AppSettings.lyricsOffsetMs.value,
                         displayedSong.videoId,
+                        applicableAutoOffsetMs(
+                            AppSettings.lyricsAutoOffsets.value,
+                            displayedSong.videoId,
+                            lyrics,
+                        ),
                     ),
                 )
                 // The full lyric text for the Spotify-style line picker —
