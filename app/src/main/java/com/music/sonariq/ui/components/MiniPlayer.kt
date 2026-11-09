@@ -65,6 +65,9 @@ import com.music.sonariq.sharedui.resources.ic_player_next
 import com.music.sonariq.ui.components.thumbnailBorder
 import com.music.sonariq.ui.haptics.Haptic
 import com.music.sonariq.ui.player.GlassTokens
+import com.music.sonariq.ui.player.artworkTintedHazeTint
+import com.music.sonariq.ui.player.artworkTintedSurface
+import com.music.sonariq.ui.theme.LocalArtworkGlassTint
 import com.music.sonariq.ui.haptics.rememberHaptics
 import com.music.sonariq.ui.player.PlayerDock
 import dev.chrisbanes.haze.HazeState
@@ -389,6 +392,11 @@ fun MiniPlayer(
     // before.
     val shape = RoundedCornerShape(18.dp)
     val glassActive = LocalLiquidGlassEnabled.current && isGlassSupported() && !reduceDynamicBlur
+    // As with the navigation bar, the artwork tint lives inside the live
+    // glass only — the matte fallback card is the untinted elevated
+    // surface exactly as before.
+    val artworkTint = LocalArtworkGlassTint.current
+    val activeTint = if (glassActive) artworkTint else null
     Box(
         modifier = modifier
             .padding(horizontal = 12.dp)
@@ -412,9 +420,15 @@ fun MiniPlayer(
                     Modifier
                         .optimizedHazeEffect(
                             state = hazeState,
-                            style = HazeMaterials.regular(GlassTokens.hazeTint),
+                            style = HazeMaterials.regular(artworkTintedHazeTint(activeTint)),
                         )
-                        .background(GlassTokens.playbackSurface)
+                        .background(
+                            artworkTintedSurface(
+                                tint = activeTint,
+                                fallback = GlassTokens.playbackSurface,
+                                alpha = GlassTokens.playbackGlassAlpha,
+                            ),
+                        )
                         .border(1.dp, Color.White.copy(alpha = 0.10f), shape)
                 } else {
                     Modifier

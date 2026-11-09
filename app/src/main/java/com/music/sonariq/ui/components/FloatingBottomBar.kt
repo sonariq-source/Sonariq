@@ -63,6 +63,9 @@ import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.ui.haptics.Haptic
 import com.music.sonariq.ui.haptics.rememberHaptics
 import com.music.sonariq.ui.player.GlassTokens
+import com.music.sonariq.ui.player.artworkTintedHazeTint
+import com.music.sonariq.ui.player.artworkTintedSurface
+import com.music.sonariq.ui.theme.LocalArtworkGlassTint
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
@@ -187,6 +190,13 @@ fun FloatingBottomBar(
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val glassActive = LocalLiquidGlassEnabled.current && isGlassSupported() && !reduceDynamicBlur
+    // The artwork tint rides inside the live glass only: with the glass
+    // off — toggle, support, or reduced blur — the bar is the matte
+    // navigation tint exactly as before, untinted. Inside the glass, the
+    // bar's haze and its surface take the playing track's colour (see
+    // [LocalArtworkGlassTint]) and shift with it on a track change.
+    val artworkTint = LocalArtworkGlassTint.current
+    val activeTint = if (glassActive) artworkTint else null
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -195,9 +205,15 @@ fun FloatingBottomBar(
                     Modifier
                         .optimizedHazeEffect(
                             state = hazeState,
-                            style = HazeMaterials.regular(GlassTokens.hazeTint),
+                            style = HazeMaterials.regular(artworkTintedHazeTint(activeTint)),
                         )
-                        .background(GlassTokens.navSurface)
+                        .background(
+                            artworkTintedSurface(
+                                tint = activeTint,
+                                fallback = GlassTokens.navSurface,
+                                alpha = GlassTokens.navGlassAlpha,
+                            ),
+                        )
                 } else {
                     Modifier.background(GlassTokens.navSurface)
                 },

@@ -270,6 +270,7 @@ import com.music.sonariq.data.sources.SourceRegistry
 import com.music.sonariq.ui.components.ListenBrainzTokenAlert
 import com.music.sonariq.ui.components.MiniPlayer
 import com.music.sonariq.ui.components.QueueActionNotice
+import com.music.sonariq.ui.components.rememberRemoteArtworkUrl
 import com.music.sonariq.ui.components.QueueActionNoticeHost
 import com.music.sonariq.ui.components.TopBarAccountButton
 import com.music.sonariq.ui.screens.SegmentedControl
@@ -339,7 +340,9 @@ import com.music.sonariq.ui.share.SongShareSheet
 import com.music.sonariq.ui.share.lyricSnippet
 import com.music.sonariq.ui.player.applicableAutoOffsetMs
 import com.music.sonariq.ui.player.resolveLyricsOffsetMs
+import com.music.sonariq.ui.theme.LocalArtworkGlassTint
 import com.music.sonariq.ui.theme.SonariqTheme
+import com.music.sonariq.ui.theme.rememberArtworkGlassTint
 import com.music.sonariq.ui.theme.rememberArtworkPalette
 import com.music.sonariq.ui.theme.rememberDynamicAccentArgb
 import com.music.sonariq.data.canvas.AppleArtistArtRepository
@@ -4184,16 +4187,32 @@ private fun SonariqApp(
                 val barSelectedIndex =
                     visibleTabs.indexOfFirst { it.first == selectedTab }.coerceAtLeast(0)
 
+                // The bottom stack's glass tint: the playing track's artwork
+                // colour, handed to the mini player and the navigation bar
+                // below (see rememberArtworkGlassTint — the read rides the
+                // palette's existing decode and cache). No song, or a song
+                // with no artwork, leaves it null and both bars keep their
+                // untinted material.
+                val barArtworkUrl = rememberRemoteArtworkUrl(player.song)
+                val artworkGlassTint = rememberArtworkGlassTint(barArtworkUrl, dark = darkTheme)
+
                 // One bottom stack in both materials: the mini player as a
                 // separate glass card directly above a docked full-width
                 // navigation bar — two designed parts, never one capsule.
-                Column(
+                // The stack sits in its own box so the tint provider can
+                // wrap the column without costing the column its alignment
+                // in the page's box.
+                Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .onSizeChanged { floatingBarsHeight.intValue = it.height },
-                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    CompositionLocalProvider(LocalArtworkGlassTint provides artworkGlassTint) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
                     QueueActionNoticeHost(queueNotice)
                     player.song?.let { song ->
                         MiniPlayer(
@@ -4226,6 +4245,8 @@ private fun SonariqApp(
                         hazeState = hazeState,
                         onTabSelected = onTabSelected,
                     )
+                        }
+                    }
                 }
             }
 

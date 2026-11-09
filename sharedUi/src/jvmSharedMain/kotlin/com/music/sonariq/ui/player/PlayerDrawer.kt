@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.sonariq.ui.components.optimizedHazeEffect
+import com.music.sonariq.ui.theme.LocalArtworkGlassTint
 import com.music.sonariq.ui.utils.containSheetGestures
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
@@ -108,6 +109,16 @@ fun PlayerDrawer(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val reduceDynamicBlur by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    // The sheet tier, tinted by the playing track's artwork where the
+    // player has provided a tint — the drawer's glass wears the song the
+    // way the player's own surfaces do. No tint in reach (a drawer drawn
+    // outside the player) is the plain sheet material, unchanged.
+    val artworkTint = LocalArtworkGlassTint.current
+    val sheetSurface = artworkTintedSurface(
+        tint = artworkTint,
+        fallback = GlassTokens.sheetSurface,
+        alpha = GlassTokens.sheetGlassAlpha,
+    )
 
     // How far the drawer has been dragged down, in pixels. Released, it either
     // springs back or goes — see [DISMISS_DRAG_FRACTION].
@@ -210,14 +221,14 @@ fun PlayerDrawer(
                 .glassEdge(DRAWER_SHAPE)
                 .then(
                     if (reduceDynamicBlur) {
-                        Modifier.background(GlassTokens.sheetSurface)
+                        Modifier.background(sheetSurface)
                     } else {
                         Modifier
                             .optimizedHazeEffect(
                                 state = hazeState,
-                                style = HazeMaterials.regular(GlassTokens.hazeTint),
+                                style = HazeMaterials.regular(artworkTintedHazeTint(artworkTint)),
                             )
-                            .background(GlassTokens.sheetSurface)
+                            .background(sheetSurface)
                     }
                 )
                 .clickable(

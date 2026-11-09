@@ -3,6 +3,7 @@ package com.music.sonariq.ui.player
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -11,6 +12,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
+import com.music.sonariq.ui.theme.LocalArtworkGlassTint
 
 /**
  * The player's shared Liquid Glass tokens: the surface tint, hairline,
@@ -135,6 +137,33 @@ object GlassTokens {
     val spineWidth = 3.dp
     val spineColor: Color get() = accent
 }
+
+/**
+ * A glass tier's colour, tinted by the playing track's artwork where a
+ * tint is in reach: the tier keeps its own alpha (a tier is a depth, and
+ * the tint must not change how much of the backdrop a surface lets
+ * through), only its colour gives way. With no tint the tier's own colour
+ * stands, byte for byte — the untinted material is the fallback, not an
+ * approximation of it.
+ */
+fun artworkTintedSurface(tint: Color?, fallback: Color, alpha: Float): Color =
+    tint?.copy(alpha = alpha) ?: fallback
+
+/** The haze material's tint, artwork-tinted the same way as [artworkTintedSurface]. */
+fun artworkTintedHazeTint(tint: Color?): Color = tint ?: GlassTokens.hazeTint
+
+/**
+ * The playback tier's surface as the player's floating controls wear it:
+ * tinted by the current track's artwork (see [LocalArtworkGlassTint])
+ * wherever the player has provided one, the plain tier colour everywhere
+ * else.
+ */
+@Composable
+fun tintedPlaybackSurface(): Color = artworkTintedSurface(
+    tint = LocalArtworkGlassTint.current,
+    fallback = GlassTokens.playbackSurface,
+    alpha = GlassTokens.playbackGlassAlpha,
+)
 
 /**
  * The Living Sound glass edge: a hairline border whose top edge carries

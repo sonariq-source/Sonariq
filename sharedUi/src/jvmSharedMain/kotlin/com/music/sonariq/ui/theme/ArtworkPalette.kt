@@ -2,6 +2,7 @@ package com.music.sonariq.ui.theme
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
@@ -12,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.ImageBitmap
@@ -412,3 +414,87 @@ private fun Color.withHsl(
 
 /** Perceived brightness, used only to tell a dark theme from a light one. */
 private fun Color.luminance(): Float = ColorUtils.calculateLuminance(toArgb()).toFloat()
+
+/**
+ * The artwork tint the glass surfaces are currently wearing, or null where
+ * no artwork tint applies — no track, no artwork, or a cover not yet read.
+ *
+ * Provided by whichever surface owns the playing track (the app shell for
+ * the navigation bar and mini player, the player itself for its own
+ * controls) and read by the glass material in
+ * [com.music.sonariq.ui.player.GlassTokens]'s tier helpers. Null is the
+ * long-standing Premium Emerald material, exactly: a surface that finds no
+ * tint here renders precisely as it did before tints existed.
+ */
+val LocalArtworkGlassTint = staticCompositionLocalOf<Color?> { null }
+
+/**
+ * The glass tint a cover hands to the surfaces around it: the cover's
+ * dominant colour, held at the same depth the palette paints a page's
+ * background — deep enough in dark mode that white content stays legible
+ * on it, a pale wash of the same hue in light mode. Neutral artwork stays
+ * neutral (see [adaptedArtworkSaturation]): a grey sleeve tints the glass
+ * grey, never an invented colour.
+ */
+internal fun glassTintColor(dominant: Color, dark: Boolean): Color = if (dark) {
+    dominant.withHsl(
+        saturation = { adaptedArtworkSaturation(it, minimum = 0.20f, maximum = 0.62f) },
+        lightness = { 0.14f },
+    )
+} else {
+    dominant.withHsl(
+        saturation = { adaptedArtworkSaturation(it, minimum = 0.14f, maximum = 0.50f) },
+        lightness = { 0.90f },
+    )
+}
+
+/** How long one tint takes to become the next on a track change. */
+private const val GLASS_TINT_FADE_MS = 520
+
+/**
+ * The tint's motion: a smooth crossfade on a track change, and a cut where
+ * the user has asked for reduced animation — the same answer
+ * [rememberArtworkPalette] gives for its own colours.
+ */
+internal fun glassTintAnimationSpec(reduceAnimation: Boolean): AnimationSpec<Color> =
+    if (reduceAnimation) {
+        snap()
+    } else {
+        tween(GLASS_TINT_FADE_MS, easing = FastOutSlowInEasing)
+    }
+
+/**
+ * The current track's glass tint, read off the same palette decode (and
+ * the same cache) [rememberArtworkPalette] already makes — no second read
+ * of the cover.
+ *
+ * The last tint is held while the next cover is being read, so a track
+ * change is one continuous shift from the old colour to the new rather
+ * than a dip through the untinted material in between — the same
+ * hold-the-last-one arrangement as the player's blurred backdrop. A track
+ * with no artwork at all clears it: the surfaces fall back to their
+ * untinted material instead of wearing the previous song's colour.
+ */
+@Composable
+fun rememberArtworkGlassTint(
+    imageUrl: String?,
+    dark: Boolean = MaterialTheme.colorScheme.background.luminance() < 0.5f,
+    artPx: Int = CARD_ART_PX,
+): Color? {
+    val seed = rememberArtworkSeed(imageUrl, artPx)
+    val reduceAnimation by PlayerPlatform.host.settings.reduceAnimation.collectAsStateWithLifecycle()
+    var held by remember { mutableStateOf<Color?>(null) }
+    val target = seed?.let { glassTintColor(it.dominant, dark) }
+    LaunchedEffect(imageUrl) {
+        if (imageUrl == null) held = null
+    }
+    LaunchedEffect(target) {
+        if (target != null) held = target
+    }
+    val current = held ?: return null
+    return animateColorAsState(
+        targetValue = current,
+        animationSpec = glassTintAnimationSpec(reduceAnimation),
+        label = "artworkGlassTint",
+    ).value
+}

@@ -5,8 +5,12 @@ import com.music.sonariq.sharedui.resources.*
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
@@ -56,12 +60,11 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImagePainter
 import coil3.request.ImageRequest
 import com.music.sonariq.ui.haptics.Haptic
@@ -226,9 +229,31 @@ internal fun LandscapePlayerLayout(
                     ) {
                         artwork(Modifier.size(minOf(maxWidth, maxHeight)))
                     }
-                    if (showBelowArtwork) {
-                        Spacer(Modifier.height(if (compact) 8.dp else 14.dp))
-                        belowArtwork(compact)
+                    // The name block and control cluster fold away as one
+                    // when the lyrics take the whole column: a spring size
+                    // travel (expandVertically's own spring), so the
+                    // artwork card grows into the freed height on the same
+                    // motion instead of jumping to it. Reduced animation
+                    // keeps the old instant fold.
+                    val reduceFoldAnimation by PlayerSettings.reduceAnimation
+                        .collectAsStateWithLifecycle()
+                    AnimatedVisibility(
+                        visible = showBelowArtwork,
+                        enter = if (reduceFoldAnimation) {
+                            EnterTransition.None
+                        } else {
+                            expandVertically() + fadeIn(tween(240))
+                        },
+                        exit = if (reduceFoldAnimation) {
+                            ExitTransition.None
+                        } else {
+                            shrinkVertically() + fadeOut(tween(180))
+                        },
+                    ) {
+                        Column {
+                            Spacer(Modifier.height(if (compact) 8.dp else 14.dp))
+                            belowArtwork(compact)
+                        }
                     }
                 }
 
@@ -331,16 +356,19 @@ internal fun LandscapeArtwork(
                     modifier = Modifier.fillMaxSize(0.36f),
                 )
             }
-            AsyncImage(
-                model = artRequest,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
+            // The sleeve travels on a track change — the incoming cover
+            // slides over the outgoing one on the player's shared spring —
+            // instead of cutting, so the card moves with the backdrop's
+            // crossfade behind it.
+            SlidingArtworkImage(
+                request = artRequest,
                 onState = onArtState,
                 // Not drawn under a clip that got there first — see the
                 // portrait sleeve's note on TextureView stacking order.
-                modifier = Modifier
-                    .fillMaxSize()
-                    .drawWithContent { if (artLoaded || !canvasRendered) drawContent() },
+                layerModifier = Modifier.drawWithContent {
+                    if (artLoaded || !canvasRendered) drawContent()
+                },
+                modifier = Modifier.fillMaxSize(),
             )
             canvas?.let { clip ->
                 CanvasArtworkPlayer(

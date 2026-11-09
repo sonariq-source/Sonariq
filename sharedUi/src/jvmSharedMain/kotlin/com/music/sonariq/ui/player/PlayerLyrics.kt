@@ -1551,7 +1551,7 @@ internal fun TranslationToggleButton(
         modifier = Modifier
             .size(34.dp)
             .clip(CircleShape)
-            .background(GlassTokens.playbackSurface)
+            .background(tintedPlaybackSurface())
             .background(Color.White.copy(alpha = discAlpha * 0.35f))
             .glassEdge(CircleShape)
             .clickable(
@@ -1604,7 +1604,7 @@ internal fun RomanizationToggleButton(
         modifier = Modifier
             .size(34.dp)
             .clip(CircleShape)
-            .background(GlassTokens.playbackSurface)
+            .background(tintedPlaybackSurface())
             .background(Color.White.copy(alpha = discAlpha * 0.35f))
             .glassEdge(CircleShape)
             .clickable(
@@ -1651,7 +1651,7 @@ internal fun LyricsShareButton(
         modifier = Modifier
             .size(34.dp)
             .clip(CircleShape)
-            .background(GlassTokens.playbackSurface)
+            .background(tintedPlaybackSurface())
             .glassEdge(CircleShape)
             .clickable(
                 enabled = enabled,
@@ -2872,7 +2872,7 @@ private fun LyricsSearchOverlay(
         modifier = modifier
             .then(if (open) Modifier.fillMaxWidth() else Modifier)
             .clip(pill)
-            .background(GlassTokens.playbackSurface)
+            .background(tintedPlaybackSurface())
             .glassEdge(pill),
         contentAlignment = Alignment.CenterEnd,
     ) {
@@ -3003,7 +3003,7 @@ private fun LyricsAppearanceOverlay(
         Box(
             modifier = Modifier
                 .clip(pill)
-                .background(GlassTokens.playbackSurface)
+                .background(tintedPlaybackSurface())
                 .glassEdge(pill),
             contentAlignment = Alignment.Center,
         ) {

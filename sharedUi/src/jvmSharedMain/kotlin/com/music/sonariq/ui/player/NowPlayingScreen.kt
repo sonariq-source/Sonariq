@@ -1,5 +1,6 @@
 package com.music.sonariq.ui.player
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -35,6 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -77,7 +79,9 @@ import com.music.sonariq.playback.PlaybackPosition
 import com.music.sonariq.sharedui.resources.*
 import com.music.sonariq.ui.haptics.Haptic
 import com.music.sonariq.ui.haptics.rememberHaptics
+import com.music.sonariq.ui.theme.LocalArtworkGlassTint
 import com.music.sonariq.ui.theme.StatusBarIcons
+import com.music.sonariq.ui.theme.rememberArtworkGlassTint
 import com.music.sonariq.ui.theme.rememberArtworkTopBandLuminance
 import com.music.sonariq.ui.theme.topBandScrimAlpha
 import dev.chrisbanes.haze.ExperimentalHazeApi
@@ -239,7 +243,7 @@ private fun VibeBadge(
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier
             .clip(pill)
-            .background(GlassTokens.playbackSurface)
+            .background(tintedPlaybackSurface())
             .glassEdge(pill)
             .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -399,6 +403,27 @@ fun NowPlayingScreen(
     // every surface below reads the same value rather than each triggering
     // its own extraction.
     val remoteArt = rememberRemoteArtworkUrl(song)
+    // The glass tint this track hands the player's own surfaces — the
+    // floating pills and discs, the sheets, the badge — read off the same
+    // palette decode as everything else the player tints with, and held
+    // across the change so the shift is one motion with the backdrop's
+    // crossfade. The player is a dark surface in every theme, so the tint
+    // is always the dark variant.
+    val glassTint = rememberArtworkGlassTint(remoteArt, dark = true)
+    // Which way the queue is travelling, for the artwork's slide: read off
+    // the queue position each time the track actually changes, so a skip
+    // by button, by swipe and by the queue running out all agree. Worked
+    // out during composition (the adjust-on-change pattern) rather than in
+    // an effect, so the artwork being composed below reads the direction
+    // of *this* change, not the last one's.
+    var previousTrackKey by remember { mutableStateOf(song.videoId) }
+    var previousQueueIndex by remember { mutableIntStateOf(queueIndex) }
+    var slideDirection by remember { mutableStateOf(TrackSlideDirection.FORWARD) }
+    if (song.videoId != previousTrackKey) {
+        slideDirection = trackSlideDirection(previousQueueIndex, queueIndex)
+        previousTrackKey = song.videoId
+        previousQueueIndex = queueIndex
+    }
     // This is produced by the palette's existing 128 px decode and cache. It
     // samples the upper band rather than the whole sleeve because that is what
     // lies beneath the status bar when the player expands to full bleed.
@@ -1292,6 +1317,10 @@ fun NowPlayingScreen(
                 .fillMaxSize()
                 .background(Color.Black),
         ) {
+          CompositionLocalProvider(
+              LocalArtworkGlassTint provides glassTint,
+              LocalTrackSlideDirection provides slideDirection,
+          ) {
             LandscapePlayerLayout(
                 background = { backgroundModifier -> backdrop(false, backgroundModifier) },
                 artwork = { artworkModifier ->
@@ -1339,39 +1368,54 @@ fun NowPlayingScreen(
                 },
                 belowArtwork = landscapeBelowArtwork,
                 middle = {
-                    when {
-                        queueOpen -> queueContent(false)
-                        lyricsOpen -> landscapeLyricsPane()
-                        else -> {
-                            Box(Modifier.fillMaxSize()) {
-                                if (visualizerShown && visualizerCanRun) {
-                                    PlayerVisualizerFull(
-                                        isPlaying = isPlaying,
-                                        modifier = Modifier.fillMaxSize(),
-                                    )
-                                } else {
-                                    // The whole sheet, not a preview of
-                                    // its first lines: every word is on
-                                    // the column from the first frame.
+                    // The right column's two occupants trade places on the
+                    // shared page travel: the queue slides over the words
+                    // and back, on the same spring as the portrait pages,
+                    // instead of cutting between them.
+                    AnimatedContent(
+                        targetState = if (queueOpen) PlayerPage.QUEUE else PlayerPage.LYRICS,
+                        transitionSpec = { playerPageTransition(initialState, targetState) },
+                        sizeTransform = null,
+                        label = "landscapePlayerPages",
+                        modifier = Modifier.fillMaxSize(),
+                    ) { page ->
+                        when (page) {
+                            PlayerPage.QUEUE -> queueContent(false)
+                            else -> {
+                                if (lyricsOpen) {
                                     landscapeLyricsPane()
-                                }
-                                if (swipeHintShown) {
-                                    Icon(
-                                        imageVector = if (swipeHintNext) {
-                                            Icons.Rounded.FastForward
+                                } else {
+                                    Box(Modifier.fillMaxSize()) {
+                                        if (visualizerShown && visualizerCanRun) {
+                                            PlayerVisualizerFull(
+                                                isPlaying = isPlaying,
+                                                modifier = Modifier.fillMaxSize(),
+                                            )
                                         } else {
-                                            Icons.Rounded.FastRewind
-                                        },
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier
-                                            .align(Alignment.Center)
-                                            .size(20.dp)
-                                            .graphicsLayer {
-                                                alpha = (abs(swipeSettle.value) / swipeThreshold)
-                                                    .coerceIn(0f, 1f) * 0.85f
-                                            },
-                                    )
+                                            // The whole sheet, not a preview of
+                                            // its first lines: every word is on
+                                            // the column from the first frame.
+                                            landscapeLyricsPane()
+                                        }
+                                        if (swipeHintShown) {
+                                            Icon(
+                                                imageVector = if (swipeHintNext) {
+                                                    Icons.Rounded.FastForward
+                                                } else {
+                                                    Icons.Rounded.FastRewind
+                                                },
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier
+                                                    .align(Alignment.Center)
+                                                    .size(20.dp)
+                                                    .graphicsLayer {
+                                                        alpha = (abs(swipeSettle.value) / swipeThreshold)
+                                                            .coerceIn(0f, 1f) * 0.85f
+                                                    },
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1386,11 +1430,19 @@ fun NowPlayingScreen(
                 showBelowArtwork = !lyricsOpen,
             )
             playerOverlays()
+          }
         }
         return
     }
 
     // ---- Portrait: header, page dots, ambience / lyrics / queue, bottom ----
+    // The page the portrait middle is showing, for the page travel below:
+    // the same three states the dots name, in the dots' order.
+    val playerPage = when {
+        queueOpen -> PlayerPage.QUEUE
+        lyricsOpen -> PlayerPage.LYRICS
+        else -> PlayerPage.PLAYER
+    }
     val playerSubviewOpen = lyricsOpen || queueOpen || lyricsOffsetOpen ||
         showAudioPipeline || showCast || showAudioOutput ||
         lyricsShare != null
@@ -1421,6 +1473,10 @@ fun NowPlayingScreen(
             .onSizeChanged { playerBounds = it }
             .background(Color.Black),
     ) {
+      CompositionLocalProvider(
+          LocalArtworkGlassTint provides glassTint,
+          LocalTrackSlideDirection provides slideDirection,
+      ) {
         backdrop(true, Modifier.fillMaxSize())
         // The status-bar scrim: a transparent top gradient whose opacity
         // follows the artwork's own top band.
@@ -1469,92 +1525,113 @@ fun NowPlayingScreen(
                     Spacer(Modifier.height(6.dp))
                 }
                 header()
-                when {
-                    queueOpen -> {
-                        Spacer(Modifier.height(10.dp))
-                        Box(Modifier.weight(1f).fillMaxWidth()) {
-                            queueContent(true)
-                        }
-                    }
-                    lyricsOpen -> {
-                        Spacer(Modifier.height(6.dp))
-                        Box(Modifier.weight(1f).fillMaxWidth()) {
-                            lyricsContent()
-                        }
-                    }
-                    else -> {
-                        Spacer(Modifier.height(14.dp))
-                        ReferencePageDots(
-                            pageCount = 3,
-                            activePage = 0,
-                            onSelectPage = { page ->
-                                when (page) {
-                                    1 -> openLyrics()
-                                    2 -> openQueue()
+                // The three pages travel rather than cut: a page change
+                // slides the incoming page in on the shared spring page
+                // travel (see [playerPageTransition]) while the outgoing
+                // one leaves the other way — the header and the bottom
+                // block, which all three pages share, never move.
+                AnimatedContent(
+                    targetState = playerPage,
+                    transitionSpec = { playerPageTransition(initialState, targetState) },
+                    sizeTransform = null,
+                    label = "playerPages",
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                ) { page ->
+                    when (page) {
+                        PlayerPage.QUEUE -> {
+                            Column(Modifier.fillMaxSize()) {
+                                Spacer(Modifier.height(10.dp))
+                                Box(Modifier.weight(1f).fillMaxWidth()) {
+                                    queueContent(true)
                                 }
-                            },
-                        )
-                        // The middle area: ambient lyric lines over the
-                        // backdrop (or the visualizer in their place). A
-                        // tap toggles the visualizer where it can run; the
-                        // lines themselves take no touches.
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                                .clickable(
-                                    enabled = visualizerCanRun,
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                ) {
-                                    haptics.play(Haptic.Tap)
-                                    visualizerShown = !visualizerShown
-                                },
-                        ) {
-                            if (visualizerShown && visualizerCanRun) {
-                                PlayerVisualizerFull(
-                                    isPlaying = isPlaying,
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                            } else {
-                                AmbientLyricLines(
-                                    lines = lyricsTranslation.displayedLyrics,
-                                    playhead = lyricsPlayhead,
-                                    loadingText = lyricsLoadingText,
-                                    lyricsUnavailable = lyricsUnavailable,
-                                    blurEnabled = ambientBlurEnabled,
-                                    modifier = Modifier
-                                        .align(Alignment.CenterStart)
-                                        .fillMaxWidth(),
-                                )
                             }
-                            if (swipeHintShown) {
-                                Icon(
-                                    imageVector = if (swipeHintNext) {
-                                        Icons.Rounded.FastForward
-                                    } else {
-                                        Icons.Rounded.FastRewind
+                        }
+                        PlayerPage.LYRICS -> {
+                            Column(Modifier.fillMaxSize()) {
+                                Spacer(Modifier.height(6.dp))
+                                Box(Modifier.weight(1f).fillMaxWidth()) {
+                                    lyricsContent()
+                                }
+                            }
+                        }
+                        PlayerPage.PLAYER -> {
+                            Column(Modifier.fillMaxSize()) {
+                                Spacer(Modifier.height(14.dp))
+                                ReferencePageDots(
+                                    pageCount = 3,
+                                    activePage = 0,
+                                    onSelectPage = { selected ->
+                                        when (selected) {
+                                            1 -> openLyrics()
+                                            2 -> openQueue()
+                                        }
                                     },
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier
-                                        .align(Alignment.Center)
-                                        .size(20.dp)
-                                        .graphicsLayer {
-                                            alpha = (abs(swipeSettle.value) / swipeThreshold)
-                                                .coerceIn(0f, 1f) * 0.85f
-                                        },
                                 )
+                                // The middle area: ambient lyric lines over the
+                                // backdrop (or the visualizer in their place). A
+                                // tap toggles the visualizer where it can run; the
+                                // lines themselves take no touches.
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth()
+                                        .clickable(
+                                            enabled = visualizerCanRun,
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                        ) {
+                                            haptics.play(Haptic.Tap)
+                                            visualizerShown = !visualizerShown
+                                        },
+                                ) {
+                                    if (visualizerShown && visualizerCanRun) {
+                                        PlayerVisualizerFull(
+                                            isPlaying = isPlaying,
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                    } else {
+                                        AmbientLyricLines(
+                                            lines = lyricsTranslation.displayedLyrics,
+                                            playhead = lyricsPlayhead,
+                                            loadingText = lyricsLoadingText,
+                                            lyricsUnavailable = lyricsUnavailable,
+                                            blurEnabled = ambientBlurEnabled,
+                                            modifier = Modifier
+                                                .align(Alignment.CenterStart)
+                                                .fillMaxWidth(),
+                                        )
+                                    }
+                                    if (swipeHintShown) {
+                                        Icon(
+                                            imageVector = if (swipeHintNext) {
+                                                Icons.Rounded.FastForward
+                                            } else {
+                                                Icons.Rounded.FastRewind
+                                            },
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier
+                                                .align(Alignment.Center)
+                                                .size(20.dp)
+                                                .graphicsLayer {
+                                                    alpha = (abs(swipeSettle.value) / swipeThreshold)
+                                                        .coerceIn(0f, 1f) * 0.85f
+                                                },
+                                        )
+                                    }
+                                    // The nerd-stats line's new home: the foot of
+                                    // the ambient area, where the sleeve's bottom
+                                    // used to carry it.
+                                    SleeveNerdStats(
+                                        song = song,
+                                        modifier = Modifier
+                                            .align(Alignment.BottomStart)
+                                            .padding(bottom = 10.dp),
+                                    )
+                                }
                             }
-                            // The nerd-stats line's new home: the foot of
-                            // the ambient area, where the sleeve's bottom
-                            // used to carry it.
-                            SleeveNerdStats(
-                                song = song,
-                                modifier = Modifier
-                                    .align(Alignment.BottomStart)
-                                    .padding(bottom = 10.dp),
-                            )
                         }
                     }
                 }
@@ -1575,5 +1652,6 @@ fun NowPlayingScreen(
             }
         }
         playerOverlays()
+      }
     }
 }

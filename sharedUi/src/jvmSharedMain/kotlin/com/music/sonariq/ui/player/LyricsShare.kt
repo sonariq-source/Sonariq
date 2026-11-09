@@ -43,6 +43,7 @@ import com.music.sonariq.sharedui.resources.share
 import com.music.sonariq.ui.haptics.Haptic
 import com.music.sonariq.ui.haptics.Haptics
 import com.music.sonariq.ui.haptics.rememberHaptics
+import com.music.sonariq.ui.theme.LocalArtworkGlassTint
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -315,7 +316,15 @@ internal fun LyricsPickBar(
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF121D17).copy(alpha = 0.92f))
+            // The bar wears the sheet tier's depth, tinted by the playing
+            // track's artwork like the player's other floating surfaces.
+            .background(
+                artworkTintedSurface(
+                    tint = LocalArtworkGlassTint.current,
+                    fallback = Color(0xFF121D17).copy(alpha = 0.92f),
+                    alpha = 0.92f,
+                ),
+            )
             .padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {

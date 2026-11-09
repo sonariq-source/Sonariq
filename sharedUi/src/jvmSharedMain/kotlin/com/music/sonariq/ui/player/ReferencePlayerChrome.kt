@@ -43,11 +43,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import com.music.sonariq.data.lyrics.LyricLine
 import com.music.sonariq.data.model.LikeStatus
@@ -123,10 +121,12 @@ internal fun ReferencePlayerHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (showThumbnail) {
-            AsyncImage(
-                model = artRequest,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
+            // The thumbnail travels with the track change like the sleeve
+            // does — the same slide, at thumbnail scale — so the header
+            // never cuts to the new cover while everything around it is
+            // still moving.
+            SlidingArtworkImage(
+                request = artRequest,
                 modifier = Modifier
                     .size(HEADER_THUMB_SIZE)
                     .clip(RoundedCornerShape(10.dp))

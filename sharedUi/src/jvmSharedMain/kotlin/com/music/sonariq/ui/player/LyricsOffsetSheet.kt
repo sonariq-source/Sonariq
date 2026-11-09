@@ -56,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.sonariq.sharedui.resources.*
 import com.music.sonariq.ui.utils.containSheetGestures
 import com.music.sonariq.ui.components.optimizedHazeEffect
+import com.music.sonariq.ui.theme.LocalArtworkGlassTint
 import com.music.sonariq.ui.haptics.Haptic
 import com.music.sonariq.ui.haptics.rememberHaptics
 import dev.chrisbanes.haze.HazeState
@@ -117,6 +118,14 @@ internal fun LyricsOffsetSheet(
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
     val reduceDynamicBlur by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    // The sheet tier tinted by the playing track's artwork, as in
+    // [PlayerDrawer] — every sheet the player raises wears the same glass.
+    val artworkTint = LocalArtworkGlassTint.current
+    val sheetSurface = artworkTintedSurface(
+        tint = artworkTint,
+        fallback = GlassTokens.sheetSurface,
+        alpha = GlassTokens.sheetGlassAlpha,
+    )
 
     Box(
         modifier = modifier
@@ -145,14 +154,14 @@ internal fun LyricsOffsetSheet(
                     .glassEdge(DrawerShape)
                     .then(
                         if (reduceDynamicBlur) {
-                            Modifier.background(GlassTokens.sheetSurface)
+                            Modifier.background(sheetSurface)
                         } else {
                             Modifier
                                 .optimizedHazeEffect(
                                     state = hazeState,
-                                    style = HazeMaterials.regular(GlassTokens.hazeTint),
+                                    style = HazeMaterials.regular(artworkTintedHazeTint(artworkTint)),
                                 )
-                                .background(GlassTokens.sheetSurface)
+                                .background(sheetSurface)
                         },
                     )
                     .clickable(
