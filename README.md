@@ -61,6 +61,7 @@
 - **Playlist folders** — organise playlists into folders, with smart rules that auto-fill (e.g. "5-star rock added this month").
 - **Queue 2.0** — save multiple named queues, browse queue history, swipe to reorder.
 - **Gestures** — swipe the artwork for next/previous, double-tap the sides to seek ±10s.
+- **Liquid glass, tinted by the music** — the navigation bar, mini player and player controls take their tint from the playing track's artwork and shift colour as songs change, and track and page changes travel on a fluid spring slide instead of cutting.
 - **New-release radar** — a feed of fresh drops from artists you follow.
 - **Playlist cover maker** — generate custom canvas-rendered artwork for your playlists.
 - **Monthly recap** — a shareable story of your month in music.
