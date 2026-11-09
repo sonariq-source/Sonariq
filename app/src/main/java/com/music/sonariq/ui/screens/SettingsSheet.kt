@@ -3876,24 +3876,6 @@ private fun SettingsCategoryCard(
 }
 
 /**
- * One Settings category: a card of rows filtered by the search field, which
- * takes itself off the screen when none of them are left.
- *
- * Headed categories are static, always-open cards: the card's first row is
- * the category's title and icon, and every control inside the card is
- * composed underneath it, always. There is deliberately no expand or
- * collapse behaviour here — the groups used to be drop-downs whose toggle
- * swapped the whole row block in and out of the scrolling column under an
- * animated chevron, and on device that presented as rows doubling and
- * overlapping while the state changed. The drop-downs were removed on the
- * owner's order so the mechanism cannot come back: no toggle state, no
- * conditional composition of the rows, no animation.
- *
- * The one headerless group (the account rows at the top of the screen) has
- * no title, so it keeps the plain [SettingsGroup] rendering.
- */
-@Composable
-/**
  * The settings card surface: with Liquid Glass on, the shared glass
  * material at the panel tier (see [glassSurface]) — a graded tint with a
  * lit rim in place of the flat fill and outline the cards used to wear,
@@ -3934,6 +3916,24 @@ private fun Modifier.settingsGlassCard(shape: Shape): Modifier {
         )
 }
 
+/**
+ * One Settings category: a card of rows filtered by the search field, which
+ * takes itself off the screen when none of them are left.
+ *
+ * Headed categories are static, always-open cards: the card's first row is
+ * the category's title and icon, and every control inside the card is
+ * composed underneath it, always. There is deliberately no expand or
+ * collapse behaviour here — the groups used to be drop-downs whose toggle
+ * swapped the whole row block in and out of the scrolling column under an
+ * animated chevron, and on device that presented as rows doubling and
+ * overlapping while the state changed. The drop-downs were removed on the
+ * owner's order so the mechanism cannot come back: no toggle state, no
+ * conditional composition of the rows, no animation.
+ *
+ * The one headerless group (the account rows at the top of the screen) has
+ * no title, so it keeps the plain [SettingsGroup] rendering.
+ */
+@Composable
 private fun SearchableSettingsGroup(
     search: SettingsSearch,
     header: String? = null,
