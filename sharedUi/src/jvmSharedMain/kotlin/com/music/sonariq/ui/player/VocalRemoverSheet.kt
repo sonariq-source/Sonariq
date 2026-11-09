@@ -156,11 +156,11 @@ internal fun VocalRemoverSheet(
                     VocalAiStatus.Stage.PREPARING ->
                         "Preparing this song…" + percentSuffix(aiStatus.progress)
                     VocalAiStatus.Stage.MODEL_DOWNLOADING ->
-                        "Downloading AI model…" + percentSuffix(aiStatus.progress)
+                        "Preparing AI model…" + percentSuffix(aiStatus.progress)
                     VocalAiStatus.Stage.MODEL_READY ->
                         "AI model ready. Songs are separated as they are prepared."
                     VocalAiStatus.Stage.STANDARD ->
-                        "Standard mode. Download the AI model for true stem separation."
+                        "Standard mode. The AI model is included with the app — set it up for true stem separation."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White.copy(alpha = 0.85f),
@@ -174,7 +174,7 @@ internal fun VocalRemoverSheet(
                     },
                 ) {
                     Text(
-                        text = "Download AI model · 67 MB",
+                        text = "Set up AI model",
                         color = Color.White,
                     )
                 }

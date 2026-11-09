@@ -1,5 +1,8 @@
 import java.util.Properties
+import java.io.File
 import java.io.FileInputStream
+import java.net.URI
+import java.security.MessageDigest
 
 plugins {
     id("com.android.application")
@@ -95,8 +98,8 @@ android {
         // Haze falls back to a translucent scrim below that.
         minSdk = 26
         targetSdk = 36
-        versionCode = 78
-        versionName = "2.5.1"
+        versionCode = 79
+        versionName = "2.5.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -249,6 +252,88 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
+/*
+ * The Vocal Remover's pro separation model, bundled into the phone app's
+ * assets so the feature works with no download on the device. The file is
+ * ~64 MB — far too big to commit — so this task fetches it at build time
+ * from the model's published release, verifies it against the SHA-256 the
+ * runtime itself checks (MdxModel.SHA256), and fails the build rather
+ * than package a truncated or substituted file. The verified copy lives
+ * under build/, so it is never committed and a build only re-downloads
+ * when the file is missing or fails verification.
+ *
+ * Phone flavour only: the TV app has no AI separation (it keeps the DSP
+ * remover) and its APK must not grow by the model's size.
+ */
+val vocalModelFileName = "UVR-MDX-NET-Inst_HQ_3.onnx"
+val vocalModelUrl =
+    "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/$vocalModelFileName"
+val vocalModelSha256 = "317554b07fe1ea5279a77f2b1520a41ea4b93432560c4ffd08792c30fddf9adc"
+val vocalModelAssetsDir = layout.buildDirectory.dir("generated/vocal-model-assets")
+val vocalModelAssetFile = vocalModelAssetsDir.map { it.file("ai_model/$vocalModelFileName") }
+
+fun sha256Hex(file: File): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    file.inputStream().use { input ->
+        val buffer = ByteArray(64 * 1024)
+        while (true) {
+            val read = input.read(buffer)
+            if (read < 0) break
+            if (read > 0) digest.update(buffer, 0, read)
+        }
+    }
+    return digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xFF) }
+}
+
+val fetchVocalModel = tasks.register("fetchVocalModel") {
+    group = "build"
+    description = "Fetches the bundled vocal separation model and verifies its SHA-256."
+    inputs.property("url", vocalModelUrl)
+    inputs.property("sha256", vocalModelSha256)
+    outputs.file(vocalModelAssetFile)
+    doLast {
+        val target = vocalModelAssetFile.get().asFile
+        if (target.isFile && sha256Hex(target) == vocalModelSha256) {
+            logger.lifecycle("fetchVocalModel: verified model already in place, no download")
+            return@doLast
+        }
+        target.parentFile.mkdirs()
+        val temp = File(target.parentFile, target.name + ".download")
+        logger.lifecycle("fetchVocalModel: downloading $vocalModelUrl")
+        URI(vocalModelUrl).toURL().openStream().use { input ->
+            temp.outputStream().use { output -> input.copyTo(output) }
+        }
+        val digest = sha256Hex(temp)
+        if (digest != vocalModelSha256) {
+            temp.delete()
+            throw org.gradle.api.GradleException(
+                "Vocal model download failed verification: SHA-256 $digest, expected $vocalModelSha256",
+            )
+        }
+        if (target.exists()) target.delete()
+        if (!temp.renameTo(target)) {
+            temp.copyTo(target, overwrite = true)
+            temp.delete()
+        }
+        logger.lifecycle("fetchVocalModel: verified model packaged from ${target.absolutePath}")
+    }
+}
+
+android {
+    sourceSets {
+        getByName("phone") {
+            assets.srcDir(vocalModelAssetsDir)
+        }
+    }
+}
+tasks.configureEach {
+    // Every phone variant's asset merge needs the model in place first;
+    // the TV merges never see the directory at all.
+    if (name.startsWith("merge") && name.endsWith("Assets") && name.contains("Phone")) {
+        dependsOn(fetchVocalModel)
     }
 }
 

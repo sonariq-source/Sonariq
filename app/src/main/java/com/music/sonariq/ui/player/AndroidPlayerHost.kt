@@ -149,7 +149,7 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
                         highQuality = preparing.tier == StemTier.MDX,
                         modelAbsent = modelAbsent,
                     )
-                    model is MdxModelManager.ModelState.Downloading -> VocalAiStatus(
+                    model is MdxModelManager.ModelState.Preparing -> VocalAiStatus(
                         stage = VocalAiStatus.Stage.MODEL_DOWNLOADING,
                         progress = model.progress,
                     )

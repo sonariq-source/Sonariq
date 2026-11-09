@@ -92,6 +92,48 @@ class AiStemProcessorTest {
     }
 
     @Test
+    fun `zero level output does not depend on the original at all`() {
+        // At the bottom of the fader the vocal must be gone, which in
+        // this design means the output is the stem alone: two completely
+        // different originals over the same stem must produce identical
+        // output — any residue of the original would show as a difference.
+        val stem = stemFile("independence.wav", stemFrames)
+        val loudBlock = stereoBlock(input)
+        processor(0.0f, stem).process(loudBlock)
+        val quietInput = listOf(
+            0.01f to -0.01f,
+            -0.02f to 0.02f,
+            0.03f to -0.03f,
+            -0.01f to 0.01f,
+        )
+        val quietBlock = stereoBlock(quietInput)
+        processor(0.0f, stem).process(quietBlock)
+        assertTrue(loudBlock.samples.contentEquals(quietBlock.samples))
+    }
+
+    @Test
+    fun `dropping from full level to zero leaves the pure stem`() {
+        // A level change mid-playback, in its settled state: the chain
+        // snaps the smoothed gain on its boundaries (flush), and from
+        // that snap onward the output is the quantised stem with nothing
+        // of the original mixed back in — the fader's end states are
+        // exact, not approached forever. A constant stem keeps the check
+        // independent of the playback position.
+        val constantStem = List(600) { 0.3f to -0.1f }
+        val stem = stemFile("drop.wav", constantStem)
+        val processor = processor(1.0f, stem)
+        processor.process(stereoBlock(List(100) { 0.8f to -0.8f }))
+        processor.level = 0.0f
+        processor.flush()
+        val block = stereoBlock(List(100) { 0.9f to -0.9f })
+        processor.process(block)
+        for (index in 0 until 100) {
+            assertEquals(q(0.3f), block.samples[index * 2], 0f)
+            assertEquals(q(-0.1f), block.samples[index * 2 + 1], 0f)
+        }
+    }
+
+    @Test
     fun `half level is the midpoint of mix and stem`() {
         val block = stereoBlock(input)
         processor(0.5f, stemFile("half.wav", stemFrames)).process(block)

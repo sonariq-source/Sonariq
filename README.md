@@ -146,7 +146,7 @@
 - **7-band EQ** with user presets and tone trims.
 - **Per-device EQ profiles** — your EQ follows the output: one setting for earbuds, another for the speaker.
 - **Mono audio mix** — downmix to mono for single-ear listening.
-- **Vocal Remover** — on-device AI separation lifts the lead vocal out of a song and leaves the music intact; the slider then fades the real vocal stem from full down to gone, prepared in the background and cached per song, with a standard centre-channel mode covering songs that are not ready yet. This release also fixes a force stop that could occur on some devices while a song's separation was being prepared in the background.
+- **Vocal Remover** — on-device AI separation lifts the lead vocal out of a song and leaves the music intact; the slider then fades the real vocal stem from full down to gone, prepared in the background and cached per song, with a standard centre-channel mode covering songs that are not ready yet. The AI model is now built into the app — no separate download before the first use. This release also hardens stability on devices where the app could still stop unexpectedly.
 - **Admin Control Center** — a one-time owner claim turns on a private control center for your installation: real listening totals and analytics from your own device, autoplay and lyrics-cache management with measured timing quality, vocal remover status, system health and storage, announcements, feature switches and a full audit log of every administrative action.
 - **EQ preset sharing** — send your sound to friends as a Sonariq link.
 - **Playback speed control** (0.5×–2.0×) and **skip silence**.

@@ -9,22 +9,25 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Tests for [MdxModelManager]'s state machine, through its injected
- * download/verify seams: a download that fails verification deletes its
- * temp file and lands in Failed; one that verifies is renamed into place
- * and lands in Ready; and a second [MdxModelManager.ensureModel] does not
- * download again.
+ * bundled-source/verify seams: a bundled copy that fails verification
+ * deletes its temp file and lands in Failed; one that verifies is
+ * renamed into place and lands in Ready; and a second
+ * [MdxModelManager.ensureModel] does not copy again.
  *
- * The hash itself is not re-tested here — that is `MdxModelVerifyTest`'s
- * coverage of the shared `MdxModel.verify`, which is why the seams exist:
- * the manager's contract is what happens around the check. (One
- * consequence: the fake "model" below is a few bytes, so
- * [MdxModelManager.modelFile]'s published-size gate does not see it; the
- * assertions are on the manager's state and the directory's contents.)
+ * The model now ships inside the app package, so the "source" the seam
+ * stands in for is the bundled asset, not a download. The hash itself is
+ * not re-tested here — that is `MdxModelVerifyTest`'s coverage of the
+ * shared `MdxModel.verify`, which is why the seams exist: the manager's
+ * contract is what happens around the check. (One consequence: the fake
+ * "model" below is a few bytes, so [MdxModelManager.modelFile]'s
+ * published-size gate does not see it; the assertions are on the
+ * manager's state and the directory's contents.)
  */
 class MdxModelManagerTest {
 
@@ -38,17 +41,14 @@ class MdxModelManagerTest {
     fun setUp() {
         filesDir = File(folder.root, "files")
         modelsDir = File(filesDir, "models")
-        MdxModelManager.downloadOverride = null
+        MdxModelManager.bundledSourceOverride = null
         MdxModelManager.verifyOverride = null
         MdxModelManager.initForTest(filesDir)
     }
 
     @Test
-    fun `a download that fails verification is deleted and reported failed`() = runBlocking {
-        MdxModelManager.downloadOverride = { _, dest, onProgress ->
-            dest.writeBytes(byteArrayOf(1, 2, 3))
-            onProgress(1f)
-        }
+    fun `a bundled copy that fails verification is deleted and reported failed`() = runBlocking {
+        MdxModelManager.bundledSourceOverride = { ByteArrayInputStream(byteArrayOf(1, 2, 3)) }
         MdxModelManager.verifyOverride = { false }
 
         MdxModelManager.ensureModel()
@@ -61,12 +61,8 @@ class MdxModelManagerTest {
     }
 
     @Test
-    fun `a verified download is renamed into place and reported ready`() = runBlocking {
-        MdxModelManager.downloadOverride = { _, dest, onProgress ->
-            dest.writeBytes(byteArrayOf(4, 5, 6))
-            onProgress(0.5f)
-            onProgress(1f)
-        }
+    fun `a verified bundled copy is renamed into place and reported ready`() = runBlocking {
+        MdxModelManager.bundledSourceOverride = { ByteArrayInputStream(byteArrayOf(4, 5, 6)) }
         MdxModelManager.verifyOverride = { true }
 
         MdxModelManager.ensureModel()
@@ -78,26 +74,23 @@ class MdxModelManagerTest {
 
     @Test
     fun `ensure model is idempotent once the model is in place`() = runBlocking {
-        val downloads = AtomicInteger(0)
-        MdxModelManager.downloadOverride = { _, dest, _ ->
-            downloads.incrementAndGet()
-            dest.writeBytes(byteArrayOf(7, 8, 9))
+        val copies = AtomicInteger(0)
+        MdxModelManager.bundledSourceOverride = {
+            copies.incrementAndGet()
+            ByteArrayInputStream(byteArrayOf(7, 8, 9))
         }
         MdxModelManager.verifyOverride = { true }
 
         MdxModelManager.ensureModel()
         MdxModelManager.ensureModel()
 
-        assertEquals(1, downloads.get())
+        assertEquals(1, copies.get())
         assertEquals(MdxModelManager.ModelState.Ready, MdxModelManager.state.value)
     }
 
     @Test
-    fun `a throwing download lands in failed and cleans up`() = runBlocking {
-        MdxModelManager.downloadOverride = { _, dest, _ ->
-            dest.writeBytes(byteArrayOf(1))
-            error("network went away")
-        }
+    fun `a missing bundled model lands in failed and cleans up`() = runBlocking {
+        // No override and no Context: the bundled asset cannot be opened.
         MdxModelManager.ensureModel()
 
         assertTrue(MdxModelManager.state.value is MdxModelManager.ModelState.Failed)
@@ -105,8 +98,12 @@ class MdxModelManagerTest {
     }
 
     @Test
-    fun `delete model returns to absent`() = runBlocking {
-        MdxModelManager.downloadOverride = { _, dest, _ -> dest.writeBytes(byteArrayOf(1, 2)) }
+    fun `delete model returns to absent and the next ensure copies again`() = runBlocking {
+        val copies = AtomicInteger(0)
+        MdxModelManager.bundledSourceOverride = {
+            copies.incrementAndGet()
+            ByteArrayInputStream(byteArrayOf(1, 2))
+        }
         MdxModelManager.verifyOverride = { true }
         MdxModelManager.ensureModel()
         assertEquals(MdxModelManager.ModelState.Ready, MdxModelManager.state.value)
@@ -115,5 +112,11 @@ class MdxModelManagerTest {
 
         assertEquals(MdxModelManager.ModelState.Absent, MdxModelManager.state.value)
         assertFalse(File(modelsDir, MdxModel.FILE_NAME).exists())
+
+        // Deleting only ever removed the prepared copy: the bundled file
+        // is still in the package, so preparing again works — no network.
+        MdxModelManager.ensureModel()
+        assertEquals(MdxModelManager.ModelState.Ready, MdxModelManager.state.value)
+        assertEquals(2, copies.get())
     }
 }

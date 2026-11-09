@@ -119,9 +119,10 @@ object StemCurrentTrack {
  *
  * Automatic triggers ([maybePrepare] with `background = true`) mirror
  * AiWordSync's: while [AppSettings.aiWifiOnly] is on they run only on an
- * unmetered connection, and the same gate covers auto-downloading the
- * model. [prepareNow] is the listener's own ask (the vocal slider lowered,
- * the sheet's button) and runs whatever the connection.
+ * unmetered connection. The pro model needs no place in the gate — it
+ * ships inside the app and preparing it is a local copy. [prepareNow]
+ * is the listener's own ask (the vocal slider lowered, the sheet's
+ * button) and runs whatever the connection.
  *
  * ## Cancellation
  *
@@ -301,10 +302,11 @@ object StemJobs {
             if (cancelled()) return
         }
 
-        // Upgrade: fetch the pro model where allowed, then re-run at MDX.
+        // Upgrade: prepare the pro model, then re-run at MDX. The model
+        // ships inside the app, so preparing it is a local copy out of
+        // the package — the download-era fetch gates no longer apply.
         if (StemStore.tierOf(key) != StemTier.MDX) {
-            val mayFetchModel = userDriven || backgroundGatesAllow(context)
-            if (mayFetchModel && MdxModelManager.modelFile() == null) {
+            if (MdxModelManager.modelFile() == null) {
                 MdxModelManager.ensureModel()
             }
             if (MdxModelManager.modelFile() != null && !cancelled()) {

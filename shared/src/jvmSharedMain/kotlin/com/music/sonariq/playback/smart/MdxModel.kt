@@ -4,16 +4,16 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
- * The downloadable MDX-Net pro model: where it comes from, how to recognise the genuine file,
+ * The MDX-Net pro model: where it comes from, how to recognise the genuine file,
  * and the front-end geometry it was trained with.
  *
  * These constants were verified against the actual published file and the reference
  * implementation, and they are ground truth for [MdxSeparator] — the chunk geometry, the tensor
- * shape, and the integrity check all derive from them. The model is not bundled with the app
- * (at ~64 MB it would dwarf everything else in the package); it is downloaded on demand, and
- * [verify] is what stands between that download and the inference session: a truncated or
- * substituted file must never reach ONNX Runtime, where it would fail obscurely or, worse, not
- * fail at all.
+ * shape, and the integrity check all derive from them. The model ships inside the phone app's
+ * assets: the build fetches it from [DOWNLOAD_URL], checks it against these same constants, and
+ * only then packages it, and [verify] runs again on the on-device copy before the inference
+ * session — a truncated or substituted file must never reach ONNX Runtime, where it would fail
+ * obscurely or, worse, not fail at all.
  *
  * The model's target is the **instrumental** stem. Vocals are not a second inference: the caller
  * derives them as `original - instrumental`, which is also why the separator's peak
@@ -22,10 +22,10 @@ import java.security.MessageDigest
  */
 object MdxModel {
 
-    /** Asset/file name the model is stored under once downloaded. */
+    /** Asset/file name the model is stored under, in the assets and in app-private storage. */
     const val FILE_NAME = "UVR-MDX-NET-Inst_HQ_3.onnx"
 
-    /** The published release the file is fetched from. */
+    /** The published release the build fetches the file from. */
     const val DOWNLOAD_URL =
         "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/UVR-MDX-NET-Inst_HQ_3.onnx"
 

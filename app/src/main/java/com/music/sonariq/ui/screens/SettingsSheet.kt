@@ -2377,17 +2377,20 @@ fun SettingsScreen(
                     },
                 )
             }
-            // The Vocal Remover's AI model: what it costs on disk, and the
-            // delete the model manager owns. Stems separated with it stay
-            // valid after deletion — they are finished WAV files.
+            // The Vocal Remover's AI model: it ships inside the app, so
+            // this row is about the prepared copy on disk — set it up, or
+            // delete it (the bundled file stays in the app package and
+            // the next use prepares a fresh copy). Stems separated with
+            // it stay valid after deletion — they are finished WAV files.
+            val vocalModelScope = rememberCoroutineScope()
             row("AI vocal model", "vocal", "ai model", "stem", "separation") {
                 SettingsRow(
                     icon = Icons.Rounded.Storage,
                     title = "AI vocal model",
                     subtitle = if (vocalModelBytes > 0) {
-                        "${com.music.sonariq.download.SmartDownloads.formatBytes(vocalModelBytes)} · tap to delete"
+                        "Included with the app · ${com.music.sonariq.download.SmartDownloads.formatBytes(vocalModelBytes)} · tap to delete"
                     } else {
-                        "Not downloaded"
+                        "Included with the app · tap to set up"
                     },
                     onClick = if (vocalModelBytes > 0) {
                         {
@@ -2395,7 +2398,11 @@ fun SettingsScreen(
                             Toast.makeText(context, "AI vocal model deleted", Toast.LENGTH_SHORT).show()
                         }
                     } else {
-                        null
+                        {
+                            vocalModelScope.launch {
+                                com.music.sonariq.vocal.MdxModelManager.ensureModel()
+                            }
+                        }
                     },
                 )
             }
