@@ -1,6 +1,7 @@
 import java.util.Properties
 import java.io.File
 import java.io.FileInputStream
+import java.net.HttpURLConnection
 import java.net.URI
 import java.security.MessageDigest
 
@@ -302,21 +303,50 @@ val fetchVocalModel = tasks.register("fetchVocalModel") {
         }
         target.parentFile.mkdirs()
         val temp = File(target.parentFile, target.name + ".download")
-        logger.lifecycle("fetchVocalModel: downloading $vocalModelUrl")
-        URI(vocalModelUrl).toURL().openStream().use { input ->
-            temp.outputStream().use { output -> input.copyTo(output) }
+        // Retried: the release host occasionally answers a fresh CI
+        // fetch with a transient 5xx, and a truncated stream can end
+        // without an error — an attempt only counts when the bytes it
+        // brought hash to the published value.
+        var placed = false
+        var lastFailure: Exception? = null
+        var attempt = 0
+        while (!placed && attempt < 4) {
+            attempt++
+            try {
+                logger.lifecycle("fetchVocalModel: downloading $vocalModelUrl (attempt $attempt)")
+                val connection = URI(vocalModelUrl).toURL().openConnection() as HttpURLConnection
+                connection.setRequestProperty("User-Agent", "Sonariq-Build")
+                connection.instanceFollowRedirects = true
+                connection.connectTimeout = 60_000
+                connection.readTimeout = 300_000
+                connection.inputStream.use { input ->
+                    temp.outputStream().use { output -> input.copyTo(output) }
+                }
+                val digest = sha256Hex(temp)
+                if (digest != vocalModelSha256) {
+                    throw org.gradle.api.GradleException(
+                        "Vocal model download failed verification: SHA-256 $digest, expected $vocalModelSha256",
+                    )
+                }
+                if (target.exists()) target.delete()
+                placed = if (temp.renameTo(target)) {
+                    true
+                } else {
+                    temp.copyTo(target, overwrite = true)
+                    temp.delete()
+                    true
+                }
+            } catch (e: Exception) {
+                lastFailure = e
+                runCatching { temp.delete() }
+                if (attempt < 4) Thread.sleep(5_000L * attempt)
+            }
         }
-        val digest = sha256Hex(temp)
-        if (digest != vocalModelSha256) {
-            temp.delete()
+        if (!placed) {
             throw org.gradle.api.GradleException(
-                "Vocal model download failed verification: SHA-256 $digest, expected $vocalModelSha256",
+                "Vocal model could not be fetched and verified after $attempt attempts",
+                lastFailure,
             )
-        }
-        if (target.exists()) target.delete()
-        if (!temp.renameTo(target)) {
-            temp.copyTo(target, overwrite = true)
-            temp.delete()
         }
         logger.lifecycle("fetchVocalModel: verified model packaged from ${target.absolutePath}")
     }
