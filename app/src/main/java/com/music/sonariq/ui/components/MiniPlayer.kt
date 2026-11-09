@@ -64,6 +64,7 @@ import com.music.sonariq.sharedui.resources.Res as SharedRes
 import com.music.sonariq.sharedui.resources.ic_player_next
 import com.music.sonariq.ui.components.thumbnailBorder
 import com.music.sonariq.ui.haptics.Haptic
+import com.music.sonariq.ui.player.GlassTokens
 import com.music.sonariq.ui.haptics.rememberHaptics
 import com.music.sonariq.ui.player.PlayerDock
 import dev.chrisbanes.haze.HazeState
@@ -378,10 +379,14 @@ fun MiniPlayer(
     // floating inside the tab bar.
     //
     // With Liquid Glass on (and supported, and dynamic blur allowed) the
-    // card's surface is the real sampled material — [Modifier.liquidGlass]
-    // over the recorded page backdrop — so the page blurs behind the card
-    // as it scrolls under it. Off, or on any fallback, it is the matte
-    // elevated surface with the drawn hairline, exactly as before.
+    // card's surface is a real sampled blur — the app's Haze backdrop
+    // treatment, the same one the player sheets have always used — under
+    // the playback glass tint, so the page blurs behind the card as it
+    // scrolls under it. The Kyant lens shader that used to render this
+    // card is gone from it: an unproven GPU shader path has no business
+    // on a surface that is on every screen. Off, or on any fallback, it
+    // is the matte elevated surface with the drawn hairline, exactly as
+    // before.
     val shape = RoundedCornerShape(18.dp)
     val glassActive = LocalLiquidGlassEnabled.current && isGlassSupported() && !reduceDynamicBlur
     Box(
@@ -404,7 +409,13 @@ fun MiniPlayer(
             .clip(shape)
             .then(
                 if (glassActive) {
-                    Modifier.liquidGlass(shape)
+                    Modifier
+                        .optimizedHazeEffect(
+                            state = hazeState,
+                            style = HazeMaterials.regular(GlassTokens.hazeTint),
+                        )
+                        .background(GlassTokens.playbackSurface)
+                        .border(1.dp, Color.White.copy(alpha = 0.10f), shape)
                 } else {
                     Modifier
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh)

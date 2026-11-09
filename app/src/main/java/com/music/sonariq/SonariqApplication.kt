@@ -44,6 +44,10 @@ class SonariqApplication : Application(), SingletonImageLoader.Factory {
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
+        // First, before anything else can die: the on-device crash
+        // recorder, so an uncaught exception in startup itself still
+        // leaves the trace the Admin System Health section reads back.
+        com.music.sonariq.data.CrashRecorder.install(this)
         // The player is drawn by the shared UI module; this is what it reads
         // underneath — settings, the Canvas decoder, outputs, the party.
         AndroidStreamHooks.installEarly()
@@ -117,7 +121,7 @@ class SonariqApplication : Application(), SingletonImageLoader.Factory {
         // callers with no context of their own to pass.
         com.music.sonariq.download.AiWordSync.init(this)
         // The Vocal Remover's AI stem jobs, with the same held context —
-        // and, inside it, the stem store and the downloadable pro model,
+        // and, inside it, the stem store and the bundled pro model,
         // whose state the Settings storage rows and the vocal sheet read.
         com.music.sonariq.vocal.StemJobs.init(this)
         // Massive update integrations: persisted state each subsystem owns,

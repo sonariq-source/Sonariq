@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
@@ -28,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.sonariq.SonariqApplication
+import com.music.sonariq.data.CrashRecorder
 import com.music.sonariq.data.admin.AdminStats
 import com.music.sonariq.data.admin.AdminStore
 import com.music.sonariq.data.admin.OwnerRecord
@@ -458,6 +460,8 @@ private fun AdminHealthSection(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var server by remember { mutableStateOf<String?>(null) }
     var usage by remember { mutableStateOf<StorageManager.Usage?>(null) }
+    var crash by remember { mutableStateOf<CrashRecorder.Entry?>(null) }
+    var crashChecked by remember { mutableStateOf(false) }
     val offlineMode by AppSettings.offlineMode.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) {
         val probe = runCatching {
@@ -469,6 +473,8 @@ private fun AdminHealthSection(modifier: Modifier = Modifier) {
             else -> "Offline"
         }
         usage = runCatching { StorageManager.measure(context) }.getOrNull()
+        crash = runCatching { CrashRecorder.latest(context) }.getOrNull()
+        crashChecked = true
     }
     val device = remember { AdminStats.deviceStorage(context) }
     LazyColumn(
@@ -481,10 +487,40 @@ private fun AdminHealthSection(modifier: Modifier = Modifier) {
                 AdminStatRow("Offline mode", if (offlineMode) "On" else "Off")
                 AdminNote(
                     "Lyrics and music providers are exercised on every lookup; " +
-                        "their per-provider state lives in the Lyrics section. " +
-                        "Crash reporting is not collected by Sonariq, so there " +
-                        "are no crash statistics to show.",
+                        "their per-provider state lives in the Lyrics section.",
                 )
+            }
+        }
+        item {
+            AdminInfoCard("App stability") {
+                val recorded = crash
+                when {
+                    !crashChecked -> AdminNote("Checking…")
+                    recorded == null -> AdminNote(
+                        "No crashes recorded on this device. When the app " +
+                            "dies unexpectedly, the exception is written " +
+                            "here — on this device only, never sent anywhere.",
+                    )
+                    else -> {
+                        AdminStatRow("Last crash", CrashRecorder.formatTime(recorded.timestampMs))
+                        AdminStatRow("Type", recorded.exceptionType)
+                        recorded.traceLines.take(8).forEach { line ->
+                            Text(
+                                line,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = {
+                                CrashRecorder.clear(context)
+                                crash = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("Clear recorded crashes") }
+                    }
+                }
             }
         }
         item {

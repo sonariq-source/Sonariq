@@ -420,13 +420,15 @@ private fun artworkPageSurface(
 ): Modifier {
     val container = MaterialTheme.colorScheme.surface
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
-    val useLiquidGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
 
+    // The Haze blur in both Liquid Glass states: the Kyant lens shader
+    // that used to take the "on" branch is gone from the app's chrome —
+    // see FloatingBottomBar for why. Solid under Reduce dynamic blur, or
+    // when the page gave the bar no backdrop to sample.
     return Modifier
         .clip(shape)
         .then(
             when {
-                useLiquidGlass -> Modifier.liquidGlass(shape)
                 reduceDynamicBlur || hazeState == null -> Modifier.background(container)
                 else -> Modifier.optimizedHazeEffect(
                     state = hazeState,
@@ -434,9 +436,8 @@ private fun artworkPageSurface(
                 )
             },
         )
-        // Keep the same explicit hairline as FloatingBottomBar. Liquid glass
-        // also has its refractive highlight, but the navbar retains this edge
-        // so these surfaces do as well.
+        // Keep the same explicit hairline as FloatingBottomBar: the navbar
+        // retains this edge, so these surfaces do as well.
         .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
 }
 

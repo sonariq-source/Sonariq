@@ -183,6 +183,59 @@ private const val UNSUNG_ALPHA = 0.50f
 private const val UNSUNG_ALPHA_STRIP = 0.55f
 
 /**
+ * A small LRU of render effects keyed by quantised blur radius.
+ *
+ * A row's depth blur animates continuously while its settle runs, and a
+ * graphics layer's draw block executes per frame — constructing a fresh
+ * [BlurEffect] there meant one native effect allocation per row per frame
+ * for the length of every handover, on a panel that (in landscape) now
+ * runs for the whole of playback. Radii are quantised to half-pixel
+ * steps — far below anything the eye can separate at these sizes — so
+ * the handful of effects the depth model can actually ask for are built
+ * once and shared by every row. Generic over the effect type so the
+ * keying can be unit-tested without a graphics backend.
+ */
+internal class QuantisedEffectCache<T>(
+    private val maxEntries: Int = 96,
+    private val create: (Float) -> T,
+) {
+    private val lock = Any()
+    private val entries = object : LinkedHashMap<Int, T>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, T>?): Boolean =
+            size > maxEntries
+    }
+
+    /** The shared effect for [radiusPx], created at its quantised radius on first ask. */
+    fun forRadius(radiusPx: Float): T {
+        val key = keyFor(radiusPx)
+        synchronized(lock) { entries[key]?.let { return it } }
+        val created = create(key * STEP_PX)
+        synchronized(lock) { entries[key] = created }
+        return created
+    }
+
+    /** How many distinct quantised radii currently hold an effect. */
+    val size: Int get() = synchronized(lock) { entries.size }
+
+    companion object {
+        /** Radii are bucketed to this step, in pixels. */
+        const val STEP_PX = 0.5f
+
+        /** The bucket a radius falls into: halves round up, never below the first bucket. */
+        fun keyFor(radiusPx: Float): Int =
+            (radiusPx / STEP_PX).roundToInt().coerceAtLeast(1)
+
+        /** The exact radius an effect in [key]'s bucket is created with. */
+        fun radiusForKey(key: Int): Float = key * STEP_PX
+    }
+}
+
+/** The panel's shared depth-blur effects — see [QuantisedEffectCache]. */
+private val lyricBlurEffects = QuantisedEffectCache { radiusPx ->
+    BlurEffect(radiusPx, radiusPx, TileMode.Decal)
+}
+
+/**
  * The bloom behind the line being sung, at its very strongest.
  *
  * Kept well under half strength: the halo is drawn from the same white as the
@@ -2429,7 +2482,7 @@ internal fun LyricsPanel(
                         // whenever the blur gate above is closed.
                         val blurPx = rowBlur.value.dp.toPx()
                         renderEffect = if (blurPx > 0.05f) {
-                            BlurEffect(blurPx, blurPx, TileMode.Decal)
+                            lyricBlurEffects.forRadius(blurPx)
                         } else {
                             null
                         }
