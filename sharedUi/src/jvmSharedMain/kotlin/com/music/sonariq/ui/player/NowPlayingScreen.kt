@@ -1375,7 +1375,6 @@ fun NowPlayingScreen(
                     AnimatedContent(
                         targetState = if (queueOpen) PlayerPage.QUEUE else PlayerPage.LYRICS,
                         transitionSpec = { playerPageTransition(initialState, targetState) },
-                        sizeTransform = null,
                         label = "landscapePlayerPages",
                         modifier = Modifier.fillMaxSize(),
                     ) { page ->
@@ -1533,7 +1532,6 @@ fun NowPlayingScreen(
                 AnimatedContent(
                     targetState = playerPage,
                     transitionSpec = { playerPageTransition(initialState, targetState) },
-                    sizeTransform = null,
                     label = "playerPages",
                     modifier = Modifier
                         .weight(1f)
