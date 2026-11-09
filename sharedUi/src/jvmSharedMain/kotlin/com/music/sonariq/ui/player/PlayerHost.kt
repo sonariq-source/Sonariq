@@ -134,44 +134,7 @@ private val DefaultArtworkGesturesEnabled = MutableStateFlow(true)
 private val DefaultLyricsHighlightIntensity = MutableStateFlow(DEFAULT_LYRICS_HIGHLIGHT_INTENSITY)
 private val DefaultLyricsBackground = MutableStateFlow(LyricsBackground.ARTWORK)
 private val DefaultLyricsReducedMotion = MutableStateFlow(false)
-private val DefaultVocalLevel = MutableStateFlow(DEFAULT_VOCAL_LEVEL)
-private val DefaultVocalAiStatus = MutableStateFlow(VocalAiStatus())
 private val DefaultLyricsAutoOffsets = MutableStateFlow<Map<String, LyricsAutoOffset>>(emptyMap())
-
-/**
- * Where the Vocal Remover's AI layer stands, as the vocal sheet reports it.
- *
- * The platform fills this in from its stem store and model manager; the
- * default — a constant STANDARD — is what a platform with no separation
- * jobs (the desktop) honestly reports, and it carries the sheet's standard
- * centre-channel note exactly as before.
- */
-data class VocalAiStatus(
-    val stage: Stage = Stage.STANDARD,
-    /** Download or preparation progress in 0..1, when the stage has one worth showing. */
-    val progress: Float? = null,
-    /** True when the active (or preparing) stem came from the high-quality tier. */
-    val highQuality: Boolean = false,
-    /** True when the downloadable AI model is not on the device, so the sheet can offer it. */
-    val modelAbsent: Boolean = false,
-) {
-    enum class Stage {
-        /** No AI stem for the current track: the standard DSP reduction is what the slider drives. */
-        STANDARD,
-
-        /** The AI model itself is downloading (or being verified). */
-        MODEL_DOWNLOADING,
-
-        /** The model is on the device; the current track simply has no stem yet. */
-        MODEL_READY,
-
-        /** The current track's separation is being prepared. */
-        PREPARING,
-
-        /** The current track is playing from a separated stem. */
-        AI_READY,
-    }
-}
 
 /** What the output drawer needs to know about casting to draw its row. */
 data class CastUi(
@@ -218,22 +181,6 @@ interface PlayerSettingsSource {
     val lyricsBackground: StateFlow<LyricsBackground> get() = DefaultLyricsBackground
     /** Lyrics-only reduced motion, on top of the app-wide reduce-animation setting. */
     val lyricsReducedMotion: StateFlow<Boolean> get() = DefaultLyricsReducedMotion
-    /**
-     * Whether this platform's playback pipeline carries the Vocal Remover
-     * DSP stage. False hides the player's entry point altogether rather
-     * than offering a slider nothing is listening to.
-     */
-    val vocalRemoverAvailable: Boolean get() = false
-    /** The Vocal Remover's level: 1 is the original mix, 0 is centre removed. */
-    val vocalLevel: StateFlow<Float> get() = DefaultVocalLevel
-    /** The AI layer's standing, for the vocal sheet's status block. Defaults to plain STANDARD. */
-    val vocalAiStatus: StateFlow<VocalAiStatus> get() = DefaultVocalAiStatus
-
-    /** The listener lowered the vocal slider: a cue to prepare the current track's stem now. */
-    fun onVocalSliderLowered() = Unit
-
-    /** The listener asked for the downloadable AI model from the vocal sheet. */
-    fun requestVocalModelDownload() = Unit
     val lyricsOffsetMs: StateFlow<Int>
     /** Per-track lyric offsets, videoId to offsetMs; a track without an entry follows [lyricsOffsetMs]. */
     val lyricsOffsetOverrides: StateFlow<Map<String, Int>>
@@ -283,7 +230,6 @@ interface PlayerSettingsSource {
     fun setLyricsHighlightIntensity(value: Float) = Unit
     fun setLyricsBackground(value: LyricsBackground) = Unit
     fun setLyricsReducedMotion(value: Boolean) = Unit
-    fun setVocalLevel(value: Float) = Unit
     fun setLyricsOffsetMs(value: Int)
     /** Null clears the track's own offset, handing it back to the global one. */
     fun setLyricsOffsetForTrack(videoId: String, offsetMs: Int?)
@@ -317,14 +263,6 @@ const val DEFAULT_LYRICS_FONT_SIZE_SP = 17f
 const val MIN_LYRICS_HIGHLIGHT_INTENSITY = 0.4f
 const val MAX_LYRICS_HIGHLIGHT_INTENSITY = 1.6f
 const val DEFAULT_LYRICS_HIGHLIGHT_INTENSITY = 1f
-
-/**
- * The Vocal Remover's level range: 1 is the original mix, untouched; 0 is
- * centre channel fully removed. The phone's AppSettings mirrors these.
- */
-const val MIN_VOCAL_LEVEL = 0f
-const val MAX_VOCAL_LEVEL = 1f
-const val DEFAULT_VOCAL_LEVEL = 1f
 
 /** How many per-track lyric offsets are kept; the oldest edits fall off. */
 const val MAX_LYRIC_OFFSET_OVERRIDES = 100

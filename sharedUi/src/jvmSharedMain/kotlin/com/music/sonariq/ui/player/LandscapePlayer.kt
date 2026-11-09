@@ -137,7 +137,7 @@ private val LANDSCAPE_HANDLE_STRIP = 24.dp
  * rounded corners and a soft shadow on top, the name block under it
  * (title, artist, like and menu — the shared header without its
  * thumbnail, the card already being on screen), and a compact control
- * cluster under that: the vocal button, the scrubber, the transport,
+ * cluster under that: the scrubber, the transport,
  * the volume and utility rows and the output caption, all sized to the
  * column. The right 58% is the lyrics alone, top to bottom — the
  * full panel in both the player and lyrics panes, the queue in its

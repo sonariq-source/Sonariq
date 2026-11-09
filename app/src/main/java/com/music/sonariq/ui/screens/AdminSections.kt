@@ -59,7 +59,6 @@ internal fun AdminSectionBody(section: AdminSection, owner: OwnerRecord, modifie
         AdminSection.Music -> AdminMusicSection(modifier)
         AdminSection.Autoplay -> AdminAutoplaySection(modifier)
         AdminSection.Lyrics -> AdminLyricsSection(modifier)
-        AdminSection.Vocal -> AdminVocalSection(modifier)
         AdminSection.Analytics -> AdminAnalyticsSection(modifier)
         AdminSection.Health -> AdminHealthSection(modifier)
         AdminSection.Announcements -> AdminAnnouncementsSection(modifier)
@@ -341,46 +340,6 @@ private fun AdminLyricsSection(modifier: Modifier = Modifier) {
                 TextButton(onClick = { confirmClear = false }) { Text("Cancel") }
             },
         )
-    }
-}
-
-@Composable
-private fun AdminVocalSection(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val vocalLevel by AppSettings.vocalLevel.collectAsStateWithLifecycle()
-    LazyColumn(
-        modifier = modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        item {
-            AdminInfoCard("Engine") {
-                AdminStatRow("Status", "Available on this device")
-                AdminStatRow("Method", "On-device centre-channel separation")
-                AdminStatRow("Processing", "Real time during playback; nothing is uploaded or stored")
-                AdminNote(
-                    "Because separation happens live in the playback chain, there " +
-                        "are no processing jobs, queues or cached results to " +
-                        "inspect — a job history would have nothing real to show.",
-                )
-            }
-        }
-        item {
-            AdminInfoCard("Level") {
-                AdminStatRow("Vocal level", "${(vocalLevel * 100).toInt()}%")
-                Slider(
-                    value = vocalLevel,
-                    onValueChange = { AppSettings.setVocalLevel(it) },
-                    onValueChangeFinished = {
-                        AdminStore.recordAudit(
-                            context, "config.change", "vocal level",
-                            "${(AppSettings.vocalLevel.value * 100).toInt()}%",
-                        )
-                    },
-                    valueRange = 0f..1f,
-                )
-                AdminNote("100% is the original mix, untouched. Lower values reduce the centred vocal.")
-            }
-        }
     }
 }
 

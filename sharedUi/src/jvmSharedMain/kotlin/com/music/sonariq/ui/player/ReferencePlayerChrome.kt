@@ -60,7 +60,7 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * The reference player's chrome: the compact header, the page dots, the
- * ambient lyric lines, the floating vocal button and the bottom utility
+ * ambient lyric lines and the bottom utility
  * row — the pieces the rebuilt Now Playing is composed from, in the
  * Emerald Living Sound material (see [GlassTokens]) rather than in the
  * reference's own colours, which belonged to its artwork.
@@ -87,8 +87,8 @@ private val HEADER_THUMB_SIZE = 52.dp
  * ([onOpenMenu] is the host's menu, which is where the sleep timer, the
  * quality/version switch and the lyrics offset live). A long-press on
  * ••• opens the player-local overflow instead: the utilities that
- * belong to this screen rather than to the song — share, the vocal
- * remover, the audio pipeline readout, the visualizer and Listen
+ * belong to this screen rather than to the song — share, the audio
+ * pipeline readout, the visualizer and Listen
  * Together — so nothing the old composition carried is lost with it.
  */
 @Composable
@@ -106,7 +106,6 @@ internal fun ReferencePlayerHeader(
     onOpenArtist: (browseId: String?, name: String) -> Unit,
     /** Player-local overflow entries; null hides that entry. */
     onShareSong: (() -> Unit)? = null,
-    onOpenVocalRemover: (() -> Unit)? = null,
     onOpenAudioPipeline: (() -> Unit)? = null,
     onToggleVisualizer: (() -> Unit)? = null,
     visualizerShown: Boolean = false,
@@ -230,15 +229,6 @@ internal fun ReferencePlayerHeader(
                         onClick = {
                             overflowOpen = false
                             onShareSong()
-                        },
-                    )
-                }
-                if (onOpenVocalRemover != null) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(Res.string.vocal_remover)) },
-                        onClick = {
-                            overflowOpen = false
-                            onOpenVocalRemover()
                         },
                     )
                 }
@@ -393,61 +383,6 @@ internal fun AmbientLyricLines(
                     ),
             )
         }
-    }
-}
-
-/**
- * The circular glass vocal button: a microphone with sparkles, in the
- * player's glass material. It is a vocal control — it opens the Vocal
- * Remover sheet — and it lights while the centre channel is turned down
- * at all. Its homes are chosen so it never sits on lyric text: above the
- * portrait player's bottom block, and in the landscape player's control
- * cluster under the artwork card, right-aligned over the scrubber. It is
- * never composed in lyrics mode.
- */
-@Composable
-internal fun FloatingVocalButton(
-    highlighted: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val haptics = rememberHaptics()
-    Box(
-        modifier = modifier
-            .size(52.dp)
-            .clip(CircleShape)
-            .background(
-                if (highlighted) {
-                    GlassTokens.accent.copy(alpha = 0.32f)
-                } else {
-                    GlassTokens.playbackSurface
-                },
-            )
-            .glassEdge(CircleShape)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-            ) {
-                haptics.play(Haptic.Select)
-                onClick()
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = Icons.Rounded.Mic,
-            contentDescription = stringResource(Res.string.vocal_remover),
-            tint = Color.White,
-            modifier = Modifier.size(24.dp),
-        )
-        Icon(
-            imageVector = Icons.Rounded.AutoAwesome,
-            contentDescription = null,
-            tint = GlassTokens.mint,
-            modifier = Modifier
-                .size(13.dp)
-                .align(Alignment.TopEnd)
-                .offset(x = (-7).dp, y = 7.dp),
-        )
     }
 }
 

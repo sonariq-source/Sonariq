@@ -322,20 +322,6 @@ fun SettingsScreen(
     val playingFormat by NerdStats.current.collectAsStateWithLifecycle()
     val playingDolbyAtmos = playingFormat?.isDolbyAtmos == true
     val cacheLimitBytes by AppSettings.audioCacheLimitBytes.collectAsStateWithLifecycle()
-    // The Vocal Remover's AI storage, read the way the cache rows above read
-    // theirs: the model manager's and stem store's own flows are the
-    // triggers, and the byte counts are re-measured whenever either moves.
-    // Hardcoded English titles, flagged: the storage section's other rows
-    // are string resources, but a new app string key would owe a
-    // translation in every locale (LocaleStringsTest enforces it), and
-    // these two rows name a feature whose status copy is already
-    // English-only in the vocal sheet.
-    val stemStates by com.music.sonariq.vocal.StemStore.states.collectAsStateWithLifecycle()
-    val vocalModelState by com.music.sonariq.vocal.MdxModelManager.state.collectAsStateWithLifecycle()
-    val stemStorageBytes = remember(stemStates) { com.music.sonariq.vocal.StemStore.totalSizeBytes() }
-    val vocalModelBytes = remember(vocalModelState) {
-        com.music.sonariq.vocal.MdxModelManager.modelFile()?.length() ?: 0L
-    }
     val showCacheFolder by AppSettings.showCacheFolder.collectAsStateWithLifecycle()
     val downloadQuality by AppSettings.downloadQuality.collectAsStateWithLifecycle()
     val wifiOnlyDownloads by AppSettings.wifiOnlyDownloads.collectAsStateWithLifecycle()
@@ -2374,56 +2360,6 @@ fun SettingsScreen(
                         loader.memoryCache?.clear()
                         loader.diskCache?.clear()
                         Toast.makeText(context, context.getString(R.string.image_cache_cleared), Toast.LENGTH_SHORT).show()
-                    },
-                )
-            }
-            // The Vocal Remover's AI model: it ships inside the app, so
-            // this row is about the prepared copy on disk — set it up, or
-            // delete it (the bundled file stays in the app package and
-            // the next use prepares a fresh copy). Stems separated with
-            // it stay valid after deletion — they are finished WAV files.
-            val vocalModelScope = rememberCoroutineScope()
-            row("AI vocal model", "vocal", "ai model", "stem", "separation") {
-                SettingsRow(
-                    icon = Icons.Rounded.Storage,
-                    title = "AI vocal model",
-                    subtitle = if (vocalModelBytes > 0) {
-                        "Included with the app · ${com.music.sonariq.download.SmartDownloads.formatBytes(vocalModelBytes)} · tap to delete"
-                    } else {
-                        "Included with the app · tap to set up"
-                    },
-                    onClick = if (vocalModelBytes > 0) {
-                        {
-                            com.music.sonariq.vocal.MdxModelManager.deleteModel()
-                            Toast.makeText(context, "AI vocal model deleted", Toast.LENGTH_SHORT).show()
-                        }
-                    } else {
-                        {
-                            vocalModelScope.launch {
-                                com.music.sonariq.vocal.MdxModelManager.ensureModel()
-                            }
-                        }
-                    },
-                )
-            }
-            // Every prepared song separation, cleared through the store
-            // itself (which leaves any stem open for playback alone).
-            row("Song separations", "vocal", "stems", "ai", "clear") {
-                SettingsRow(
-                    icon = Icons.Rounded.DeleteSweep,
-                    title = "Song separations",
-                    subtitle = if (stemStorageBytes > 0) {
-                        "${com.music.sonariq.download.SmartDownloads.formatBytes(stemStorageBytes)} · tap to clear"
-                    } else {
-                        "None prepared yet"
-                    },
-                    onClick = if (stemStorageBytes > 0) {
-                        {
-                            com.music.sonariq.vocal.StemStore.clearAll()
-                            Toast.makeText(context, "Song separations cleared", Toast.LENGTH_SHORT).show()
-                        }
-                    } else {
-                        null
                     },
                 )
             }

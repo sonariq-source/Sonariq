@@ -256,7 +256,7 @@ private fun VibeBadge(
  * a compact header (small artwork thumbnail, bold title and dim artist,
  * star like toggle, ••• menu) over an ambient artwork-tinted blurred
  * backdrop; in portrait player mode, page dots under the header, faint
- * blurred lyric lines as ambience, a floating glass vocal button, and a
+ * blurred lyric lines as ambience, and a
  * bottom block of scrubber, large transport, volume and a utility row;
  * in lyrics mode the panel fills the screen under the same header; in
  * landscape a big artwork card on the left and the header, lyrics and
@@ -419,7 +419,6 @@ fun NowPlayingScreen(
     var showAudioOutput by remember { mutableStateOf(false) }
     // Gated on the Bluetooth permission the first time — see [rememberOutputPicker].
     val openAudioOutput = rememberOutputPicker { showAudioOutput = true }
-    var showVocalRemover by remember { mutableStateOf(false) }
     // Listening in a party whose host has taken the controls: the transport
     // keeps only play/pause, which from here moves this device alone.
     val controlsLocked = rememberControlsLocked()
@@ -630,7 +629,6 @@ fun NowPlayingScreen(
     PlayerBackHandler(enabled = lyricsOpen, onBack = closeLyrics)
     PlayerBackHandler(enabled = queueOpen) { queueOpen = false }
     PlayerBackHandler(enabled = showAudioOutput) { showAudioOutput = false }
-    PlayerBackHandler(enabled = showVocalRemover) { showVocalRemover = false }
     PlayerBackHandler(enabled = showListenTogetherMembers) { showListenTogetherMembers = false }
     PlayerBackHandler(enabled = showAudioPipeline) { showAudioPipeline = false }
     PlayerBackHandler(enabled = showCast) { showCast = false }
@@ -741,7 +739,6 @@ fun NowPlayingScreen(
     val versionAligning by PlayerSettings.versionAlignmentInProgress.collectAsStateWithLifecycle()
     val versionSwitching = versionAligning || audioVersionSwitching
     val transitionWindow by PlayerSettings.smartTransitionWindow.collectAsStateWithLifecycle()
-    val vocalLevel by PlayerSettings.vocalLevel.collectAsStateWithLifecycle()
 
     // The backdrop, shared by both shapes: the cached blurred artwork fills
     // the whole screen behind header and controls (the sheets' frost source
@@ -825,7 +822,7 @@ fun NowPlayingScreen(
     // The header the portrait player opens with — see
     // [ReferencePlayerHeader]. The ••• tap is the song menu as always;
     // its long-press overflow carries the player-local utilities
-    // (share, vocal remover, audio pipeline, visualizer, Listen
+    // (share, audio pipeline, visualizer, Listen
     // Together). The landscape name block below is the same header
     // without its thumbnail, moved under the artwork card.
     val header: @Composable () -> Unit = {
@@ -842,11 +839,6 @@ fun NowPlayingScreen(
             onOpenArtist = onOpenArtist,
             onShareSong = if (shareSongEnabled) {
                 { onShareSong(remoteArt ?: song.thumbnailUrl) }
-            } else {
-                null
-            },
-            onOpenVocalRemover = if (PlayerSettings.vocalRemoverAvailable) {
-                { showVocalRemover = true }
             } else {
                 null
             },
@@ -872,8 +864,8 @@ fun NowPlayingScreen(
 
     // The landscape player's under-artwork stack: the name block — the
     // shared header without its thumbnail, the big card already being
-    // on screen — over a compact control cluster: the vocal button,
-    // the waveform scrubber, the compact transport, the volume row,
+    // on screen — over a compact control cluster: the waveform
+    // scrubber, the compact transport, the volume row,
     // the utility row and the output caption, all at the artwork
     // column's width. Every control is wired to the same callbacks the
     // portrait bottom block uses; only the sizes and the home differ.
@@ -892,11 +884,6 @@ fun NowPlayingScreen(
                 onOpenArtist = onOpenArtist,
                 onShareSong = if (shareSongEnabled) {
                     { onShareSong(remoteArt ?: song.thumbnailUrl) }
-                } else {
-                    null
-                },
-                onOpenVocalRemover = if (PlayerSettings.vocalRemoverAvailable) {
-                    { showVocalRemover = true }
                 } else {
                     null
                 },
@@ -920,18 +907,6 @@ fun NowPlayingScreen(
                 showThumbnail = false,
             )
             Spacer(Modifier.height(if (compact) 8.dp else 14.dp))
-            if (PlayerSettings.vocalRemoverAvailable) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    FloatingVocalButton(
-                        highlighted = vocalLevel < DEFAULT_VOCAL_LEVEL,
-                        onClick = { showVocalRemover = true },
-                    )
-                }
-                Spacer(Modifier.height(if (compact) 4.dp else 8.dp))
-            }
             PlayerScrubber(
                 shown = shown,
                 durationMs = durationMs,
@@ -1134,12 +1109,6 @@ fun NowPlayingScreen(
                 hazeState = playerHaze,
                 onDismiss = onDismissLyricsOffset,
                 videoId = song.videoId,
-            )
-        }
-        if (showVocalRemover && PlayerSettings.vocalRemoverAvailable) {
-            VocalRemoverSheet(
-                hazeState = playerHaze,
-                onDismiss = { showVocalRemover = false },
             )
         }
         lyricsShare?.let { request ->
@@ -1423,7 +1392,7 @@ fun NowPlayingScreen(
 
     // ---- Portrait: header, page dots, ambience / lyrics / queue, bottom ----
     val playerSubviewOpen = lyricsOpen || queueOpen || lyricsOffsetOpen ||
-        showAudioPipeline || showCast || showAudioOutput || showVocalRemover ||
+        showAudioPipeline || showCast || showAudioOutput ||
         lyricsShare != null
     val topGradientAlpha = if (playerSubviewOpen) {
         maxOf(artworkStatusScrimAlpha, SUBVIEW_STATUS_SCRIM_MIN_ALPHA)
@@ -1586,11 +1555,6 @@ fun NowPlayingScreen(
                                     .align(Alignment.BottomStart)
                                     .padding(bottom = 10.dp),
                             )
-                            // No vocal button in here any more: it floated
-                            // at this area's bottom-right, over the ambient
-                            // lines' last line. It sits above the bottom
-                            // block now, where no text renders — see the
-                            // AnimatedVisibility below.
                         }
                     }
                 }
@@ -1606,25 +1570,6 @@ fun NowPlayingScreen(
                         .padding(horizontal = PLAYER_GUTTER)
                         .padding(bottom = 14.dp),
                 ) {
-                    // The vocal button's new home in player mode: the
-                    // right margin directly above the scrubber, below the
-                    // ambient area — a strip no lyric text ever renders
-                    // in, so the button can never sit on the words. In
-                    // lyrics and queue modes it is not composed here at
-                    // all; the Vocal Remover stays reachable from the
-                    // header's overflow there, as it already was.
-                    if (!lyricsOpen && !queueOpen && PlayerSettings.vocalRemoverAvailable) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
-                        ) {
-                            FloatingVocalButton(
-                                highlighted = vocalLevel < DEFAULT_VOCAL_LEVEL,
-                                onClick = { showVocalRemover = true },
-                            )
-                        }
-                        Spacer(Modifier.height(8.dp))
-                    }
                     bottomBlock()
                 }
             }

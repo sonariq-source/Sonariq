@@ -205,7 +205,6 @@ enum class AdminSection(val title: String, val subtitle: String, val icon: Image
     Music("Music catalog", "Most played tracks and artists on this device", Icons.Rounded.MusicNote),
     Autoplay("Smart Autoplay", "Engine settings and recommendation freshness", Icons.Rounded.AutoAwesome),
     Lyrics("Lyrics management", "Providers, cache and timing quality", Icons.Rounded.Subtitles),
-    Vocal("Vocal Remover", "Separation engine status and level", Icons.Rounded.Mic),
     Analytics("Analytics", "Listening patterns recorded on this device", Icons.Rounded.BarChart),
     Health("System health", "Server, storage and cache status", Icons.Rounded.HealthAndSafety),
     Announcements("Announcements", "Owner notices kept on this device", Icons.Rounded.Campaign),

@@ -763,8 +763,6 @@ internal fun PlayerActionRow(
     onCycleRepeat: () -> Unit,
     onToggleAutoplay: () -> Unit,
     onOpenOutput: () -> Unit,
-    /** Opens [VocalRemoverSheet]; only wired where the platform carries the DSP stage. */
-    onOpenVocalRemover: () -> Unit,
     onListenTogether: () -> Unit,
     /** Opens [ListenTogetherMembersSheet] rather than settings directly. */
     onOpenListenTogetherMembers: () -> Unit,
@@ -772,10 +770,8 @@ internal fun PlayerActionRow(
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         // Sized for the wider of the two capsules — the three-up one — in both
         // states. Computed for whichever was on screen it would change as they
-        // swap, and the lyrics and queue glyphs would slide with it. The vocal
-        // glyph counts in where the platform carries that stage.
-        val glyphCount = if (PlayerSettings.vocalRemoverAvailable) 3 else 2
-        val widestRow = BOTTOM_ACTION_SIZE * glyphCount + pillWidth(3)
+        // swap, and the lyrics and queue glyphs would slide with it.
+        val widestRow = BOTTOM_ACTION_SIZE * 2 + pillWidth(3)
         val edgeInset = ((maxWidth - widestRow) / 4).coerceAtLeast(0.dp)
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = edgeInset),
@@ -867,25 +863,13 @@ internal fun PlayerActionRow(
                 highlighted = queueOpen,
                 haptic = if (queueOpen) Haptic.Tap else Haptic.Expand,
             )
-            if (PlayerSettings.vocalRemoverAvailable) {
-                val vocalLevel by PlayerSettings.vocalLevel.collectAsStateWithLifecycle()
-                BottomGlyph(
-                    icon = SonariqIcons.VocalWaveform,
-                    contentDescription = stringResource(Res.string.vocal_remover),
-                    onClick = onOpenVocalRemover,
-                    // Lit while the centre channel is turned down at all:
-                    // the mix the listener hears is not the original.
-                    highlighted = vocalLevel < DEFAULT_VOCAL_LEVEL,
-                )
-            }
         }
     }
 }
 
 /**
  * The Now Playing utility row in its Apple-style arrangement: lyrics, the
- * audio-output picker, the Vocal Remover where the platform carries it,
- * and the queue.
+ * audio-output picker, and the queue.
  *
  * The old bottom row's playback-mode capsule is gone — shuffle and repeat
  * moved up into the transport, and autoplay moved to the queue's own header,
@@ -899,8 +883,6 @@ internal fun AppleUtilityRow(
     onToggleLyrics: () -> Unit,
     onToggleQueue: () -> Unit,
     onOpenOutput: () -> Unit,
-    /** Opens [VocalRemoverSheet]; only wired where the platform carries the DSP stage. */
-    onOpenVocalRemover: () -> Unit,
 ) {
     // The actions ride in one centred glass pill-bar — the same material as
     // the mini player and the navigation bar — rather than as bare glyphs
@@ -929,17 +911,6 @@ internal fun AppleUtilityRow(
                 contentDescription = stringResource(Res.string.audio_output),
                 onClick = onOpenOutput,
             )
-            if (PlayerSettings.vocalRemoverAvailable) {
-                val vocalLevel by PlayerSettings.vocalLevel.collectAsStateWithLifecycle()
-                BottomGlyph(
-                    icon = SonariqIcons.VocalWaveform,
-                    contentDescription = stringResource(Res.string.vocal_remover),
-                    onClick = onOpenVocalRemover,
-                    // Lit while the centre channel is turned down at all: the
-                    // mix the listener hears is not the original.
-                    highlighted = vocalLevel < DEFAULT_VOCAL_LEVEL,
-                )
-            }
             BottomGlyph(
                 icon = SonariqIcons.Queue,
                 contentDescription = stringResource(Res.string.up_next),

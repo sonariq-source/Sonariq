@@ -402,11 +402,6 @@ class PrecisionAudioSink(
     override fun setOutputStreamOffsetUs(outputStreamOffsetUs: Long) {
         if (streaming) {
             dspChain.onStreamBoundary()
-            // The same sample is the stem stage's boundary: a stem queued
-            // for the incoming track (AiStemProcessor.queueStemFile, armed
-            // by the service at the previous transition) takes over here,
-            // aligned to the crossover rather than to a service callback.
-            dspChain.onStemStreamBoundary()
         }
         super.setOutputStreamOffsetUs(outputStreamOffsetUs)
     }
