@@ -19,7 +19,6 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -33,12 +32,14 @@ import com.music.sonariq.ui.components.backdrop.effects.blur
 import com.music.sonariq.ui.components.backdrop.effects.colorControls
 import com.music.sonariq.ui.components.backdrop.effects.lens
 import com.music.sonariq.ui.components.backdrop.highlight.Highlight
-import com.music.sonariq.ui.components.backdrop.highlight.HighlightElement
-import com.music.sonariq.ui.components.backdrop.internal.ShapeProvider
+import com.music.sonariq.ui.player.GlassTokens
+import com.music.sonariq.ui.player.glassModeFor
+import com.music.sonariq.ui.player.glassSurface
+import com.music.sonariq.ui.theme.LocalArtworkGlassTint
 import com.music.sonariq.ui.components.backdrop.shadow.Shadow
 import androidx.compose.ui.unit.dp
 
-/** Whether the liquid glass nav bar is turned on — see [AppSettings.liquidGlass]. */
+/** Whether Liquid Glass is turned on — see [AppSettings.liquidGlass]. */
 val LocalLiquidGlassEnabled = staticCompositionLocalOf { false }
 
 /** The backdrop content (app UI) that a liquid glass surface samples from. */
@@ -127,11 +128,11 @@ fun glassIndicatorColor(): Color =
     if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) Color.White else Color(0xFF32D979)
 
 /**
- * A lightweight visual match for liquid glass over a stable background.
- *
- * This keeps the same translucent tint, directional highlight and hairline as
- * [liquidGlass], but intentionally performs no backdrop capture, blur, lens
- * refraction or shadow rendering. When Liquid Glass is disabled or unsupported,
+ * A lightweight liquid glass over a stable background: the shared glass
+ * material (see [glassSurface]) with no backdrop capture or blur of its
+ * own, so it renders the full graded, lit, rimmed material on every
+ * device the toggle reaches — including below Android 12, where this
+ * path used to draw nothing glassy at all. When Liquid Glass is off,
  * [fallbackColor] preserves the control's existing filled appearance.
  */
 @Composable
@@ -139,30 +140,21 @@ fun Modifier.lightweightLiquidGlass(
     shape: CornerBasedShape,
     fallbackColor: Color,
 ): Modifier {
-    val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
-    val glassTint = if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) {
-        Color(0xFFFAFAFA)
-    } else {
-        Color(0xFF17251D)
-    }
-    val shapeProvider = ShapeProvider { shape }
-
-    return clip(shape)
-        .background(
-            color = if (useGlass) glassTint.copy(alpha = SURFACE_OPACITY) else fallbackColor,
-            shape = shape,
-        )
-        .then(
-            if (useGlass) {
-                HighlightElement(
-                    shapeProvider = shapeProvider,
-                    highlight = { Highlight.Default },
-                )
-            } else {
-                Modifier
-            },
-        )
-        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+    val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val mode = glassModeFor(
+        enabled = LocalLiquidGlassEnabled.current,
+        blurCapable = isGlassSupported(),
+        reduceDynamicBlur = reduceDynamicBlur,
+    )
+    return glassSurface(
+        shape = shape,
+        mode = mode,
+        tint = LocalArtworkGlassTint.current,
+        tier = GlassTokens.surface,
+        tierAlpha = 0.55f,
+        solidColor = fallbackColor,
+        materialAlpha = 0.55f,
+    )
 }
 
 /**

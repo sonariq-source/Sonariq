@@ -24,6 +24,7 @@ import com.music.sonariq.playback.AudioOutputStatus
 import com.music.sonariq.playback.AudioRouting
 import com.music.sonariq.playback.VisualizerController
 import com.music.sonariq.playback.cast.CastController
+import com.music.sonariq.ui.components.isGlassSupported
 import com.music.sonariq.util.DeviceInfo
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.CoroutineScope
@@ -66,6 +67,8 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         override val hideVolumeBar get() = AppSettings.hideVolumeBar
         override val lastPlayerScreen get() = AppSettings.lastPlayerScreen
         override val legacyMeshGradient get() = AppSettings.legacyMeshGradient
+        override val liquidGlass get() = AppSettings.liquidGlass
+        override val glassBlurCapable get() = isGlassSupported()
         override val lyricsAutoScroll get() = AppSettings.lyricsAutoScroll
         override val lyricsBlur get() = AppSettings.lyricsBlur
         override val lyricsFontSizeSp get() = AppSettings.lyricsFontSizeSp

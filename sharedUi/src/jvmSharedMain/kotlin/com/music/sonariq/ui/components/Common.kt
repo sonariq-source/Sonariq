@@ -41,7 +41,12 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.sonariq.ui.haptics.Haptic
 import com.music.sonariq.ui.haptics.rememberHaptics
+import com.music.sonariq.ui.player.GlassMode
 import com.music.sonariq.ui.player.GlassTokens
+import com.music.sonariq.ui.player.PlayerSettings
+import com.music.sonariq.ui.player.glassModeFor
+import com.music.sonariq.ui.player.glassSurface
+import com.music.sonariq.ui.theme.LocalArtworkGlassTint
 import kotlin.math.abs
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -894,6 +899,13 @@ fun PillTextField(
  * hairline edge and a soft top highlight, tint/layer based — no blur pass.
  * Nav, the mini player, menus, sheets and control panels all sit on this so
  * the app reads as one material system.
+ *
+ * With Liquid Glass on, the panel wears the shared glass material at the
+ * panel tier (see [glassSurface]) — graded tint, top light, lit rim — on
+ * every platform; there is no backdrop sample behind a panel, so the blur
+ * modes and the material-only mode draw the same still material here.
+ * With the glass off, the panel is the flat elevated fill with its
+ * hairline and top highlight, exactly as before.
  */
 @Composable
 fun GlassPanel(
@@ -902,23 +914,45 @@ fun GlassPanel(
     contentPadding: PaddingValues = PaddingValues(16.dp),
     content: @Composable () -> Unit,
 ) {
+    val liquidGlass by PlayerSettings.liquidGlass.collectAsStateWithLifecycle()
+    val reduceDynamicBlur by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val mode = glassModeFor(
+        enabled = liquidGlass,
+        blurCapable = PlayerSettings.glassBlurCapable,
+        reduceDynamicBlur = reduceDynamicBlur,
+    )
     Box(
-        modifier = modifier
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .border(GlassTokens.hairlineWidth, GlassTokens.hairline, shape),
+        modifier = modifier.then(
+            if (mode == GlassMode.OFF) {
+                Modifier
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .border(GlassTokens.hairlineWidth, GlassTokens.hairline, shape)
+            } else {
+                Modifier.glassSurface(
+                    shape = shape,
+                    mode = mode,
+                    tint = LocalArtworkGlassTint.current,
+                    tier = GlassTokens.panelGlass,
+                    tierAlpha = GlassTokens.panelGlassAlpha,
+                    solidColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                )
+            },
+        ),
     ) {
-        // Top highlight: a short white gradient across the upper edge.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(28.dp)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.White.copy(alpha = 0.06f), Color.Transparent),
+        if (mode == GlassMode.OFF) {
+            // Top highlight: a short white gradient across the upper edge.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(28.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.White.copy(alpha = 0.06f), Color.Transparent),
+                        ),
                     ),
-                ),
-        )
+            )
+        }
         Box(modifier = Modifier.padding(contentPadding)) {
             content()
         }

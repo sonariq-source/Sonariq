@@ -33,8 +33,14 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.sonariq.ui.player.GlassTokens
+import com.music.sonariq.ui.player.PlayerSettings
 import com.music.sonariq.ui.player.glassEdge
+import com.music.sonariq.ui.player.glassModeFor
+import com.music.sonariq.ui.player.glassSurface
+import com.music.sonariq.ui.theme.LocalArtworkGlassTint
 
 /**
  * Living Sound: Sonariq's own design signatures, as shared components.
@@ -252,13 +258,33 @@ fun SpineFeatureCard(
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
+    val liquidGlass by PlayerSettings.liquidGlass.collectAsStateWithLifecycle()
+    val reduceDynamicBlur by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val mode = glassModeFor(
+        enabled = liquidGlass,
+        blurCapable = PlayerSettings.glassBlurCapable,
+        reduceDynamicBlur = reduceDynamicBlur,
+    )
     Surface(
         modifier = modifier
             .clip(GlassTokens.panelShape)
+            // The fill is the shared glass material (see [glassSurface]):
+            // with Liquid Glass off it paints the panel tier flat, exactly
+            // the colour this card has always worn; on, it grades and
+            // lights it. The Surface itself only carries the content colour.
+            .glassSurface(
+                shape = GlassTokens.panelShape,
+                mode = mode,
+                tint = LocalArtworkGlassTint.current,
+                tier = GlassTokens.panelGlass,
+                tierAlpha = GlassTokens.panelGlassAlpha,
+                solidColor = GlassTokens.panelSurface,
+                rim = false,
+            )
             .glassEdge(GlassTokens.panelShape)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = GlassTokens.panelShape,
-        color = GlassTokens.panelSurface,
+        color = Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
         Row {

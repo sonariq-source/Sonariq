@@ -151,6 +151,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -176,8 +177,12 @@ import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
 import com.music.sonariq.ui.components.isGlassSupported
 import com.music.sonariq.ui.components.Eyebrow
+import com.music.sonariq.ui.player.GlassMode
 import com.music.sonariq.ui.player.GlassTokens
 import com.music.sonariq.ui.player.glassEdge
+import com.music.sonariq.ui.player.glassModeFor
+import com.music.sonariq.ui.player.glassSurface
+import com.music.sonariq.ui.theme.LocalArtworkGlassTint
 import com.music.sonariq.ui.components.languageDisplayNameRes
 import com.music.sonariq.ui.components.MessageState
 import com.music.sonariq.ui.components.SearchField
@@ -288,7 +293,6 @@ fun SettingsScreen(
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val liquidGlass by AppSettings.liquidGlass.collectAsStateWithLifecycle()
-    val liquidGlassSupported = isGlassSupported()
     val lyricsBlur by AppSettings.lyricsBlur.collectAsStateWithLifecycle()
     val lyricsFontSizeSp by AppSettings.lyricsFontSizeSp.collectAsStateWithLifecycle()
     val lyricsAutoScroll by AppSettings.lyricsAutoScroll.collectAsStateWithLifecycle()
@@ -1715,19 +1719,11 @@ fun SettingsScreen(
                 SettingsRow(
                     icon = Icons.Rounded.AutoAwesome,
                     title = liquidGlassTitle,
-                    subtitle = stringResource(
-                        if (liquidGlassSupported) {
-                            R.string.liquid_glass_subtitle
-                        } else {
-                            R.string.liquid_glass_unavailable
-                        },
-                    ),
-                    enabled = liquidGlassSupported,
+                    subtitle = stringResource(R.string.liquid_glass_subtitle),
                     trailing = {
                         Switch(
                             checked = liquidGlass,
                             onCheckedChange = AppSettings::setLiquidGlass,
-                            enabled = liquidGlassSupported,
                             colors = SwitchDefaults.colors(
                                 checkedTrackColor = MaterialTheme.colorScheme.primary,
                                 checkedBorderColor = MaterialTheme.colorScheme.primary,
@@ -3358,13 +3354,7 @@ internal fun AccountCard(
                 } else {
                     Modifier
                         .padding(horizontal = GROUP_INSET)
-                        .clip(GroupShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.7f),
-                            GroupShape,
-                        )
+                        .settingsGlassCard(GroupShape)
                 },
             )
             .then(
@@ -3903,6 +3893,47 @@ private fun SettingsCategoryCard(
  * no title, so it keeps the plain [SettingsGroup] rendering.
  */
 @Composable
+/**
+ * The settings card surface: with Liquid Glass on, the shared glass
+ * material at the panel tier (see [glassSurface]) — a graded tint with a
+ * lit rim in place of the flat fill and outline the cards used to wear,
+ * on every device, blurred backdrop or not. With the glass off, the card
+ * is the flat elevated fill with its outline, exactly as before. Static:
+ * settings is a scrolling list of these cards, so the travelling sheen
+ * stays on the chrome and the cards keep the still material.
+ */
+@Composable
+private fun Modifier.settingsGlassCard(shape: Shape): Modifier {
+    val liquidGlass by AppSettings.liquidGlass.collectAsStateWithLifecycle()
+    val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val mode = glassModeFor(
+        enabled = liquidGlass,
+        blurCapable = isGlassSupported(),
+        reduceDynamicBlur = reduceDynamicBlur,
+    )
+    val base = glassSurface(
+        shape = shape,
+        mode = mode,
+        tint = LocalArtworkGlassTint.current,
+        tier = GlassTokens.panelGlass,
+        tierAlpha = GlassTokens.panelGlassAlpha,
+        solidColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    )
+    return clip(shape)
+        .then(base)
+        .then(
+            if (mode == GlassMode.OFF) {
+                Modifier.border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.7f),
+                    shape,
+                )
+            } else {
+                Modifier
+            },
+        )
+}
+
 private fun SearchableSettingsGroup(
     search: SettingsSearch,
     header: String? = null,
@@ -3922,14 +3953,11 @@ private fun SearchableSettingsGroup(
     }
     Spacer(Modifier.height(14.dp))
     Column(
-        // Same glass card as [SettingsGroup]: the glass tone over the
-        // background, edged with a hairline of outline.
+        // Same glass card as [SettingsGroup].
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = GROUP_INSET)
-            .clip(GroupShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), GroupShape),
+            .settingsGlassCard(GroupShape),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -4029,14 +4057,12 @@ internal fun SettingsGroup(
         Spacer(Modifier.height(topSpacing))
     }
     Column(
-        // Glass card: the glass tone over the background, edged with a
-        // hairline of outline so the card reads against either theme.
+        // Glass card: the shared glass material, so the card reads
+        // against either theme.
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = GROUP_INSET)
-            .clip(GroupShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), GroupShape),
+            .settingsGlassCard(GroupShape),
     ) {
         content()
     }

@@ -54,6 +54,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -73,6 +74,13 @@ import kotlinx.coroutines.launch
 import com.music.sonariq.R
 import com.music.sonariq.data.model.Account
 import com.music.sonariq.data.settings.AppSettings
+import com.music.sonariq.ui.player.GlassMode
+import com.music.sonariq.ui.player.GlassTokens
+import com.music.sonariq.ui.player.glassModeFor
+import com.music.sonariq.ui.player.glassSurface
+import com.music.sonariq.ui.player.rememberGlassSheenPhase
+import com.music.sonariq.ui.theme.LocalArtworkGlassTint
+import com.music.sonariq.util.DeviceInfo
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
@@ -173,8 +181,25 @@ fun FrostedTopBar(
     actions: @Composable () -> Unit = {},
 ) {
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val liquidGlass by AppSettings.liquidGlass.collectAsStateWithLifecycle()
+    val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     // The Sonariq redesign uses a solid app header and inline controls throughout.
     val useFloatingChrome = false
+    // With Liquid Glass on, the bar's own pane wears the shared glass
+    // material — graded tint, top light and the travelling sheen — over
+    // the page background it has always rested on; nothing scrolls under
+    // this bar (pages pad their content below it), so there is no backdrop
+    // to sample and the material carries the look alone in both blur
+    // modes. Off or solid, the pane is the plain background as before.
+    val glassMode = glassModeFor(
+        enabled = liquidGlass,
+        blurCapable = isGlassSupported(),
+        reduceDynamicBlur = reduceDynamicBlur,
+    )
+    val topBarSheen = rememberGlassSheenPhase(
+        active = (glassMode == GlassMode.FULL_BLUR || glassMode == GlassMode.MATERIAL_ONLY) &&
+            !reduceAnimation && !DeviceInfo.isTv,
+    )
     val titleAlpha by animateFloatAsState(
         targetValue = if (scrolled || trailingTitle != null) 1f else 0f,
         animationSpec = tween(220),
@@ -196,7 +221,22 @@ fun FrostedTopBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background),
+            .then(
+                if (glassMode == GlassMode.MATERIAL_ONLY || glassMode == GlassMode.FULL_BLUR) {
+                    Modifier.glassSurface(
+                        shape = RectangleShape,
+                        mode = glassMode,
+                        tint = LocalArtworkGlassTint.current,
+                        tier = GlassTokens.navGlass,
+                        tierAlpha = 0.88f,
+                        solidColor = MaterialTheme.colorScheme.background,
+                        rim = false,
+                        sheenPhase = topBarSheen,
+                    )
+                } else {
+                    Modifier.background(MaterialTheme.colorScheme.background)
+                },
+            ),
     ) {
         Box(
             modifier = Modifier

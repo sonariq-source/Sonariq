@@ -135,6 +135,7 @@ private val DefaultLyricsHighlightIntensity = MutableStateFlow(DEFAULT_LYRICS_HI
 private val DefaultLyricsBackground = MutableStateFlow(LyricsBackground.ARTWORK)
 private val DefaultLyricsReducedMotion = MutableStateFlow(false)
 private val DefaultLyricsAutoOffsets = MutableStateFlow<Map<String, LyricsAutoOffset>>(emptyMap())
+private val DefaultLiquidGlassEnabled = MutableStateFlow(true)
 
 /** What the output drawer needs to know about casting to draw its row. */
 data class CastUi(
@@ -171,6 +172,10 @@ interface PlayerSettingsSource {
     val hideVolumeBar: StateFlow<Boolean>
     val lastPlayerScreen: StateFlow<LastPlayerScreen>
     val legacyMeshGradient: StateFlow<Boolean>
+    /** Whether Liquid Glass is on; platforms without the setting keep it on. */
+    val liquidGlass: StateFlow<Boolean> get() = DefaultLiquidGlassEnabled
+    /** Whether this platform can sample a backdrop blur for glass at all (Android 12+; desktop always). */
+    val glassBlurCapable: Boolean get() = true
     val lyricsAutoScroll: StateFlow<Boolean>
     val lyricsBlur: StateFlow<Boolean>
     val lyricsFontSizeSp: StateFlow<Float>

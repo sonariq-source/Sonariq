@@ -109,15 +109,20 @@ fun PlayerDrawer(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val reduceDynamicBlur by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val liquidGlass by PlayerSettings.liquidGlass.collectAsStateWithLifecycle()
     // The sheet tier, tinted by the playing track's artwork where the
     // player has provided a tint — the drawer's glass wears the song the
     // way the player's own surfaces do. No tint in reach (a drawer drawn
-    // outside the player) is the plain sheet material, unchanged.
+    // outside the player) is the plain sheet material, unchanged. The
+    // mode decides how much of the material there is: a sampled blur
+    // under it where the platform can, the material alone where it
+    // cannot, the solid fill under reduced dynamic blur, and the plain
+    // sheet with Liquid Glass off.
     val artworkTint = LocalArtworkGlassTint.current
-    val sheetSurface = artworkTintedSurface(
-        tint = artworkTint,
-        fallback = GlassTokens.sheetSurface,
-        alpha = GlassTokens.sheetGlassAlpha,
+    val glassMode = glassModeFor(
+        enabled = liquidGlass,
+        blurCapable = PlayerSettings.glassBlurCapable,
+        reduceDynamicBlur = reduceDynamicBlur,
     )
 
     // How far the drawer has been dragged down, in pixels. Released, it either
@@ -220,16 +225,23 @@ fun PlayerDrawer(
                 .clip(DRAWER_SHAPE)
                 .glassEdge(DRAWER_SHAPE)
                 .then(
-                    if (reduceDynamicBlur) {
-                        Modifier.background(sheetSurface)
+                    if (glassMode == GlassMode.FULL_BLUR) {
+                        Modifier.optimizedHazeEffect(
+                            state = hazeState,
+                            style = HazeMaterials.regular(artworkTintedHazeTint(artworkTint)),
+                        )
                     } else {
                         Modifier
-                            .optimizedHazeEffect(
-                                state = hazeState,
-                                style = HazeMaterials.regular(artworkTintedHazeTint(artworkTint)),
-                            )
-                            .background(sheetSurface)
                     }
+                )
+                .glassSurface(
+                    shape = DRAWER_SHAPE,
+                    mode = glassMode,
+                    tint = artworkTint,
+                    tier = GlassTokens.sheetGlass,
+                    tierAlpha = GlassTokens.sheetGlassAlpha,
+                    solidColor = GlassTokens.sheetSurface,
+                    rim = false,
                 )
                 .clickable(
                     indication = null,

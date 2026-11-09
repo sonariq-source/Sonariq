@@ -118,13 +118,14 @@ internal fun LyricsOffsetSheet(
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
     val reduceDynamicBlur by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val liquidGlass by PlayerSettings.liquidGlass.collectAsStateWithLifecycle()
     // The sheet tier tinted by the playing track's artwork, as in
     // [PlayerDrawer] — every sheet the player raises wears the same glass.
     val artworkTint = LocalArtworkGlassTint.current
-    val sheetSurface = artworkTintedSurface(
-        tint = artworkTint,
-        fallback = GlassTokens.sheetSurface,
-        alpha = GlassTokens.sheetGlassAlpha,
+    val glassMode = glassModeFor(
+        enabled = liquidGlass,
+        blurCapable = PlayerSettings.glassBlurCapable,
+        reduceDynamicBlur = reduceDynamicBlur,
     )
 
     Box(
@@ -153,16 +154,23 @@ internal fun LyricsOffsetSheet(
                     .clip(DrawerShape)
                     .glassEdge(DrawerShape)
                     .then(
-                        if (reduceDynamicBlur) {
-                            Modifier.background(sheetSurface)
+                        if (glassMode == GlassMode.FULL_BLUR) {
+                            Modifier.optimizedHazeEffect(
+                                state = hazeState,
+                                style = HazeMaterials.regular(artworkTintedHazeTint(artworkTint)),
+                            )
                         } else {
                             Modifier
-                                .optimizedHazeEffect(
-                                    state = hazeState,
-                                    style = HazeMaterials.regular(artworkTintedHazeTint(artworkTint)),
-                                )
-                                .background(sheetSurface)
-                        },
+                        }
+                    )
+                    .glassSurface(
+                        shape = DrawerShape,
+                        mode = glassMode,
+                        tint = artworkTint,
+                        tier = GlassTokens.sheetGlass,
+                        tierAlpha = GlassTokens.sheetGlassAlpha,
+                        solidColor = GlassTokens.sheetSurface,
+                        rim = false,
                     )
                     .clickable(
                         indication = null,

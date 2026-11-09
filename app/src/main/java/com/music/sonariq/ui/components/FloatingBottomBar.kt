@@ -50,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -62,9 +63,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.ui.haptics.Haptic
 import com.music.sonariq.ui.haptics.rememberHaptics
+import com.music.sonariq.ui.player.GlassMode
 import com.music.sonariq.ui.player.GlassTokens
 import com.music.sonariq.ui.player.artworkTintedHazeTint
-import com.music.sonariq.ui.player.artworkTintedSurface
+import com.music.sonariq.ui.player.glassModeFor
+import com.music.sonariq.ui.player.glassSurface
+import com.music.sonariq.ui.player.rememberGlassSheenPhase
+import com.music.sonariq.util.DeviceInfo
 import com.music.sonariq.ui.theme.LocalArtworkGlassTint
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
@@ -169,14 +174,16 @@ internal const val SQUASH = 0.5f
  * navigation-bar inset so it sits correctly over gesture and three-button
  * navigation alike.
  *
- * With Liquid Glass on (and supported, and dynamic blur allowed) the bar's
- * surface is a real sampled blur — the app's Haze backdrop treatment, the
- * same one the player sheets have always used — under the navigation glass
- * tint, so page content visibly blurs behind it as it scrolls. The Kyant
- * lens shader that used to render this bar is gone from it: an unproven
- * GPU shader path has no business on a surface that is on every screen.
- * Off, or on any fallback, it is the matte navigation tint with the drawn
- * edge light, exactly as before.
+ * With Liquid Glass on, the bar wears the shared glass material (see
+ * [glassSurface]): on Android 12+ with dynamic blur allowed, that material
+ * is laid over a real sampled blur — the app's Haze backdrop treatment,
+ * the same one the player sheets have always used — so page content
+ * visibly blurs behind it as it scrolls; everywhere else the material
+ * carries the look on its own, graded tint, top light and travelling
+ * sheen included. The Kyant lens shader that used to render this bar is
+ * gone from it: an unproven GPU shader path has no business on a surface
+ * that is on every screen. Off, it is the matte navigation tint with the
+ * drawn edge light, exactly as before.
  */
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
@@ -189,34 +196,43 @@ fun FloatingBottomBar(
 ) {
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
-    val glassActive = LocalLiquidGlassEnabled.current && isGlassSupported() && !reduceDynamicBlur
-    // The artwork tint rides inside the live glass only: with the glass
-    // off — toggle, support, or reduced blur — the bar is the matte
-    // navigation tint exactly as before, untinted. Inside the glass, the
-    // bar's haze and its surface take the playing track's colour (see
-    // [LocalArtworkGlassTint]) and shift with it on a track change.
+    val mode = glassModeFor(
+        enabled = LocalLiquidGlassEnabled.current,
+        blurCapable = isGlassSupported(),
+        reduceDynamicBlur = reduceDynamicBlur,
+    )
+    // The artwork tint rides with the material: with the glass off the bar
+    // is the matte navigation tint exactly as before, untinted. In every
+    // material mode the bar's surface takes the playing track's colour
+    // (see [LocalArtworkGlassTint]) and shifts with it on a track change.
     val artworkTint = LocalArtworkGlassTint.current
-    val activeTint = if (glassActive) artworkTint else null
+    val activeTint = if (mode == GlassMode.OFF) null else artworkTint
+    val sheen = rememberGlassSheenPhase(
+        active = (mode == GlassMode.FULL_BLUR || mode == GlassMode.MATERIAL_ONLY) &&
+            !reduceAnimation && !DeviceInfo.isTv,
+    )
     Box(
         modifier = modifier
             .fillMaxWidth()
             .then(
-                if (glassActive) {
-                    Modifier
-                        .optimizedHazeEffect(
-                            state = hazeState,
-                            style = HazeMaterials.regular(artworkTintedHazeTint(activeTint)),
-                        )
-                        .background(
-                            artworkTintedSurface(
-                                tint = activeTint,
-                                fallback = GlassTokens.navSurface,
-                                alpha = GlassTokens.navGlassAlpha,
-                            ),
-                        )
+                if (mode == GlassMode.FULL_BLUR) {
+                    Modifier.optimizedHazeEffect(
+                        state = hazeState,
+                        style = HazeMaterials.regular(artworkTintedHazeTint(activeTint)),
+                    )
                 } else {
-                    Modifier.background(GlassTokens.navSurface)
+                    Modifier
                 },
+            )
+            .glassSurface(
+                shape = RectangleShape,
+                mode = mode,
+                tint = activeTint,
+                tier = GlassTokens.navGlass,
+                tierAlpha = GlassTokens.navGlassAlpha,
+                solidColor = GlassTokens.navSurface,
+                rim = false,
+                sheenPhase = sheen,
             )
             .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
