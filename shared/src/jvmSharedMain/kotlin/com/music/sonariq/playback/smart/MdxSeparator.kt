@@ -132,7 +132,7 @@ internal fun overlapAdd(totalLength: Int, chunks: List<Triple<Int, FloatArray, I
 }
 
 /**
- * Full-track source separation with the downloadable MDX-Net model ([MdxModel]), producing the
+ * Full-track source separation with the bundled MDX-Net model ([MdxModel]), producing the
  * instrumental stem.
  *
  * ## Algorithm (the reference demix, replicated)
@@ -263,9 +263,15 @@ class MdxSeparator(
         val paddedRight = accumulatedRight.finish()
         val outLeft = FloatArray(length)
         val outRight = FloatArray(length)
+        // Back to the mix's own level — and onto the model's published
+        // calibration while we are here: the network under-reads the
+        // instrumental by [MdxModel.COMPENSATE], so the stem is scaled
+        // by it once, at separation time, and every consumer downstream
+        // (the cache, the fader, the derived vocal) sees the corrected
+        // stem. See MdxModel.COMPENSATE.
         for (index in 0 until length) {
-            outLeft[index] = paddedLeft[TRIM + index] / scale
-            outRight[index] = paddedRight[TRIM + index] / scale
+            outLeft[index] = paddedLeft[TRIM + index] / scale * MdxModel.COMPENSATE
+            outRight[index] = paddedRight[TRIM + index] / scale * MdxModel.COMPENSATE
         }
         return StereoStems(outLeft, outRight, MdxModel.SAMPLE_RATE.toDouble())
     }

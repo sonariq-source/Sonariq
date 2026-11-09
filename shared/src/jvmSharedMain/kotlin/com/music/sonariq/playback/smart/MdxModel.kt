@@ -38,6 +38,19 @@ object MdxModel {
     /** The only sample rate the model accepts; inputs are resampled to it before separation. */
     const val SAMPLE_RATE = 44_100
 
+    /**
+     * The model's published per-model level calibration. The network
+     * systematically under-reads the instrumental's level by this
+     * factor; the model's own registry entry publishes the scalar so
+     * tooling can correct for it, applying it to the instrumental
+     * estimate before the vocal is derived by subtraction
+     * (`vocal = mix − COMPENSATE × instrumental`). [MdxSeparator]
+     * multiplies the separated instrumental by it before the stem is
+     * cached, which puts the stored stem at the mix's true level and
+     * makes the playback chain's derived vocal the calibrated one.
+     */
+    const val COMPENSATE: Float = 1.022f
+
     /** STFT size of the model's front end. 6144 = 2048 * 3 — see [SpectralTransform]. */
     const val N_FFT = 6144
 

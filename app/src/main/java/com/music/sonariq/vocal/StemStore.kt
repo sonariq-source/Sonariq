@@ -38,7 +38,7 @@ fun stemKeyHash(key: String): String {
 }
 
 /**
- * Every separated stem on the device: `filesDir/stems_v1/<sha256(key)>.mdx.wav`
+ * Every separated stem on the device: `filesDir/stems_v2/<sha256(key)>.mdx.wav`
  * (or `.umx.wav` for the bundled tier).
  *
  * ## Track keys
@@ -74,7 +74,10 @@ object StemStore {
     /** Default disk budget for all stems together. */
     const val DEFAULT_CAP_BYTES: Long = 1_500_000_000L
 
-    private const val DIRECTORY_NAME = "stems_v1"
+    // v2: the MDX tier's stems are level-calibrated from this version
+    // on (see MdxModel.COMPENSATE); v1 stems were the raw model output
+    // and must be re-separated rather than reused, so the store moved.
+    private const val DIRECTORY_NAME = "stems_v2"
 
     @Volatile
     private var dir: File? = null
