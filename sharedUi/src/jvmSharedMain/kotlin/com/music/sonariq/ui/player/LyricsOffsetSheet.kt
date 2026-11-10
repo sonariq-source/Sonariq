@@ -154,7 +154,7 @@ internal fun LyricsOffsetSheet(
                     .clip(DrawerShape)
                     .glassEdge(DrawerShape)
                     .then(
-                        if (glassMode == GlassMode.FULL_BLUR) {
+                        if (glassMode == GlassMode.REAL) {
                             Modifier.optimizedHazeEffect(
                                 state = hazeState,
                                 style = HazeMaterials.regular(artworkTintedHazeTint(artworkTint)),

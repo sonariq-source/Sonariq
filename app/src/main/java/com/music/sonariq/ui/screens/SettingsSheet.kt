@@ -3882,7 +3882,11 @@ private fun SettingsCategoryCard(
  * on every device, blurred backdrop or not. With the glass off, the card
  * is the flat elevated fill with its outline, exactly as before. Static:
  * settings is a scrolling list of these cards, so the travelling sheen
- * stays on the chrome and the cards keep the still material.
+ * stays on the chrome and the cards keep the still material. The cards
+ * also keep the material at the real tier: they are composed inside the
+ * recorded page itself, and a surface cannot refract the very layer it
+ * is being recorded into — the refracting glass belongs to the chrome
+ * that floats over the page.
  */
 @Composable
 private fun Modifier.settingsGlassCard(shape: Shape): Modifier {

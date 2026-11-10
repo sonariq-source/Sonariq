@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerBasedShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Person
@@ -185,19 +186,20 @@ fun FrostedTopBar(
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     // The Sonariq redesign uses a solid app header and inline controls throughout.
     val useFloatingChrome = false
-    // With Liquid Glass on, the bar's own pane wears the shared glass
-    // material — graded tint, top light and the travelling sheen — over
-    // the page background it has always rested on; nothing scrolls under
-    // this bar (pages pad their content below it), so there is no backdrop
-    // to sample and the material carries the look alone in both blur
-    // modes. Off or solid, the pane is the plain background as before.
+    // With Liquid Glass on at the real tier, the bar's own pane is the
+    // real refracting glass over the recorded page — the frosted header
+    // the component is named for. On the material tier it wears the
+    // shared glass material — graded tint, top light and the travelling
+    // sheen. Off or solid, the pane is the plain background as before.
     val glassMode = glassModeFor(
         enabled = liquidGlass,
         blurCapable = isGlassSupported(),
         reduceDynamicBlur = reduceDynamicBlur,
     )
+    // The travelling sheen belongs to the material tier only: on the
+    // real glass the specular highlight is the life.
     val topBarSheen = rememberGlassSheenPhase(
-        active = (glassMode == GlassMode.FULL_BLUR || glassMode == GlassMode.MATERIAL_ONLY) &&
+        active = glassMode == GlassMode.MATERIAL_ONLY &&
             !reduceAnimation && !DeviceInfo.isTv,
     )
     val titleAlpha by animateFloatAsState(
@@ -222,8 +224,12 @@ fun FrostedTopBar(
         modifier = modifier
             .fillMaxWidth()
             .then(
-                if (glassMode == GlassMode.MATERIAL_ONLY || glassMode == GlassMode.FULL_BLUR) {
-                    Modifier.glassSurface(
+                when (glassMode) {
+                    GlassMode.REAL -> Modifier.liquidGlass(
+                        TOP_BAR_PANE_SHAPE,
+                        tint = LocalArtworkGlassTint.current,
+                    )
+                    GlassMode.MATERIAL_ONLY -> Modifier.glassSurface(
                         shape = RectangleShape,
                         mode = glassMode,
                         tint = LocalArtworkGlassTint.current,
@@ -233,8 +239,7 @@ fun FrostedTopBar(
                         rim = false,
                         sheenPhase = topBarSheen,
                     )
-                } else {
-                    Modifier.background(MaterialTheme.colorScheme.background)
+                    else -> Modifier.background(MaterialTheme.colorScheme.background)
                 },
             ),
     ) {
@@ -451,6 +456,9 @@ private fun Modifier.artworkActionEdgePadding(): Modifier = layout { measurable,
     }
 }
 
+/** The top bar pane's outline: square to the screen edges it is flush with. */
+private val TOP_BAR_PANE_SHAPE = RoundedCornerShape(0.dp)
+
 /** The navbar's exact material choice, reusable by every floating top control. */
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
@@ -460,15 +468,23 @@ private fun artworkPageSurface(
 ): Modifier {
     val container = MaterialTheme.colorScheme.surface
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val useLiquidGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
 
-    // The Haze blur in both Liquid Glass states: the Kyant lens shader
-    // that used to take the "on" branch is gone from the app's chrome —
-    // see FloatingBottomBar for why. Solid under Reduce dynamic blur, or
-    // when the page gave the bar no backdrop to sample.
+    // The real refracting glass wherever Liquid Glass is on and the
+    // platform can draw it — these controls float over the recorded
+    // page, which is exactly the backdrop the glass samples (the glass
+    // itself answers "reduce dynamic blur" with its solid fill). The
+    // Haze blur is the fallback when the glass is off; solid under
+    // Reduce dynamic blur, or when the page gave the bar no backdrop
+    // to sample.
     return Modifier
         .clip(shape)
         .then(
             when {
+                useLiquidGlass -> Modifier.liquidGlass(
+                    shape,
+                    tint = LocalArtworkGlassTint.current,
+                )
                 reduceDynamicBlur || hazeState == null -> Modifier.background(container)
                 else -> Modifier.optimizedHazeEffect(
                     state = hazeState,

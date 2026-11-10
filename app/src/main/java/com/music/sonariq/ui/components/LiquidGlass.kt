@@ -159,10 +159,15 @@ fun Modifier.lightweightLiquidGlass(
 
 /**
  * Renders this composable as a liquid glass surface sampling [LocalAppBackdrop]:
- * vibrancy, blur and lens refraction, then a theme-adaptive surface tint (light
- * glass on light theme, dark on dark). Returns the receiver unchanged on devices
- * without RenderEffect support — callers should still gate on [isGlassSupported]
- * to fall back to the regular Haze treatment there.
+ * vibrancy, blur and lens refraction, then a surface tint laid over the sample.
+ * The tint is the playing track's artwork colour where the caller passes one
+ * (see [com.music.sonariq.ui.theme.LocalArtworkGlassTint] at the call sites),
+ * so the glass wears the song the way every other glass surface in the app
+ * does; with no tint the theme-adaptive glass colour stands (light glass on
+ * light theme, the Premium Emerald glass colour on dark). Returns the receiver
+ * unchanged on devices without RenderEffect support — callers gate on the
+ * glass mode (see glassModeFor in the shared UI) so this is only composed
+ * where the platform can draw it.
  *
  * Under "reduce dynamic blur" the surface is filled solid instead, which is what
  * that setting promises everywhere else in the app. It is checked here rather
@@ -170,11 +175,17 @@ fun Modifier.lightweightLiquidGlass(
  * recording the backdrop layer when it is on, and a surface that still tried to
  * sample would be sampling a layer nothing is drawing into.
  *
+ * Only surfaces composed over the recorded page layer can wear this — the
+ * app chrome. A surface inside the recorded page would be sampling the very
+ * layer it is being recorded into, and a surface inside a sheet window sits
+ * in a composition the page's backdrop never reaches; those render the
+ * REAL tier through the shared material instead.
+ *
  * [shape] is restricted to [CornerBasedShape] because the backdrop's lens effect
  * throws for any other shape type.
  */
 @Composable
-fun Modifier.liquidGlass(shape: CornerBasedShape): Modifier {
+fun Modifier.liquidGlass(shape: CornerBasedShape, tint: Color? = null): Modifier {
     if (!isGlassSupported()) return this
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     if (reduceDynamicBlur) {
@@ -187,7 +198,7 @@ fun Modifier.liquidGlass(shape: CornerBasedShape): Modifier {
     val blurPx = with(density) { BLUR_RADIUS_DP.dp.toPx() } * GLASS_RESOLUTION_SCALE
     val lensHeightPx = with(density) { (LENS_HEIGHT * LENS_MAX_DP).dp.toPx() } * GLASS_RESOLUTION_SCALE
     val lensAmountPx = with(density) { (LENS_AMOUNT * LENS_MAX_DP).dp.toPx() } * GLASS_RESOLUTION_SCALE
-    val surfaceTintColor = if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) {
+    val surfaceTintColor = tint ?: if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) {
         Color(0xFFFAFAFA)
     } else {
         Color(0xFF17251D)

@@ -65,15 +65,12 @@ import com.music.sonariq.ui.haptics.Haptic
 import com.music.sonariq.ui.haptics.rememberHaptics
 import com.music.sonariq.ui.player.GlassMode
 import com.music.sonariq.ui.player.GlassTokens
-import com.music.sonariq.ui.player.artworkTintedHazeTint
 import com.music.sonariq.ui.player.glassModeFor
 import com.music.sonariq.ui.player.glassSurface
 import com.music.sonariq.ui.player.rememberGlassSheenPhase
 import com.music.sonariq.util.DeviceInfo
 import com.music.sonariq.ui.theme.LocalArtworkGlassTint
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
-import dev.chrisbanes.haze.materials.HazeMaterials
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -165,6 +162,9 @@ internal const val STRETCH = 0.16f
  */
 internal const val SQUASH = 0.5f
 
+/** The docked bar's outline: square to the screen edge it is flush with. */
+private val DOCK_SHAPE = RoundedCornerShape(0.dp)
+
 /**
  * Sonariq's navigation: a docked, full-width glass bar flush with the bottom
  * of the screen. Every destination shows its icon over its label; the
@@ -174,18 +174,16 @@ internal const val SQUASH = 0.5f
  * navigation-bar inset so it sits correctly over gesture and three-button
  * navigation alike.
  *
- * With Liquid Glass on, the bar wears the shared glass material (see
- * [glassSurface]): on Android 12+ with dynamic blur allowed, that material
- * is laid over a real sampled blur — the app's Haze backdrop treatment,
- * the same one the player sheets have always used — so page content
- * visibly blurs behind it as it scrolls; everywhere else the material
- * carries the look on its own, graded tint, top light and travelling
- * sheen included. The Kyant lens shader that used to render this bar is
- * gone from it: an unproven GPU shader path has no business on a surface
- * that is on every screen. Off, it is the matte navigation tint with the
- * drawn edge light, exactly as before.
+ * With Liquid Glass on at the real tier (Android 12+, dynamic blur
+ * allowed), the bar's surface is the real refracting glass —
+ * [Modifier.liquidGlass] over the recorded page backdrop — so page
+ * content visibly blurs, saturates and bends behind it as it scrolls,
+ * tinted by the playing track's artwork. Below that tier the bar wears
+ * the shared glass material (see [glassSurface]): the graded, lit,
+ * rimmed material with the travelling sheen on the material-only tier.
+ * Off, it is the matte navigation tint with the drawn edge light,
+ * exactly as before.
  */
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun FloatingBottomBar(
     tabs: List<BottomTab>,
@@ -201,48 +199,51 @@ fun FloatingBottomBar(
         blurCapable = isGlassSupported(),
         reduceDynamicBlur = reduceDynamicBlur,
     )
-    // The artwork tint rides with the material: with the glass off the bar
+    // The artwork tint rides with the glass: with the glass off the bar
     // is the matte navigation tint exactly as before, untinted. In every
-    // material mode the bar's surface takes the playing track's colour
+    // glass mode the bar's surface takes the playing track's colour
     // (see [LocalArtworkGlassTint]) and shifts with it on a track change.
     val artworkTint = LocalArtworkGlassTint.current
     val activeTint = if (mode == GlassMode.OFF) null else artworkTint
+    // The travelling sheen belongs to the material tiers only: on the
+    // real glass the specular highlight is the life, and a band drawn
+    // over the refraction would double-draw the light.
     val sheen = rememberGlassSheenPhase(
-        active = (mode == GlassMode.FULL_BLUR || mode == GlassMode.MATERIAL_ONLY) &&
+        active = mode == GlassMode.MATERIAL_ONLY &&
             !reduceAnimation && !DeviceInfo.isTv,
     )
     Box(
         modifier = modifier
             .fillMaxWidth()
             .then(
-                if (mode == GlassMode.FULL_BLUR) {
-                    Modifier.optimizedHazeEffect(
-                        state = hazeState,
-                        style = HazeMaterials.regular(artworkTintedHazeTint(activeTint)),
-                    )
+                if (mode == GlassMode.REAL) {
+                    Modifier.liquidGlass(DOCK_SHAPE, tint = activeTint)
                 } else {
-                    Modifier
+                    Modifier.glassSurface(
+                        shape = RectangleShape,
+                        mode = mode,
+                        tint = activeTint,
+                        tier = GlassTokens.navGlass,
+                        tierAlpha = GlassTokens.navGlassAlpha,
+                        solidColor = GlassTokens.navSurface,
+                        rim = false,
+                        sheenPhase = sheen,
+                    )
                 },
-            )
-            .glassSurface(
-                shape = RectangleShape,
-                mode = mode,
-                tint = activeTint,
-                tier = GlassTokens.navGlass,
-                tierAlpha = GlassTokens.navGlassAlpha,
-                solidColor = GlassTokens.navSurface,
-                rim = false,
-                sheenPhase = sheen,
             )
             .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(GlassTokens.edgeLight),
-        )
+        // The real glass draws its own rim light; the drawn edge line is
+        // the stand-in every other tier wears.
+        if (mode != GlassMode.REAL) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(GlassTokens.edgeLight),
+            )
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()

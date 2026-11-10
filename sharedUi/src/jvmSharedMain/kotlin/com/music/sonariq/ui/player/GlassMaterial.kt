@@ -46,8 +46,20 @@ enum class GlassMode {
     /** On, with the full material but no backdrop blur underneath. */
     MATERIAL_ONLY,
 
-    /** On, with the material laid over a real sampled backdrop blur. */
-    FULL_BLUR,
+    /**
+     * On, on a platform that can sample a backdrop: the real glass tier.
+     *
+     * What "real" renders as depends on where the surface sits. The app
+     * chrome that floats over the recorded page — the navigation bar, the
+     * mini player, the top bar — renders it as true refracting glass:
+     * vibrancy, blur and a lens over the page behind it (the drawBackdrop
+     * glass in the app module). A surface that lives inside the recorded
+     * page, or inside a sheet window the page's backdrop recording never
+     * reaches, cannot sample that backdrop; it and the desktop's surfaces
+     * render this tier as the material laid over their own sampled blur,
+     * which is what [glassSurface] does with it.
+     */
+    REAL,
 }
 
 /**
@@ -62,7 +74,7 @@ fun glassModeFor(
 ): GlassMode = when {
     !enabled -> GlassMode.OFF
     reduceDynamicBlur -> GlassMode.SOLID
-    blurCapable -> GlassMode.FULL_BLUR
+    blurCapable -> GlassMode.REAL
     else -> GlassMode.MATERIAL_ONLY
 }
 
@@ -145,10 +157,12 @@ private fun ContentDrawScope.drawGlassSheen(phase: Float) {
  * everything, content included, at an alpha low enough to read as light
  * on glass rather than as something moving.
  *
- * The backdrop blur is NOT applied here: [GlassMode.FULL_BLUR] callers
- * lay their haze effect into the chain before this modifier, the same
- * order the bars have always used, so the material paints over the
- * sample. [tier]/[tierAlpha] are the surface's own glass tier (see
+ * The backdrop blur is NOT applied here: [GlassMode.REAL] callers that
+ * render this tier through the material lay their haze effect into the
+ * chain before this modifier, the same order the bars have always used,
+ * so the material paints over the sample. (The app chrome renders
+ * [GlassMode.REAL] as refracting glass instead and never reaches this
+ * modifier in that mode.) [tier]/[tierAlpha] are the surface's own glass tier (see
  * [GlassTokens]); with a [tint] in reach the tier's colour gives way to
  * the artwork's, as everywhere else the glass is tinted. Without a blur
  * underneath the fill goes near-opaque ([materialAlpha]) — translucency
@@ -176,8 +190,8 @@ fun Modifier.glassSurface(
         .background(artworkTintedSurface(tint, solidColor, solidColor.alpha), shape)
         .then(if (rim) Modifier.glassEdge(shape) else Modifier)
 
-    GlassMode.MATERIAL_ONLY, GlassMode.FULL_BLUR -> {
-        val alpha = if (mode == GlassMode.FULL_BLUR) tierAlpha else materialAlpha
+    GlassMode.MATERIAL_ONLY, GlassMode.REAL -> {
+        val alpha = if (mode == GlassMode.REAL) tierAlpha else materialAlpha
         this
             .clip(shape)
             .drawBehind {

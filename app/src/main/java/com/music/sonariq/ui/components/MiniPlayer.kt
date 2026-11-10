@@ -66,7 +66,6 @@ import com.music.sonariq.ui.components.thumbnailBorder
 import com.music.sonariq.ui.haptics.Haptic
 import com.music.sonariq.ui.player.GlassMode
 import com.music.sonariq.ui.player.GlassTokens
-import com.music.sonariq.ui.player.artworkTintedHazeTint
 import com.music.sonariq.ui.player.glassModeFor
 import com.music.sonariq.ui.player.glassSurface
 import com.music.sonariq.ui.player.rememberGlassSheenPhase
@@ -75,8 +74,6 @@ import com.music.sonariq.ui.theme.LocalArtworkGlassTint
 import com.music.sonariq.ui.haptics.rememberHaptics
 import com.music.sonariq.ui.player.PlayerDock
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
-import dev.chrisbanes.haze.materials.HazeMaterials
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
@@ -350,7 +347,6 @@ internal fun Modifier.playerDockArt(dock: PlayerDock?, corner: Dp): Modifier {
 }
 
 /** Frosted mini player that rides just above the floating tab bar. */
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun MiniPlayer(
     song: Song,
@@ -385,16 +381,15 @@ fun MiniPlayer(
     // a hairline edge — a designed part of the bottom stack, not a pill
     // floating inside the tab bar.
     //
-    // With Liquid Glass on, the card wears the shared glass material (see
-    // [glassSurface]): on Android 12+ with dynamic blur allowed, that
-    // material is laid over a real sampled blur — the app's Haze backdrop
-    // treatment, the same one the player sheets have always used — so the
-    // page blurs behind the card as it scrolls under it; everywhere else
-    // the material carries the look on its own, graded tint, top light and
-    // travelling sheen included. The Kyant lens shader that used to render
-    // this card is gone from it: an unproven GPU shader path has no
-    // business on a surface that is on every screen. Off, it is the matte
-    // elevated surface with the drawn hairline, exactly as before.
+    // With Liquid Glass on at the real tier (Android 12+, dynamic blur
+    // allowed), the card's surface is the real refracting glass —
+    // [Modifier.liquidGlass] over the recorded page backdrop — so the
+    // page blurs, saturates and bends behind the card as it scrolls
+    // under it, tinted by the playing track's artwork. Below that tier
+    // the card wears the shared glass material (see [glassSurface]):
+    // the graded, lit material with the travelling sheen on the
+    // material-only tier. Off, it is the matte elevated surface with
+    // the drawn hairline, exactly as before.
     val shape = RoundedCornerShape(18.dp)
     val mode = glassModeFor(
         enabled = LocalLiquidGlassEnabled.current,
@@ -407,8 +402,11 @@ fun MiniPlayer(
     val artworkTint = LocalArtworkGlassTint.current
     val activeTint = if (mode == GlassMode.OFF) null else artworkTint
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
+    // The travelling sheen belongs to the material tiers only: on the
+    // real glass the specular highlight is the life, and a band drawn
+    // over the refraction would double-draw the light.
     val sheen = rememberGlassSheenPhase(
-        active = (mode == GlassMode.FULL_BLUR || mode == GlassMode.MATERIAL_ONLY) &&
+        active = mode == GlassMode.MATERIAL_ONLY &&
             !reduceAnimation && !DeviceInfo.isTv,
     )
     Box(
@@ -430,26 +428,23 @@ fun MiniPlayer(
             )
             .clip(shape)
             .then(
-                if (mode == GlassMode.FULL_BLUR) {
-                    Modifier.optimizedHazeEffect(
-                        state = hazeState,
-                        style = HazeMaterials.regular(artworkTintedHazeTint(activeTint)),
-                    )
+                if (mode == GlassMode.REAL) {
+                    Modifier.liquidGlass(shape, tint = activeTint)
                 } else {
                     Modifier
+                        .glassSurface(
+                            shape = shape,
+                            mode = mode,
+                            tint = activeTint,
+                            tier = GlassTokens.playbackGlass,
+                            tierAlpha = GlassTokens.playbackGlassAlpha,
+                            solidColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            rim = false,
+                            sheenPhase = sheen,
+                        )
+                        .border(1.dp, Color.White.copy(alpha = 0.10f), shape)
                 },
             )
-            .glassSurface(
-                shape = shape,
-                mode = mode,
-                tint = activeTint,
-                tier = GlassTokens.playbackGlass,
-                tierAlpha = GlassTokens.playbackGlassAlpha,
-                solidColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                rim = false,
-                sheenPhase = sheen,
-            )
-            .border(1.dp, Color.White.copy(alpha = 0.10f), shape)
             // The whole card expands the player; transport controls keep their own click targets.
             .clickable(onClick = onExpand),
     ) {

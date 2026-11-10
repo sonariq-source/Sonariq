@@ -225,7 +225,7 @@ fun PlayerDrawer(
                 .clip(DRAWER_SHAPE)
                 .glassEdge(DRAWER_SHAPE)
                 .then(
-                    if (glassMode == GlassMode.FULL_BLUR) {
+                    if (glassMode == GlassMode.REAL) {
                         Modifier.optimizedHazeEffect(
                             state = hazeState,
                             style = HazeMaterials.regular(artworkTintedHazeTint(artworkTint)),

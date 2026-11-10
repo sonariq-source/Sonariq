@@ -40,19 +40,22 @@ class GlassModeTest {
     }
 
     @Test
-    fun blurCapablePlatformGetsTheFullBlur() {
+    fun blurCapablePlatformGetsTheRealGlass() {
+        // Backdrop sampling is what the refracting glass is made from:
+        // on Android the capability arrives with Android 12 (API 31), so
+        // this is the API 31+ row of the table.
         assertEquals(
-            GlassMode.FULL_BLUR,
+            GlassMode.REAL,
             glassModeFor(enabled = true, blurCapable = true, reduceDynamicBlur = false),
         )
     }
 
     @Test
     fun tabletWithoutBlurStillGetsTheMaterial() {
-        // The owner's tablet case: toggle on, no RenderEffect (Android 11
-        // and below). Before the material existed this fell through to the
-        // flat matte fallback and the switch visibly did nothing; it must
-        // land on the material, never on OFF.
+        // The owner's tablet case: toggle on, no RenderEffect (API 30 and
+        // below — Android 11 and under). Before the material existed this
+        // fell through to the flat matte fallback and the switch visibly
+        // did nothing; it must land on the material, never on OFF.
         assertEquals(
             GlassMode.MATERIAL_ONLY,
             glassModeFor(enabled = true, blurCapable = false, reduceDynamicBlur = false),

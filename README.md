@@ -61,7 +61,7 @@
 - **Playlist folders** — organise playlists into folders, with smart rules that auto-fill (e.g. "5-star rock added this month").
 - **Queue 2.0** — save multiple named queues, browse queue history, swipe to reorder.
 - **Gestures** — swipe the artwork for next/previous, double-tap the sides to seek ±10s.
-- **Liquid glass, tinted by the music** — a real glass material across the whole app: the navigation bar, mini player, top bar, cards and sheets take their tint from the playing track's artwork and shift colour as songs change, a slow sheen of light travels over the glass, and track and page changes travel on a fluid spring slide instead of cutting. The material renders on every device — a sampled backdrop blur where the platform supports it, the lit material alone where it does not.
+- **Liquid glass, tinted by the music** — real refracting liquid glass across the whole app: the navigation bar, mini player and top bar bend and saturate the page behind them through a true lens glass, cards and sheets wear the same glass material, and every surface takes its tint from the playing track's artwork and shifts colour as songs change. Track and page changes travel on a fluid spring slide instead of cutting, and the glass renders on every device — the refracting glass where the platform supports it, the lit material alone where it does not.
 - **New-release radar** — a feed of fresh drops from artists you follow.
 - **Playlist cover maker** — generate custom canvas-rendered artwork for your playlists.
 - **Monthly recap** — a shareable story of your month in music.
@@ -108,7 +108,7 @@
 
 ### Personalisation
 - **Dynamic themes** — the UI accent follows your album artwork's colours (toggle in Settings).
-- **Liquid glass** — bars, cards and sheets across the app wear the glass material, over a real sampled blur of the page behind them where the platform supports it, with a proper on/off toggle in Appearance; off, they rest as flat panels.
+- **Liquid glass** — the bars and floating controls refract the page behind them through real lens glass where the platform supports it; cards and sheets wear the same glass material, tinted by the playing song's artwork, with a proper on/off toggle in Appearance; off, they rest as flat panels.
 - **Your logo everywhere** — the white Sonariq waveform mark replaces every leftover placeholder.
 - **Ambient Now Playing backdrop** — behind the player and the lyrics, a strong, darkened blur of the cover's own colours fills the screen — processed once and cached, crossfading between tracks; the landscape artwork card itself stays sharp; toggle it in Settings (on by default).
 
