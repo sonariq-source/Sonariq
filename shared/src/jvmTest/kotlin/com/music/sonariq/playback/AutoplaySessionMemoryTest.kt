@@ -33,9 +33,18 @@ class AutoplaySessionMemoryTest {
 
         val existing = songs("a", "b", "c", "d", "e")
         val pool = songs("a", "b", "c", "d", "e", "f", "g", "h")
-        val picks = memory.selectForQueue(pool, existing, queueIds = setOf("c", "d", "e"), limit = 10)
+        val queueIds = setOf("c", "d", "e")
 
-        assertEquals(listOf("f", "g", "h"), ids(picks))
+        // Cut at the number of fresh candidates, the strict tier is the
+        // whole answer: nothing played, skipped, queued or served.
+        val strict = memory.selectForQueue(pool, existing, queueIds, limit = 3)
+        assertEquals(listOf("f", "g", "h"), ids(strict))
+
+        // Asked for more than the fresh pool holds, the relaxed tiers
+        // fill the shortfall in their order — the skip returns before
+        // the played track — and the queued suggestions never return.
+        val filled = memory.selectForQueue(pool, existing, queueIds, limit = 10)
+        assertEquals(listOf("f", "g", "h", "b", "a"), ids(filled))
     }
 
     @Test
@@ -108,13 +117,18 @@ class AutoplaySessionMemoryTest {
         assertEquals(setOf("a"), memory.skippedIds())
         assertTrue(memory.playedIds().isEmpty())
 
-        val picks = memory.selectForQueue(
-            pool = songs("a", "fresh"),
-            existing = songs("a", "b"),
-            queueIds = setOf("b"),
-            limit = 5,
+        val existing = songs("a", "b")
+        val pool = songs("a", "fresh")
+        // While the fresh candidate fills the ask, the skip stays out.
+        assertEquals(
+            listOf("fresh"),
+            ids(memory.selectForQueue(pool, existing, queueIds = setOf("b"), limit = 1)),
         )
-        assertEquals(listOf("fresh"), ids(picks))
+        // Asked for more than exists fresh, the skip is what relaxes in.
+        assertEquals(
+            listOf("fresh", "a"),
+            ids(memory.selectForQueue(pool, existing, queueIds = setOf("b"), limit = 5)),
+        )
     }
 
     @Test
