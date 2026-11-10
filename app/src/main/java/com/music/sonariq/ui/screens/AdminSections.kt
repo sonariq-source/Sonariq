@@ -187,8 +187,12 @@ private fun AdminAutoplaySection(modifier: Modifier = Modifier) {
                 AdminStatRow("Seeds with freshness history", "$seeds")
                 AdminStatRow("Remembered batches", "$batches")
                 AdminNote(
-                    "Freshness history is what stops a repeated seed from serving " +
-                        "the same batch again: earlier picks are demoted, never banned.",
+                    "Within a session, songs already played, skipped, queued or " +
+                        "suggested are not offered again while alternatives exist — " +
+                        "the session guard in Settings, on by default. Across " +
+                        "sessions, this freshness history stops a repeated seed " +
+                        "from serving the same batch again: earlier picks are " +
+                        "demoted, never banned.",
                 )
             }
         }

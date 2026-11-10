@@ -673,8 +673,14 @@ object AppSettings {
     /** Swiping a song row plays it next instead of adding it to the end of the queue. */
     val swipeToPlayNext = MutableStateFlow(false)
 
-    /** Once a song has been suggested or played this session, AutoPlay won't offer it again. */
-    val dontRepeatSuggestions = MutableStateFlow(false)
+    /**
+     * Once a song has been suggested or played this session, AutoPlay won't
+     * offer it again. On by default — it is the behaviour the setting's own
+     * label promises and the one listeners expect from AutoPlay; turning it
+     * off is an explicit opt-out for anyone who wants repeats back. A stored
+     * choice always wins over this default.
+     */
+    val dontRepeatSuggestions = MutableStateFlow(true)
 
     /**
      * Prefer the catalogue audio release when the selected result is a music
@@ -1249,7 +1255,7 @@ object AppSettings {
         hideVolumeBar.value = prefs.getBoolean(KEY_HIDE_VOLUME_BAR, false)
         hideSongStatus.value = prefs.getBoolean(KEY_HIDE_SONG_STATUS, false)
         swipeToPlayNext.value = prefs.getBoolean(KEY_SWIPE_TO_PLAY_NEXT, false)
-        dontRepeatSuggestions.value = prefs.getBoolean(KEY_DONT_REPEAT_SUGGESTIONS, false)
+        dontRepeatSuggestions.value = prefs.getBoolean(KEY_DONT_REPEAT_SUGGESTIONS, true)
         preferMusicOnly.value = prefs.getBoolean(KEY_PREFER_MUSIC_ONLY, false)
         smartVersionAlignment.value = prefs.getBoolean(KEY_SMART_VERSION_ALIGNMENT, true)
         reduceDynamicBlur.value = prefs.getBoolean(KEY_REDUCE_BLUR, false)

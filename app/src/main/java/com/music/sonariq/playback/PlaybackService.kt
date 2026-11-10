@@ -868,6 +868,17 @@ class PlaybackService : MediaLibraryService() {
      */
     private val sessionSongHistory = mutableListOf<Song>()
 
+    /**
+     * The session-strict AutoPlay memory: what this session has heard,
+     * played out, skipped and already been served, in order. Fed by
+     * [onTrackBecameCurrent] on every track change and by every delivered
+     * batch in [loadAutoplayForCurrentTrack]; read by the batch builder
+     * whenever "don't repeat suggestions" is on, which is the default.
+     * Like [sessionSongHistory] it is never persisted — a fresh process
+     * is a fresh session.
+     */
+    private val autoplaySession = AutoplaySessionMemory()
+
     private var serviceLyricsJob: Job? = null
 
     /** The queue-lookahead lyrics warmup — see [prefetchUpcomingLyrics]. */
@@ -2468,8 +2479,26 @@ class PlaybackService : MediaLibraryService() {
             // time repeat-all ended.
             repeatAllStash = emptyList()
             repeatAllStashSeed = null
+            // The AutoPlay session ends with the toggle: what it heard and
+            // served is forgotten, so switching back on starts discovery
+            // fresh instead of inheriting a stale exclusion list.
+            autoplaySession.reset()
+            sessionSongHistory.clear()
         }
         refreshCustomLayouts()
+    }
+
+    /**
+     * Appends to [sessionSongHistory], keeping it bounded: a session that
+     * runs for days should not carry every song it ever played in memory.
+     * The eldest entries fall off first — the repeat guard cares about
+     * recent plays, and [autoplaySession] keeps its own bounded order.
+     */
+    private fun noteSessionSongs(songs: List<Song>) {
+        sessionSongHistory += songs
+        while (sessionSongHistory.size > MAX_SESSION_HISTORY) {
+            sessionSongHistory.removeAt(0)
+        }
     }
 
     /**
@@ -2489,7 +2518,10 @@ class PlaybackService : MediaLibraryService() {
             return
         }
         val current = exoPlayer.currentMediaItem?.toSong() ?: return
-        if (AppSettings.dontRepeatSuggestions.value) sessionSongHistory += current
+        // Recorded whether or not the repeat guard is applied to this
+        // load: the history is bookkeeping, and a guard switched on
+        // mid-session should still know what the session already played.
+        noteSessionSongs(listOf(current))
         // In a party the server's queue is the one being topped up, and this
         // player's copy of it lags behind by however long reconcile is held off
         // — read from the copy, a batch that had already landed counted as
@@ -2517,12 +2549,25 @@ class PlaybackService : MediaLibraryService() {
                 val queueSongs = (0 until activePlayer.mediaItemCount)
                     .map { activePlayer.getMediaItemAt(it).toSong() } +
                     activeParty.queue.items.takeIf { activeParty.inParty }.orEmpty().map { it.toSong() }
-                val existing = if (AppSettings.dontRepeatSuggestions.value) {
+                val guardSession = AppSettings.dontRepeatSuggestions.value
+                val existing = if (guardSession) {
                     queueSongs + sessionSongHistory
                 } else {
                     queueSongs
                 }
-                val result = loadAutoplayTracks(existing, current, remaining, context = applicationContext)
+                val result = loadAutoplayTracks(
+                    existing,
+                    current,
+                    remaining,
+                    context = applicationContext,
+                    session = if (guardSession) autoplaySession else null,
+                    queueIds = queueSongs.mapTo(HashSet()) { it.videoId },
+                    alternateSeedSong = if (guardSession) {
+                        sessionSongHistory.lastOrNull { it.videoId != current.videoId }
+                    } else {
+                        null
+                    },
+                )
                 val resolved = result.getOrElse {
                     TrackLog.w(
                         "Sonariq",
@@ -2561,7 +2606,8 @@ class PlaybackService : MediaLibraryService() {
                     } else {
                         latestPlayer.addMediaItems(resolved.map { it.toMediaItem() })
                     }
-                    if (AppSettings.dontRepeatSuggestions.value) sessionSongHistory += resolved
+                    noteSessionSongs(resolved)
+                    autoplaySession.noteDelivered(resolved.map { it.videoId })
                     return@launch
                 }
 
@@ -3130,6 +3176,14 @@ class PlaybackService : MediaLibraryService() {
                     SmartAutoplay.recordTransition(applicationContext, previous, currentSong)
                 }
             }
+        }
+        // Session memory for the repeat guard: every track that becomes
+        // current is filed, and the one it replaced is marked played or
+        // skipped by whether it ended on its own. Crossfades arrive here
+        // too, through [adoptPlayer], with the natural-end flag set — so
+        // a blended advance counts as played, exactly as it sounded.
+        if (currentSong != null) {
+            autoplaySession.noteBecameCurrent(currentSong.videoId, previousEnded)
         }
         smartAutoplayPrevious = currentSong
     }
@@ -8950,6 +9004,9 @@ class PlaybackService : MediaLibraryService() {
 
         /** One fresh request is the fallback; normal track/queue changes re-arm it. */
         const val MAX_AUTOPLAY_EMPTY_REFRESHES = 1
+
+        /** Cap on [sessionSongHistory]; see [noteSessionSongs]. */
+        const val MAX_SESSION_HISTORY = 300
 
         /**
          * How long AutoPlay waits for the party to echo back the tracks it just

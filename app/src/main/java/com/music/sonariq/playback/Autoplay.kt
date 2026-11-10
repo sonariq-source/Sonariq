@@ -123,6 +123,9 @@ suspend fun loadAutoplayTracks(
     seedSong: Song,
     limit: Int = MAX_QUEUED_AUTOPLAY,
     context: Context? = null,
+    session: AutoplaySessionMemory? = null,
+    queueIds: Set<String> = emptySet(),
+    alternateSeedSong: Song? = null,
 ): Result<List<Song>> {
     val bannedIds = AppSettings.autoplayBannedSongIds.value
     val bannedArtists = AppSettings.autoplayBannedArtists.value
@@ -141,9 +144,15 @@ suspend fun loadAutoplayTracks(
                 bannedIds = bannedIds,
                 bannedArtists = bannedArtists,
                 downloadsOnly = downloadsOnly,
+                session = session,
+                queueIds = queueIds,
             ) {
-                loadDiscoveryBatch(context, existing, seedSong, limit, bannedIds, bannedArtists)
-                    .getOrDefault(emptyList())
+                loadDiscoveryBatch(
+                    context, existing, seedSong, limit, bannedIds, bannedArtists,
+                    session = session,
+                    queueIds = queueIds,
+                    alternateSeedSong = alternateSeedSong,
+                ).getOrDefault(emptyList())
             }
         }.getOrDefault(emptyList())
         if (mixed.isNotEmpty()) return Result.success(freshSessionBatch(context, mixed, seedSong))
@@ -152,8 +161,12 @@ suspend fun loadAutoplayTracks(
         if (downloadsOnly) return Result.success(emptyList())
     }
 
-    val discovery = loadDiscoveryBatch(context, existing, seedSong, limit, bannedIds, bannedArtists)
-        .getOrElse { return Result.failure(it) }
+    val discovery = loadDiscoveryBatch(
+        context, existing, seedSong, limit, bannedIds, bannedArtists,
+        session = session,
+        queueIds = queueIds,
+        alternateSeedSong = alternateSeedSong,
+    ).getOrElse { return Result.failure(it) }
     if (discovery.isEmpty()) return Result.success(emptyList())
     return Result.success(freshSessionBatch(context, toQueueEntries(discovery, seedSong), seedSong))
 }
@@ -196,6 +209,9 @@ private suspend fun loadDiscoveryBatch(
     limit: Int,
     bannedIds: Set<String>,
     bannedArtists: Set<String>,
+    session: AutoplaySessionMemory? = null,
+    queueIds: Set<String> = emptySet(),
+    alternateSeedSong: Song? = null,
 ): Result<List<Song>> = runCatching {
     val seed = youtubeSeedFor(seedSong) ?: return@runCatching emptyList()
     val related = YtMusicRepository.radio(seed).getOrThrow()
@@ -242,7 +258,40 @@ private suspend fun loadDiscoveryBatch(
     } else {
         combined
     }
-    QueueBuilder.extend(existing, freshFirst, limit)
+    if (session == null) {
+        QueueBuilder.extend(existing, freshFirst, limit)
+    } else {
+        val selected = session.selectForQueue(freshFirst, existing, queueIds, limit)
+        if (selected.isNotEmpty()) {
+            selected
+        } else {
+            // The seed's own sources offered nothing the session can
+            // still take — every candidate already played, skipped,
+            // queued or suggested. Reject them and ask once more from
+            // the previous track this session heard: a different seed
+            // draws a different station. One extra request, bounded;
+            // if it also comes back unusable the batch is honestly
+            // empty and the caller's own retry policy decides what
+            // happens next.
+            val alternate = alternateSeedSong
+            val alternateRelated = if (alternate != null && alternate.videoId != seedSong.videoId) {
+                youtubeSeedFor(alternate)?.let { seed ->
+                    YtMusicRepository.radio(seed).getOrNull()
+                }.orEmpty()
+                    .filterNot {
+                        AutoplayPolicy.isBanned(it.videoId, it.artist, bannedIds, bannedArtists)
+                    }
+            } else {
+                emptyList()
+            }
+            if (alternateRelated.isEmpty()) {
+                emptyList()
+            } else {
+                val merged = (freshFirst + alternateRelated).distinctBy { it.videoId }
+                session.selectForQueue(merged, existing, queueIds, limit)
+            }
+        }
+    }
 }
 
 /** Tags one batch as autoplay queue entries inheriting the seed's source. */
@@ -305,12 +354,21 @@ private suspend fun loadVibeAutoplay(
     bannedIds: Set<String>,
     bannedArtists: Set<String>,
     downloadsOnly: Boolean,
+    session: AutoplaySessionMemory? = null,
+    queueIds: Set<String> = emptySet(),
     loadDiscovery: suspend () -> List<Song>,
 ): List<Song> {
     val banned: (Song) -> Boolean = {
         AutoplayPolicy.isBanned(it.videoId, it.artist, bannedIds, bannedArtists)
     }
-    val excludeIds = (existing.map { it.videoId } + seedSong.videoId).toSet()
+    // The exclusion sets selection relaxes through, strictest first. With
+    // no session memory there is only the one set there has always been:
+    // everything already in the queue or its history, plus the seed.
+    val exclusionTiers: List<Set<String>> = if (session != null) {
+        session.exclusionTiers(queueIds).map { it + seedSong.videoId }
+    } else {
+        listOf((existing.map { it.videoId } + seedSong.videoId).toSet())
+    }
 
     // Offline or downloads-only: downloads are the whole world. Vibe-scored
     // when a session vibe exists, taste-ordered when it doesn't.
@@ -322,6 +380,7 @@ private suspend fun loadVibeAutoplay(
             limit = limit,
             bannedIds = bannedIds,
             bannedArtists = bannedArtists,
+            exclusionTiers = exclusionTiers,
         )
     }
 
@@ -359,15 +418,6 @@ private suspend fun loadVibeAutoplay(
     val stats = VibeAutoplay.loadPlayStats(context)
     val tasteScore = VibeAutoplay.tasteScore(stats)
 
-    val libraryPicks = pickVibePool(
-        context, sessionVibe, local, excludeIds, limit,
-        threshold, artistCap, bannedIds, bannedArtists, stats, tasteScore,
-    )
-    val downloadsPicks = pickVibePool(
-        context, sessionVibe, downloaded, excludeIds, limit,
-        threshold, artistCap, bannedIds, bannedArtists, stats, tasteScore,
-    )
-
     val weights = AutoplayPolicy.normaliseMix(
         AppSettings.autoplayMixLibrary.value,
         AppSettings.autoplayMixDownloads.value,
@@ -381,13 +431,28 @@ private suspend fun loadVibeAutoplay(
         emptyList()
     }
 
-    val mixed = AutoplayPolicy.interleaveByWeight(
-        listOf(libraryPicks, downloadsPicks, discovery),
-        weights,
-        limit,
-    )
-    if (mixed.isEmpty()) return emptyList()
-    return toQueueEntries(mixed, seedSong)
+    // Strict exclusion first: nothing the session has heard, skipped or
+    // already been served. Only when the offline pools genuinely have
+    // nothing left does selection relax — one tier at a time, in the
+    // session memory's order — so a small library rotates its oldest
+    // plays back in instead of the queue running dry.
+    for (tierExcludes in exclusionTiers) {
+        val libraryPicks = pickVibePool(
+            context, sessionVibe, local, tierExcludes, limit,
+            threshold, artistCap, bannedIds, bannedArtists, stats, tasteScore,
+        )
+        val downloadsPicks = pickVibePool(
+            context, sessionVibe, downloaded, tierExcludes, limit,
+            threshold, artistCap, bannedIds, bannedArtists, stats, tasteScore,
+        )
+        val mixed = AutoplayPolicy.interleaveByWeight(
+            listOf(libraryPicks, downloadsPicks, discovery),
+            weights,
+            limit,
+        )
+        if (mixed.isNotEmpty()) return toQueueEntries(mixed, seedSong)
+    }
+    return emptyList()
 }
 
 /**
@@ -459,14 +524,14 @@ private suspend fun loadDownloadsOnlyBatch(
     limit: Int,
     bannedIds: Set<String>,
     bannedArtists: Set<String>,
+    exclusionTiers: List<Set<String>>,
 ): List<Song> {
     val banned: (Song) -> Boolean = {
         AutoplayPolicy.isBanned(it.videoId, it.artist, bannedIds, bannedArtists)
     }
-    val excludeIds = (existing.map { it.videoId } + seedSong.videoId).toSet()
     val downloads = runCatching { Downloads.getDownloadedSongs(context) }
         .getOrDefault(emptyList())
-        .filter { it.videoId.isNotBlank() && it.videoId !in excludeIds && !banned(it) }
+        .filter { it.videoId.isNotBlank() && !banned(it) }
         .distinctBy { it.videoId }
         .take(MAX_VIBE_CANDIDATES)
     if (downloads.isEmpty()) return emptyList()
@@ -476,17 +541,28 @@ private suspend fun loadDownloadsOnlyBatch(
 
     // Familiar-only (driving): downloads are cut to tracks already played,
     // on the same recorded-history rule as the mixed batch's pools.
-    val pool = if (AutoplaySession.familiarOnly) {
+    val familiar = if (AutoplaySession.familiarOnly) {
         downloads.filter { (stats.plays[it.videoId] ?: 0) > 0 }
     } else {
         downloads
     }
-    if (pool.isEmpty()) return emptyList()
+    if (familiar.isEmpty()) return emptyList()
 
-    val vibeOrdered: List<Song> = if (AppSettings.vibeAutoplay.value) {
-        val sessionVibe = sessionVibeOf(context, existing, seedSong)
-        if (sessionVibe != null) {
-            val exploration = AppSettings.autoplayExploration.value
+    val sessionVibe = if (AppSettings.vibeAutoplay.value) {
+        sessionVibeOf(context, existing, seedSong)
+    } else {
+        null
+    }
+    val exploration = AppSettings.autoplayExploration.value
+
+    // One pass per exclusion tier, strictest first: a downloads library
+    // smaller than the session is long rotates its earlier plays back in
+    // at the relaxed tiers instead of the batch coming back empty.
+    for (tierExcludes in exclusionTiers) {
+        val pool = familiar.filter { it.videoId !in tierExcludes }
+        if (pool.isEmpty()) continue
+
+        val vibeOrdered: List<Song> = if (sessionVibe != null) {
             VibeAutoplay.selectNext(
                 context = context,
                 sessionVibe = sessionVibe,
@@ -509,16 +585,14 @@ private suspend fun loadDownloadsOnlyBatch(
         } else {
             emptyList()
         }
-    } else {
-        emptyList()
-    }
 
-    val ordered = vibeOrdered.ifEmpty {
-        pool.sortedWith(
-            compareByDescending<Song> { tasteScore(it.videoId) }
-                .thenByDescending { stats.lastPlayedMs[it.videoId] ?: 0L },
-        ).take(limit)
+        val ordered = vibeOrdered.ifEmpty {
+            pool.sortedWith(
+                compareByDescending<Song> { tasteScore(it.videoId) }
+                    .thenByDescending { stats.lastPlayedMs[it.videoId] ?: 0L },
+            ).take(limit)
+        }
+        if (ordered.isNotEmpty()) return toQueueEntries(ordered, seedSong)
     }
-    if (ordered.isEmpty()) return emptyList()
-    return toQueueEntries(ordered, seedSong)
+    return emptyList()
 }
