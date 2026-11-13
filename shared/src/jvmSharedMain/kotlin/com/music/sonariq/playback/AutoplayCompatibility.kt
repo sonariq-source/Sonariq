@@ -5,6 +5,7 @@ import com.music.sonariq.playback.smart.TrackAnalysis
 import com.music.sonariq.playback.smart.alignTempoOctave
 import com.music.sonariq.playback.smart.camelotScore
 import kotlin.math.abs
+import kotlin.math.min
 
 /**
  * Analysis-scored Autoplay selection: how well one candidate fits the
@@ -18,9 +19,10 @@ import kotlin.math.abs
  * Its inputs are only what the app genuinely knows:
  *
  *  - the current track's stored analysis and the candidate's, when the
- *    analyzer has measured either (energy level, tempo, Camelot key,
- *    vocal likelihood — each scored as closeness, tempo with
- *    half/double-time folded in the way the transition policy folds it);
+ *    analyzer has measured either (energy character — loudness when
+ *    both carry it, else curve shape — tempo, Camelot key, vocal
+ *    likelihood; each scored as closeness, tempo with half/double-time
+ *    folded in the way the transition policy folds it);
  *  - the learned song-to-song transition affinity for this exact pair,
  *    when the predictor has one (absence is not evidence against — a
  *    fresh discovery has no learned link by definition);
@@ -163,13 +165,18 @@ object AutoplayCompatibility {
         stageOne(scored) +
             scored.filter { it.rejected }.sortedByDescending { it.score }.map { it.song }
 
+    /** Loudness difference, in LUFS, at which two tracks share no energy character. */
+    private const val LOUDNESS_SPAN = 14.0
+
     /**
-     * A track's energy level on its own scale: mean energy against its
-     * own 90th percentile, so a quiet track and a loud one are each read
-     * against themselves and the *levels* become comparable. Null when
-     * there is no curve to read.
+     * A track's energy *shape*: mean energy against its own 90th
+     * percentile — how sustained the track is against its own peaks.
+     * The analyzer normalizes every curve against the track's own
+     * reference level, so the curve's shape is comparable across tracks
+     * and its absolute level is not; nothing here pretends otherwise.
+     * Null when there is no curve to read.
      */
-    private fun energyLevel(analysis: TrackAnalysis): Double? {
+    private fun energyShape(analysis: TrackAnalysis): Double? {
         val energies = analysis.energyCurve
             .map { it.energy }
             .filter { it.isFinite() && it >= 0 }
@@ -180,9 +187,20 @@ object AutoplayCompatibility {
         return (energies.sum() / energies.size / reference).coerceIn(0.0, 1.0)
     }
 
+    /**
+     * How close two tracks' energy character sits. Loudness is the
+     * honest cross-track figure — measured against full scale — so when
+     * both tracks carry it, closeness is priced on it. When either side
+     * has none, the fallback is shape closeness (see [energyShape]).
+     */
     private fun energyCloseness(current: TrackAnalysis, candidate: TrackAnalysis): Double? {
-        val a = energyLevel(current) ?: return null
-        val b = energyLevel(candidate) ?: return null
+        val loudA = current.loudnessLufs.takeIf { it in -70.0..-1.0 }
+        val loudB = candidate.loudnessLufs.takeIf { it in -70.0..-1.0 }
+        if (loudA != null && loudB != null) {
+            return 1.0 - min(abs(loudA - loudB) / LOUDNESS_SPAN, 1.0)
+        }
+        val a = energyShape(current) ?: return null
+        val b = energyShape(candidate) ?: return null
         return 1.0 - abs(a - b)
     }
 

@@ -100,6 +100,8 @@ object TrackFeatures {
         val mixInTime: Double,
         val mixOutTime: Double,
         val vocalProbability: Double,
+        /** Integrated loudness in LUFS; 0 when the bridge did not emit it. */
+        val loudnessLufs: Double,
         val downbeats: List<Double>,
         val phraseBoundaries: List<Double>,
         val vocalActivityMask: List<Double>,
@@ -125,6 +127,7 @@ object TrackFeatures {
         mixInTime = root.number("mixInTime"),
         mixOutTime = root.number("mixOutTime"),
         vocalProbability = root.number("vocalProbability"),
+        loudnessLufs = root.number("loudnessLufs"),
         downbeats = root.doubles("downbeats"),
         phraseBoundaries = root.doubles("phraseBoundaries"),
         vocalActivityMask = root.doubles("vocalActivityMask"),

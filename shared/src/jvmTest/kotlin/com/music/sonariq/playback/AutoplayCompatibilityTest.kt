@@ -19,13 +19,14 @@ class AutoplayCompatibilityTest {
     private fun song(id: String, artist: String = "Artist $id") =
         Song(videoId = id, title = "Song $id", artist = artist, thumbnailUrl = null)
 
-    /** A measured track with a flat energy curve at [energy]. */
+    /** A measured track with a flat energy curve at [energy] and loudness [loudness]. */
     private fun analysis(
         id: String,
         bpm: Double,
         key: String,
         energy: Double,
         vocal: Double,
+        loudness: Double = 0.0,
     ): TrackAnalysis = TrackAnalysis(
         status = TrackAnalysis.STATUS_READY,
         trackId = id,
@@ -37,11 +38,12 @@ class AutoplayCompatibilityTest {
         keyConfidence = 0.9,
         energyCurve = (0 until 40).map { EnergySample(it.toDouble(), energy) },
         vocalProbability = vocal,
+        loudnessLufs = loudness,
     )
 
-    private val chillSeed = analysis("seed", bpm = 75.0, key = "C major", energy = 0.25, vocal = 0.8)
-    private val chill = analysis("chill", bpm = 78.0, key = "A minor", energy = 0.30, vocal = 0.85)
-    private val metal = analysis("metal", bpm = 160.0, key = "F♯ major", energy = 0.95, vocal = 0.9)
+    private val chillSeed = analysis("seed", bpm = 75.0, key = "C major", energy = 0.25, vocal = 0.8, loudness = -16.0)
+    private val chill = analysis("chill", bpm = 78.0, key = "A minor", energy = 0.30, vocal = 0.85, loudness = -15.0)
+    private val metal = analysis("metal", bpm = 160.0, key = "F♯ major", energy = 0.95, vocal = 0.9, loudness = -7.0)
 
     private fun scoredWith(
         candidate: TrackAnalysis,
@@ -77,6 +79,30 @@ class AutoplayCompatibilityTest {
         )
         val unfamiliarButFitting = scoredWith(chill)
         assertTrue(familiarButClashing.score < unfamiliarButFitting.score)
+    }
+
+    @Test
+    fun curveShapeIsTheEnergyFallbackWhenLoudnessIsUnmeasured() {
+        // Neither track carries loudness, so energy is judged on the
+        // curves' sustainedness alone: a wall of sound against a dynamic
+        // track prices lower than the same wall against itself, with
+        // tempo, key and vocals held identical.
+        val sustained = analysis("a", bpm = 90.0, key = "C major", energy = 1.0, vocal = 0.5)
+        val dynamicCurve = (0 until 40).map {
+            EnergySample(it.toDouble(), if (it % 2 == 0) 1.0 else 0.1)
+        }
+        val dynamic = sustained.copy(trackId = "b", energyCurve = dynamicCurve)
+        val sameShape = AutoplayCompatibility.score(
+            sustained,
+            song("a2"),
+            AutoplayCandidateSignals(analysis = sustained.copy(trackId = "a2")),
+        ).score
+        val otherShape = AutoplayCompatibility.score(
+            sustained,
+            song("b"),
+            AutoplayCandidateSignals(analysis = dynamic),
+        ).score
+        assertTrue(otherShape < sameShape, "dynamic $otherShape vs sustained $sameShape")
     }
 
     @Test
@@ -189,7 +215,10 @@ class AutoplayCompatibilityTest {
         }
         val picks = session.selectForQueue(
             AutoplayCompatibility.stageOne(scored),
-            existing = listOf(current),
+            // The queue plus the session's history songs, as the service
+            // passes them: history rides inside `existing`, which is how
+            // the tier exclusions reach the builder.
+            existing = listOf(current, heardChill),
             queueIds = setOf(current.videoId),
             limit = 1,
         )

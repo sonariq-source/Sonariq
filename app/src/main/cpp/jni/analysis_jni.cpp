@@ -27,10 +27,12 @@
 // beside the decode around it, and a string is far easier to log and to test
 // against than a hand-packed buffer.
 //
-// Only the subset the transition policy actually reads is emitted. Chroma,
-// the mid and high energy curves, loudness, peak and dynamic range are
-// computed by the analyzer but nothing downstream consumes them, and emitting
-// them would mean three more float arrays per track for no reader.
+// Only the subset downstream readers actually consume is emitted. Chroma,
+// the mid and high energy curves, peak and dynamic range are computed by
+// the analyzer but nothing downstream consumes them, and emitting them
+// would mean three more float arrays per track for no reader. Loudness is
+// emitted: the autoplay compatibility scorer compares it across tracks,
+// which the per-track-normalized energy curves cannot do.
 
 #include <jni.h>
 
@@ -153,6 +155,7 @@ Java_com_music_sonariq_playback_smart_TrackFeatures_nativeAnalyze(
   AppendField(json, "mixInTime", result.mix_in_time);
   AppendField(json, "mixOutTime", result.mix_out_time);
   AppendField(json, "vocalProbability", result.vocal_probability);
+  AppendField(json, "loudnessLufs", result.loudness_lufs);
 
   json += ",\"key\":";
   AppendString(json, result.key);

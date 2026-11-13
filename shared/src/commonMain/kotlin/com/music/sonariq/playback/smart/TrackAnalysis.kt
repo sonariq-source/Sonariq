@@ -91,6 +91,14 @@ data class TrackAnalysis(
     val vocalActivityMask: List<Double> = emptyList(),
     /** Whole-track vocal likelihood, distinct from the per-sample [vocalActivityMask]. */
     val vocalProbability: Double = 0.0,
+    /**
+     * Integrated loudness in LUFS, measured by the analyzer against full
+     * scale — the one energy figure that is comparable across tracks,
+     * where the energy curves are normalized per track. Zero means
+     * unmeasured: real measurements sit between the analyzer's -70 floor
+     * and roughly -1, so zero is never a loudness.
+     */
+    val loudnessLufs: Double = 0.0,
 ) {
     /**
      * Whether this analysis actually describes a track, as opposed to standing

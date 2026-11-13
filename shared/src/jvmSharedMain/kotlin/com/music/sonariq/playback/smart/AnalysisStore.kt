@@ -198,6 +198,7 @@ class AnalysisStore(
         val lowEnergyCurve: List<StoredEnergy> = emptyList(),
         val vocalActivityMask: List<Double> = emptyList(),
         val vocalProbability: Double = 0.0,
+        val loudnessLufs: Double = 0.0,
     ) {
         fun toAnalysis(trackId: String) = TrackAnalysis(
             status = TrackAnalysis.STATUS_READY,
@@ -224,6 +225,7 @@ class AnalysisStore(
             lowEnergyCurve = lowEnergyCurve.map { it.toSample() },
             vocalActivityMask = vocalActivityMask,
             vocalProbability = vocalProbability,
+            loudnessLufs = loudnessLufs,
         )
 
         companion object {
@@ -250,6 +252,7 @@ class AnalysisStore(
                 lowEnergyCurve = analysis.lowEnergyCurve.map(StoredEnergy::of),
                 vocalActivityMask = analysis.vocalActivityMask.map(::round),
                 vocalProbability = analysis.vocalProbability,
+                loudnessLufs = analysis.loudnessLufs,
             )
         }
     }
