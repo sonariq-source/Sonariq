@@ -140,12 +140,18 @@ private fun LyricLine.enhancedBody(): String {
  * reason: they *are* measured, but a tag is read back as a provider's own
  * timings — final ones — and AI-measured timings are provisional by design,
  * kept only until a provider's timings replace them. Writing them into a
- * file would settle a hunt that is supposed to stay open.
+ * file would settle a hunt that is supposed to stay open. A transcribed
+ * line's words are left out with them: the transcription is a stand-in
+ * the cache keeps, and its text is refused at the tag door separately
+ * (see LyricsTag) — these are only its timings, refused here so no
+ * writer can carry them into a file on their own.
  */
 private fun LyricLine.timedRuns(): List<LyricWord> {
-    if (words.isEmpty() || wordsEstimated || wordsAiMeasured) return emptyList()
+    if (words.isEmpty() || wordsEstimated || wordsAiMeasured || wordsAiTranscribed) {
+        return emptyList()
+    }
     val answer = background?.let { bg ->
-        if (bg.wordsEstimated || bg.wordsAiMeasured) emptyList()
+        if (bg.wordsEstimated || bg.wordsAiMeasured || bg.wordsAiTranscribed) emptyList()
         else bg.words.ifEmpty {
             if (bg.text.isBlank()) emptyList() else listOf(LyricWord(bg.timeMs, bg.endMs, bg.text))
         }

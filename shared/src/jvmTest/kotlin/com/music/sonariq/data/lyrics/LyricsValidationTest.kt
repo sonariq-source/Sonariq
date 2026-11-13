@@ -27,6 +27,7 @@ class LyricsValidationTest {
         lastEndMs: Long,
         aiMeasured: Boolean = false,
         estimated: Boolean = false,
+        transcribed: Boolean = false,
     ): List<LyricLine> = listOf(
         LyricLine(
             timeMs = 10_000,
@@ -38,6 +39,7 @@ class LyricsValidationTest {
             ),
             wordsAiMeasured = aiMeasured,
             wordsEstimated = estimated,
+            wordsAiTranscribed = transcribed,
         ),
         LyricLine(
             timeMs = 170_000,
@@ -48,6 +50,7 @@ class LyricsValidationTest {
             ),
             wordsAiMeasured = aiMeasured,
             wordsEstimated = estimated,
+            wordsAiTranscribed = transcribed,
         ),
     )
 
@@ -177,6 +180,51 @@ class LyricsValidationTest {
             LyricsVerdict.NO_LYRICS,
             LyricsValidation.classify(null, durationMs),
         )
+    }
+
+    @Test
+    fun aPlaceholderOnlyResultIsNoLyrics() {
+        // The instrumental card a source answers with when it has no
+        // words for a track: one marker line and nothing else. Whatever
+        // its timestamp or timing class says, it is a miss, judged
+        // before any timing question is asked.
+        val result = resultOf(
+            listOf(LyricLine(timeMs = 0, text = "纯音乐，请欣赏")),
+        )
+        assertEquals(
+            LyricsVerdict.NO_LYRICS,
+            LyricsValidation.classify(result, durationMs),
+        )
+    }
+
+    @Test
+    fun transcribedTimingsThatFitAreAiTranscribed() {
+        val result = resultOf(wordSong(lastEndMs = 175_000, transcribed = true))
+        assertEquals(LyricTiming.WORD_SYNCED_AI_TRANSCRIBED, result.timing)
+        assertEquals(
+            LyricsVerdict.AI_TRANSCRIBED,
+            LyricsValidation.classify(result, durationMs),
+        )
+        with(LyricsValidation) {
+            assertSame(result, result.withoutUnfitWordTimings(durationMs))
+        }
+    }
+
+    @Test
+    fun transcribedTimingsThatCannotFitAreUnverifiedAndStripped() {
+        // A hearing of a longer edit, judged by the playing track's own
+        // length like every other word timing — and stripped, since its
+        // words would otherwise be shown as timed to this recording.
+        val result = resultOf(wordSong(lastEndMs = 240_000, transcribed = true))
+        assertEquals(
+            LyricsVerdict.UNVERIFIED,
+            LyricsValidation.classify(result, durationMs),
+        )
+        val judged = with(LyricsValidation) {
+            result.withoutUnfitWordTimings(durationMs)
+        }
+        assertTrue(judged.lines.all { it.words.isEmpty() })
+        assertEquals(LyricTiming.LINE_SYNCED, judged.timing)
     }
 
     @Test

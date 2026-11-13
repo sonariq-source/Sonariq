@@ -102,6 +102,7 @@ import com.music.sonariq.data.YtMusicRepository
 import com.music.sonariq.data.lyrics.EmbeddedLyrics
 import com.music.sonariq.data.lyrics.LyricLine
 import com.music.sonariq.data.lyrics.LyricsRepository
+import com.music.sonariq.data.lyrics.PlaceholderLyrics
 import com.music.sonariq.data.lyrics.PrefetchCandidate
 import com.music.sonariq.data.lyrics.QUEUE_PREFETCH_CAP
 import com.music.sonariq.data.lyrics.planPrefetch
@@ -7037,7 +7038,11 @@ class PlaybackService : MediaLibraryService() {
         if (!AppSettings.syncedLyrics.value) return null
         val localUri = song.localUri
         if (localUri != null) {
-            EmbeddedLyrics.forUri(this, localUri)?.let { return it }
+            // A placeholder card in a file's tags is not lyrics (see
+            // [PlaceholderLyrics]); the race below gets its chance instead.
+            EmbeddedLyrics.forUri(this, localUri)
+                ?.takeUnless { PlaceholderLyrics.isPlaceholderOnly(it) }
+                ?.let { return it }
         }
         return try {
             LyricsRepository.lyrics(
@@ -7085,6 +7090,7 @@ class PlaybackService : MediaLibraryService() {
             var lines: List<LyricLine>? = null
             if (localUri != null) {
                 lines = EmbeddedLyrics.forUri(this@PlaybackService, localUri)
+                    ?.takeUnless { PlaceholderLyrics.isPlaceholderOnly(it) }
             }
             if (lines == null) {
                 val found = LyricsRepository.lyrics(

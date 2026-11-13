@@ -157,8 +157,16 @@ object LyricsRepository {
     ): Result? {
         // A remembered genuine miss answers at once — no race, no wait —
         // until its TTL runs out. Checked before any shared work is joined
-        // or started, so a missed track costs nothing to reopen.
-        if (isKnownMiss(videoId, isrc)) return null
+        // or started, so a missed track costs nothing to reopen. The one
+        // exception is a cache entry that has landed since the miss was
+        // recorded — an AI transcription stored while a timed-out
+        // background race was still running, say: an entry retires the
+        // miss, as a cache write does, so what was stored is never hidden
+        // behind the record of the lookup that failed to find it.
+        if (isKnownMiss(videoId, isrc)) {
+            if (readCache(videoId, isrc) == null) return null
+            withContext(Dispatchers.IO) { forgetMiss(videoId, isrc) }
+        }
         // One race per track: a prefetch already running for this track is
         // the player's lookup too, rather than a second set of requests
         // racing the first. Callers' source callbacks are fanned out, so a
@@ -646,6 +654,12 @@ object LyricsRepository {
             LyricsSource.KUGOU -> KuGou.lyrics(title, artist, durationMs, album)
             LyricsSource.MEGALOBIZ -> Megalobiz.lyrics(title, artist)
             LyricsSource.GENIUS -> Genius.lyrics(title, artist)
+            // Not a source anything is fetched from: the name a
+            // transcription of the track's own audio carries. It is
+            // hidden, so the race never schedules it; the branch exists
+            // because the when is exhaustive, and answers as a miss if
+            // it were ever reached.
+            LyricsSource.AI_TRANSCRIPTION -> null
         }
         return found
     }
@@ -657,11 +671,11 @@ object LyricsRepository {
      * [TtmlLyrics] knows it structurally — [withBackgroundVocals] leaves that
      * one's own split alone.
      */
-    private fun result(
+    internal fun result(
         source: LyricsSource,
         lines: List<LyricLine>,
         durationMs: Long,
-    ): Result {
+    ): Result? {
         // The one funnel every provider's answer passes through, so the
         // timing rules are enforced here once rather than in each
         // parser: no negative stamps, no backwards or out-of-order
@@ -669,6 +683,16 @@ object LyricsRepository {
         // words break a rule they cannot be repaired under keeps its
         // text and loses the timings (see [withValidWordTimings]).
         val prepared = lines.withBackgroundVocals().withValidWordTimings(durationMs)
+        // And the funnel's other judgement: a placeholder is not an
+        // answer. A source that serves its "no words here" card — the
+        // instrumental card, the not-found sentence, a timed file with
+        // no text in it — has *missed*, whatever its payload is shaped
+        // like, so the funnel answers null and the race moves on to
+        // the sources still to answer, exactly as it does for an empty
+        // response. Judged here, once, rather than in each provider:
+        // every catalogue has its own card, and the next one invented
+        // is caught by the same rule (see [PlaceholderLyrics]).
+        if (PlaceholderLyrics.isPlaceholderOnly(prepared)) return null
         return Result(source, prepared, prepared.lyricTiming())
     }
 
@@ -1043,7 +1067,10 @@ object LyricsRepository {
      * in two passes: AI-measured word timings stamped by an alignment older
      * than the current [AiLyricAligner.ALIGNMENT_VERSION] are stripped first
      * by [withoutAiMeasuredWords], then estimated word timings are stripped
-     * by [withoutEstimatedWords]. Where either pass changed anything the
+     * by [withoutEstimatedWords]. A stored placeholder — a source's "no
+     * words here" card, cached before the ingestion funnel learned to
+     * refuse them — is not read as lyrics at all: the read answers null,
+     * as though the entry were not there (see [PlaceholderLyrics]). Where either pass changed anything the
      * timing is recomputed from the sanitised lines rather than trusted
      * from the file, so a legacy entry written while estimated timings
      * still circulated — or an entry carrying a superseded AI measurement —
@@ -1086,6 +1113,19 @@ object LyricsRepository {
                     }
                     val lines = unmeasured.withoutEstimatedWords()
                         .withValidWordTimings()
+                    // An entry that is a placeholder — a source's "no
+                    // words here" card, cached by a build from before
+                    // the funnel learned to refuse them — is not an
+                    // entry: it reads as a miss, so the track is raced
+                    // again (and, missing everywhere, offered to the AI
+                    // transcription) instead of the card being served
+                    // forever off the disk. The file itself is left
+                    // alone; a later winner overwrites it through the
+                    // ordinary write, and the miss it now causes is
+                    // remembered the ordinary way. See [PlaceholderLyrics].
+                    if (PlaceholderLyrics.isPlaceholderOnly(lines)) {
+                        return@runCatching null
+                    }
                     Result(
                         source = LyricsSource.valueOf(cached.source),
                         lines = lines,
@@ -1161,7 +1201,14 @@ object LyricsRepository {
         if (existing != null) {
             if (LyricsLookupPolicy.isFinal(existing)) return false
             if (existing.timing == LyricTiming.WORD_SYNCED_AI_MEASURED) return false
-            if (LyricsLookupPolicy.tierOf(timed) >= LyricsLookupPolicy.tierOf(existing)) {
+            // A transcription is the one AI entry a measurement *does*
+            // replace, despite the shared tier: the measurement times a
+            // provider's text, and a provider's text is the authority a
+            // transcription was only ever standing in for. The refusal
+            // below is by tier; this replacement is by kind.
+            if (existing.timing != LyricTiming.WORD_SYNCED_AI_TRANSCRIBED &&
+                LyricsLookupPolicy.tierOf(timed) >= LyricsLookupPolicy.tierOf(existing)
+            ) {
                 return false
             }
         }
@@ -1172,6 +1219,54 @@ object LyricsRepository {
         // time, and this track has now been timed. Done here rather than
         // in [writeCache], so ordinary provisional writes through the
         // race never reset that throttle.
+        forgetAiAttempt(videoId, isrc)
+        return true
+    }
+
+    /**
+     * Stores an AI transcription — the words of the track's own audio,
+     * heard and timed by the transcription service, standing in as the
+     * lyric because no provider had one (see [TranscriptionLines]) —
+     * returning whether it was stored.
+     *
+     * The twin of [storeAiResult], with the guards tightened to what a
+     * transcription is: the last resort, below even a provider's
+     * untimed text.
+     *
+     *  - The incoming result is sanitised as everywhere else, and only
+     *    a result that still times as
+     *    [LyricTiming.WORD_SYNCED_AI_TRANSCRIBED] afterwards is a
+     *    transcription at all. Anything else is refused: this door is
+     *    not a second way to write provider lyrics, or measurements,
+     *    into the cache.
+     *  - **Any** existing entry refuses it. A provider result of any
+     *    tier — even plain text — is the authority a transcription
+     *    stands in for, an AI-measured entry already carries a
+     *    provider's words, and an existing transcription is the same
+     *    answer this one would give. A transcription is stored only
+     *    where the cache holds nothing at all: the track nobody had
+     *    words for, which is the only track it exists for. The refusal
+     *    also closes the race the caller's own cache check cannot: a
+     *    provider result landing between the check and this store is
+     *    never overwritten by the transcription that checked first.
+     *
+     * What is stored stays provisional by construction: tier 4 is not
+     * [LyricsLookupPolicy.isFinal], so every later lookup races the
+     * providers again, and a provider result, when one lands, replaces
+     * the transcription through the race's ordinary delivery — the
+     * store guards here are never asked to defend it.
+     *
+     * A successful store retires the track's AI exhaustion record, as
+     * a stored measurement does in [storeAiResult]: the record existed
+     * to throttle retries of a track the AI path could not help, and
+     * this track has now been helped.
+     */
+    suspend fun storeAiTranscription(videoId: String, isrc: String?, result: Result): Boolean {
+        val lines = result.lines.withoutEstimatedWords().withValidWordTimings()
+        val timed = result.copy(lines = lines, timing = lines.lyricTiming())
+        if (timed.timing != LyricTiming.WORD_SYNCED_AI_TRANSCRIBED) return false
+        if (readCache(videoId, isrc) != null) return false
+        writeCache(videoId, isrc, timed)
         forgetAiAttempt(videoId, isrc)
         return true
     }

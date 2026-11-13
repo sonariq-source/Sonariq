@@ -11,6 +11,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -335,5 +336,66 @@ class TranscriptionClientTest {
             TranscriptionClient.transcribe(audio, "audio/mp4", "  ", endpoint()),
         )
         assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun segmentsAreParsedAlongsideTheWords() = runBlocking {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"words":[
+                    {"word":" hello","start":0.12,"end":0.34},
+                    {"word":"world","start":0.5,"end":0.92}
+                ],"segments":[
+                    {"id":0,"start":0.0,"end":1.2,"text":" hello world"},
+                    {"id":1,"start":2.0,"end":1.5,"text":"backwards"},
+                    {"id":2,"start":3.0,"end":4.25,"text":"   "}
+                ]}""",
+            ),
+        )
+
+        val heard = TranscriptionClient.transcribeFull(
+            audio = audio,
+            mimeType = "audio/mp4",
+            apiKey = "test-key",
+            endpointUrl = endpoint(),
+        )
+
+        assertNotNull(heard)
+        assertEquals(
+            listOf(
+                TranscribedWord("hello", 120, 340),
+                TranscribedWord("world", 500, 920),
+            ),
+            heard.words,
+        )
+        // Segments are held to a looser standard than words: an answer
+        // with words is a hearing, and grouping can fall back to pauses
+        // — so the backwards and blank segments fall out here without
+        // costing the words, and the one good segment survives, trimmed
+        // and in milliseconds.
+        assertEquals(
+            listOf(TranscribedSegment("hello world", 0, 1_200)),
+            heard.segments,
+        )
+    }
+
+    @Test
+    fun anAnswerWithoutSegmentsStillTranscribes() = runBlocking {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"words":[{"word":"hi","start":0.0,"end":0.2}]}""",
+            ),
+        )
+
+        val heard = TranscriptionClient.transcribeFull(
+            audio = audio,
+            mimeType = "audio/mp4",
+            apiKey = "test-key",
+            endpointUrl = endpoint(),
+        )
+
+        assertNotNull(heard)
+        assertEquals(listOf(TranscribedWord("hi", 0, 200)), heard.words)
+        assertEquals(emptyList(), heard.segments)
     }
 }

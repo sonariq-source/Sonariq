@@ -1,6 +1,7 @@
 package com.music.sonariq.download
 
 import com.music.sonariq.data.DebugLog as Log
+import com.music.sonariq.data.lyrics.LyricTiming
 import com.music.sonariq.data.lyrics.LyricsRepository
 import com.music.sonariq.data.lyrics.toEnhancedLrc
 import com.music.sonariq.data.lyrics.toLrc
@@ -99,6 +100,16 @@ internal object LyricsTag {
         // convert to a column of bare timestamps, which is not lyrics — and is
         // not blank either, so the length check below would let it through.
         if (found.lines.none { it.text.isNotBlank() }) return null
+
+        // A transcription is never embedded. It can surface here — the
+        // lookup returns a cached one when the providers all miss — and
+        // its words are a machine hearing of the audio, standing in for
+        // a missing catalogue entry in the cache alone. Baked into the
+        // file, they would be read back as the song's own embedded
+        // lyrics, final and provider-grade, which is precisely what a
+        // transcription is not. The download simply carries no lyrics;
+        // the cache keeps the stand-in.
+        if (found.timing == LyricTiming.WORD_SYNCED_AI_TRANSCRIBED) return null
 
         val lrc = found.lines.toLrc()
         if (lrc.length > MAX_LRC_CHARS) {

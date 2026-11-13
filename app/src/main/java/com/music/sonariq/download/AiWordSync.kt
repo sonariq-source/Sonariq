@@ -15,8 +15,13 @@ import com.music.sonariq.data.lyrics.LyricTiming
 import com.music.sonariq.data.lyrics.LyricsAutoOffset
 import com.music.sonariq.data.lyrics.LyricsLookupPolicy
 import com.music.sonariq.data.lyrics.LyricsRepository
+import com.music.sonariq.data.lyrics.LyricsSource
+import com.music.sonariq.data.lyrics.LyricsValidation
+import com.music.sonariq.data.lyrics.LyricsVerdict
 import com.music.sonariq.data.lyrics.TranscribedWord
 import com.music.sonariq.data.lyrics.TranscriptionClient
+import com.music.sonariq.data.lyrics.TranscriptionLines
+import com.music.sonariq.data.lyrics.withValidWordTimings
 import com.music.sonariq.data.lyrics.lyricsLinesFingerprint
 import com.music.sonariq.data.lyrics.buildTranscriptionPrompt
 import com.music.sonariq.data.lyrics.lyricTiming
@@ -56,12 +61,18 @@ internal fun aiWordSyncGateAllows(
  * provider ([LyricTiming.WORD_SYNCED]) and not by an earlier measurement
  * of the same track ([LyricTiming.WORD_SYNCED_AI_MEASURED], which
  * [LyricsRepository.storeAiResult] would refuse to overwrite anyway).
+ * A transcription ([LyricTiming.WORD_SYNCED_AI_TRANSCRIBED]) is not a
+ * candidate either: its words are already timed by the hearing that
+ * produced them, and there is no provider text here to measure — the
+ * text *is* the hearing, and measuring a hearing against itself would
+ * only re-price it as though a catalogue entry had been timed.
  * Shared by every trigger so they all offer exactly the same results.
  */
 internal fun LyricsRepository.Result.isAiWordSyncCandidate(): Boolean =
     lines.any { it.text.isNotBlank() } &&
         timing != LyricTiming.WORD_SYNCED &&
-        timing != LyricTiming.WORD_SYNCED_AI_MEASURED
+        timing != LyricTiming.WORD_SYNCED_AI_MEASURED &&
+        timing != LyricTiming.WORD_SYNCED_AI_TRANSCRIBED
 
 /**
  * The tag-side twin of the [LyricsRepository.Result] candidate check
@@ -72,8 +83,11 @@ internal fun LyricsRepository.Result.isAiWordSyncCandidate(): Boolean =
  * The tests are the same, answered from the lines themselves: there are
  * words worth timing, and the lines' own timing — [lyricTiming], the
  * shared classification the repository also stamps its results with —
- * is neither provider word sync ([LyricTiming.WORD_SYNCED]) nor an
- * earlier measurement ([LyricTiming.WORD_SYNCED_AI_MEASURED]). Any other
+ * is neither provider word sync ([LyricTiming.WORD_SYNCED]), an
+ * earlier measurement ([LyricTiming.WORD_SYNCED_AI_MEASURED]), nor a
+ * transcription ([LyricTiming.WORD_SYNCED_AI_TRANSCRIBED], whose words
+ * a hearing already timed and which no tag in fact carries, refused
+ * here so the rule holds wherever the lines came from). Any other
  * bucket qualifies, including estimated word sync, whose timings the
  * repository strips on sight anyway: what is left underneath them is
  * honest line sync, and honest line sync is exactly what a job here
@@ -83,7 +97,8 @@ internal fun List<LyricLine>.isAiWordSyncCandidate(): Boolean {
     val timing = lyricTiming()
     return any { it.text.isNotBlank() } &&
         timing != LyricTiming.WORD_SYNCED &&
-        timing != LyricTiming.WORD_SYNCED_AI_MEASURED
+        timing != LyricTiming.WORD_SYNCED_AI_MEASURED &&
+        timing != LyricTiming.WORD_SYNCED_AI_TRANSCRIBED
 }
 
 /**
@@ -407,6 +422,170 @@ object AiWordSync {
         }
     }
 
+    /**
+     * Offers [videoId] for AI transcription — the sibling of [maybeAlign]
+     * for the tracks measurement cannot help: the ones with no lyrics
+     * at all.
+     *
+     * Callers offer a track here when its lookup has settled on
+     * *nothing* — every provider missed, or answered with a placeholder
+     * the repository now refuses (see [com.music.sonariq.data.lyrics.PlaceholderLyrics]).
+     * The job transcribes the track's own audio and builds lyric lines
+     * out of the hearing itself (see [TranscriptionLines]), storing
+     * them through [LyricsRepository.storeAiTranscription], whose
+     * guards rank them below every provider result: the hunt for real
+     * lyrics keeps going on every later play, and a provider answer
+     * replaces the transcription whenever one lands.
+     *
+     * The gates are [maybeAlign]'s, shared exactly: the same build-time
+     * key (dormant without it), the same per-track dedupe — a track
+     * being measured is not also transcribed, and the two offers never
+     * run at once — the same Wi-Fi-only rule for background offers, and
+     * the same once-a-day retry record for a job that ran and could
+     * not help. [onTranscribed] is called only when a transcription was
+     * actually stored, with the result as stored, on the main
+     * dispatcher, so the player can apply it the way it applies a
+     * measurement.
+     */
+    fun maybeTranscribe(
+        videoId: String,
+        title: String,
+        artist: String,
+        durationMs: Long,
+        isrc: String? = null,
+        localAudio: File? = null,
+        immediate: Boolean,
+        onTranscribed: ((LyricsRepository.Result) -> Unit)? = null,
+    ) {
+        if (videoId.isBlank()) return
+        val key = BuildConfig.GROQ_API_KEY
+        if (!aiWordSyncGateAllows(
+                enabled = true, // Always on: there is no settings switch for AI word sync.
+                keyBlank = key.isBlank(),
+                alreadyInFlight = videoId in inFlight,
+            )
+        ) {
+            return
+        }
+        val context = appContext ?: return
+        if (!immediate && AppSettings.aiWifiOnly.value && !isUnmetered(context)) return
+        if (!inFlight.add(videoId)) return
+        scope.launch {
+            try {
+                runTranscribe(context, videoId, durationMs, isrc, localAudio, key, onTranscribed)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A failed transcription is a non-event: the track
+                // keeps its honest no-lyrics state, nothing was stored,
+                // and a later offer may try again. Said in the log and
+                // nowhere else.
+                Log.d(TAG, "AI transcription skipped for $videoId: ${e.message}")
+            } finally {
+                inFlight.remove(videoId)
+            }
+        }
+    }
+
+    /** The transcription job itself. Every early return is a quiet, retryable dead end. */
+    private suspend fun runTranscribe(
+        context: Context,
+        videoId: String,
+        durationMs: Long,
+        isrc: String?,
+        localAudio: File?,
+        apiKey: String,
+        onTranscribed: ((LyricsRepository.Result) -> Unit)?,
+    ) {
+        // The same respect [runAlign] pays the settings: a listener who
+        // has switched every lyrics source off has switched lyrics off,
+        // and a transcription is lyrics.
+        if (AppSettings.lyricsSources.value.isEmpty()) return
+        // Offered on a lookup that found nothing — but "nothing" was
+        // then, and a provider result (or an earlier transcription) may
+        // have landed since. The cache is the arbiter: anything in it
+        // at all means this is no longer a no-lyrics track, and the
+        // store's own guard would refuse the write anyway.
+        if (LyricsRepository.readCache(videoId, isrc) != null) return
+        // The retry gate, as in [runAlign]: a job that ran its ladder
+        // and could not help is not run again for a day, whichever
+        // trigger offers the track.
+        if (!LyricsLookupPolicy.isAiRetryDue(
+                LyricsRepository.aiAttemptExhaustedAtMs(videoId, isrc),
+                System.currentTimeMillis(),
+            )
+        ) {
+            return
+        }
+
+        val acquired = acquireAudio(context, videoId, localAudio, durationMs) ?: return
+        try {
+            // Two listeners, as the measurement ladder has: the
+            // accurate model first, the faster one behind it. No
+            // language hint and no prompt — both of those steers are
+            // built from lyric text, and this track has none; a prompt
+            // invented from the title or the artist would steer the
+            // hearing toward words nobody sang, which is the one thing
+            // a transcription must never do. The far side detects the
+            // language from the audio, as it does for an unsteered
+            // measurement.
+            var built: List<LyricLine>? = null
+            for (model in listOf(TranscriptionClient.DEFAULT_MODEL, TranscriptionClient.ALTERNATE_MODEL)) {
+                val heard = TranscriptionClient.transcribeFull(
+                    audio = acquired.file,
+                    mimeType = acquired.mimeType,
+                    apiKey = apiKey,
+                    model = model,
+                ) ?: continue
+                val lines = TranscriptionLines.build(heard.words, heard.segments, durationMs)
+                    ?: continue
+                // Sanitised through the same pass every provider result
+                // takes, and judged by the validation layer before it
+                // is stored: only a hearing that survives both as a
+                // transcription of *this* track — timings valid, span
+                // fitting the duration — is a result at all. A hearing
+                // the sanitizer empties, or the fit judgement condemns,
+                // is an attempt that failed, and the ladder climbs on.
+                val clean = lines.withValidWordTimings(durationMs)
+                val candidate = LyricsRepository.Result(LyricsSource.AI_TRANSCRIPTION, clean)
+                if (candidate.timing != LyricTiming.WORD_SYNCED_AI_TRANSCRIBED) continue
+                if (LyricsValidation.classify(candidate, durationMs) !=
+                    LyricsVerdict.AI_TRANSCRIBED
+                ) {
+                    continue
+                }
+                built = clean
+                break
+            }
+            if (built == null) {
+                // Audio was acquired and every listener was asked; no
+                // hearing could honestly be shown. A genuine
+                // exhaustion, remembered for a day like a measurement's.
+                Log.d(TAG, "AI transcription produced nothing usable for $videoId")
+                LyricsRepository.noteAiAttemptExhausted(videoId, isrc)
+                return
+            }
+            val result = LyricsRepository.Result(LyricsSource.AI_TRANSCRIPTION, built)
+            if (!LyricsRepository.storeAiTranscription(videoId, isrc, result)) {
+                // A provider result landed between the cache check and
+                // the store, and the store kept it. Not a failure: the
+                // track has real lyrics now, which is the better ending.
+                return
+            }
+            // The result as stored, read off the cache the store just
+            // wrote — what the player applies is what a later lookup
+            // will read. No write-back into a download's tags: a
+            // transcription is the cache's stand-in for a missing
+            // catalogue entry, not a property of the file.
+            val stored = LyricsRepository.readCache(videoId, isrc) ?: result
+            if (onTranscribed != null) {
+                withContext(Dispatchers.Main) { onTranscribed(stored) }
+            }
+        } finally {
+            if (acquired.owned) acquired.file.delete()
+        }
+    }
+
     /** The job itself. Every early return is a quiet, retryable dead end. */
     private suspend fun runAlign(
         context: Context,
@@ -442,9 +621,12 @@ object AiWordSync {
         // of this same track. Provider timings settle it outright, and an
         // AI result is not re-measured: storeAiResult refuses a second one
         // anyway, so asking the transcription service again would spend
-        // the call for nothing.
+        // the call for nothing. A transcription settles it the same way:
+        // the lines in hand are a hearing, already timed by that hearing,
+        // and there is no provider text for a measurement to time.
         if (result.timing == LyricTiming.WORD_SYNCED ||
-            result.timing == LyricTiming.WORD_SYNCED_AI_MEASURED
+            result.timing == LyricTiming.WORD_SYNCED_AI_MEASURED ||
+            result.timing == LyricTiming.WORD_SYNCED_AI_TRANSCRIBED
         ) {
             return
         }

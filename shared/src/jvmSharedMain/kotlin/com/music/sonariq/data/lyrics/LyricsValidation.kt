@@ -22,13 +22,15 @@ enum class LyricsVerdict {
     VERIFIED_WORD_SYNC,
 
     /**
-     * The words themselves are a transcription of the track's own audio.
-     * No path in the current pipeline produces one — the AI alignment
-     * borrows a transcription's *timings* for a provider's text and
-     * discards the transcription's words, so nothing the player shows is
-     * ever a raw transcription. The state exists so that if such a path
-     * is ever added, its results classify as what they are from the
-     * first day, and so nothing today can be mistaken for one.
+     * The words themselves are a transcription of the track's own audio:
+     * no provider had lyrics for the track, so the transcription's
+     * hearing stands in as the lyric (see [TranscriptionLines]). The
+     * timings are that hearing's own measurements; the text is a machine
+     * hearing of the actual singing — never a provider's words, and
+     * never presented as verified. The AI alignment is a different
+     * thing: it borrows a transcription's *timings* for a provider's
+     * text and discards the transcription's words, which is an
+     * [AI_MEASURED] result, not this one.
      */
     AI_TRANSCRIBED,
 
@@ -49,7 +51,14 @@ enum class LyricsVerdict {
      */
     UNVERIFIED,
 
-    /** Nothing was found at all. */
+    /**
+     * Nothing was found at all — or what was found is a placeholder, a
+     * source's "no words here" card served as though it were a result
+     * (see [PlaceholderLyrics]). A placeholder is not a weak result to
+     * be ranked below real ones; it is the absence of a result wearing
+     * one's clothes, so it classifies as this, and the pipeline treats
+     * it as the miss it is at every door.
+     */
     NO_LYRICS,
 }
 
@@ -81,12 +90,20 @@ object LyricsValidation {
      */
     fun classify(result: LyricsRepository.Result?, durationMs: Long): LyricsVerdict {
         result ?: return LyricsVerdict.NO_LYRICS
+        // A placeholder is judged before anything about timing: it
+        // claims no words at all, so there is nothing for fit to weigh
+        // and no tier for it to sit in — it is a miss, stated plainly.
+        if (PlaceholderLyrics.isPlaceholderOnly(result.lines)) {
+            return LyricsVerdict.NO_LYRICS
+        }
         val fits = LyricsLookupPolicy.assessFit(result.lines, durationMs).fits
         return when (result.timing) {
             LyricTiming.WORD_SYNCED ->
                 if (fits) LyricsVerdict.VERIFIED_WORD_SYNC else LyricsVerdict.UNVERIFIED
             LyricTiming.WORD_SYNCED_AI_MEASURED ->
                 if (fits) LyricsVerdict.AI_MEASURED else LyricsVerdict.UNVERIFIED
+            LyricTiming.WORD_SYNCED_AI_TRANSCRIBED ->
+                if (fits) LyricsVerdict.AI_TRANSCRIBED else LyricsVerdict.UNVERIFIED
             LyricTiming.WORD_SYNCED_ESTIMATED ->
                 // Interpolated timings were never measured against
                 // anything; no fit verdict can rescue them.
@@ -122,7 +139,8 @@ object LyricsValidation {
     ): LyricsRepository.Result {
         if (durationMs <= 0L) return this
         if (timing != LyricTiming.WORD_SYNCED &&
-            timing != LyricTiming.WORD_SYNCED_AI_MEASURED
+            timing != LyricTiming.WORD_SYNCED_AI_MEASURED &&
+            timing != LyricTiming.WORD_SYNCED_AI_TRANSCRIBED
         ) {
             return this
         }

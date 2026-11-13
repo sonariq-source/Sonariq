@@ -23,6 +23,21 @@ enum class LyricTiming {
     WORD_SYNCED_AI_MEASURED,
 
     /**
+     * Word timings exist and were really measured — and so were the
+     * words themselves: no provider had lyrics for the track at all, so
+     * a transcription of the track's own audio is standing in as the
+     * lyric (see [TranscriptionLines]). The timings are measurements of
+     * the actual singing, so the line lights up word by word exactly
+     * like [WORD_SYNCED_AI_MEASURED]; but the *text* is a machine
+     * hearing, mishearings and all, so a result carrying them ranks
+     * below even an AI-measured one in the cache's store guards — a
+     * provider's text, whenever one turns up, replaces a transcription
+     * outright — and it stays provisional the same way, so the hunt
+     * for provider lyrics goes on and replaces these when it lands.
+     */
+    WORD_SYNCED_AI_TRANSCRIBED,
+
+    /**
      * Word timings exist, but they were interpolated from line windows
      * rather than measured by a provider. The interpolator is gone; this
      * value now exists only so legacy cached or downloaded data carrying
@@ -40,19 +55,29 @@ enum class LyricTiming {
  *
  * Provider word timings outrank AI-measured ones, and both outrank
  * interpolated ones: a result earns WORD_SYNCED on any single
- * provider-measured word; failing that, WORD_SYNCED_AI_MEASURED on any
- * single word the AI alignment fallback measured from the track's own
- * audio; and only a result with *nothing* measured settles for
- * WORD_SYNCED_ESTIMATED. AI-measured timings are real measurements from
- * the track's audio, ranked below provider timings and kept provisional
- * (see [LyricsLookupPolicy.tierOf]).
+ * provider-measured word; failing that, WORD_SYNCED_AI_TRANSCRIBED on
+ * any single word a transcription of the track's own audio supplied
+ * (words *and* text heard from the audio — see
+ * [LyricTiming.WORD_SYNCED_AI_TRANSCRIBED]); failing that,
+ * WORD_SYNCED_AI_MEASURED on any single word the AI alignment fallback
+ * measured from the track's own audio; and only a result with
+ * *nothing* measured settles for WORD_SYNCED_ESTIMATED. AI timings are
+ * real measurements from the track's audio, ranked below provider
+ * timings and kept provisional (see [LyricsLookupPolicy.tierOf]).
  *
  * Only the top-level lines' own flags are read — a background line's words
  * never lift the result on their own, exactly as before.
  */
 fun List<LyricLine>.lyricTiming(): LyricTiming {
-    if (any { it.isWordSynced && !it.wordsEstimated && !it.wordsAiMeasured }) {
+    if (any {
+            it.isWordSynced && !it.wordsEstimated && !it.wordsAiMeasured &&
+                !it.wordsAiTranscribed
+        }
+    ) {
         return LyricTiming.WORD_SYNCED
+    }
+    if (any { it.isWordSynced && it.wordsAiTranscribed && !it.wordsEstimated }) {
+        return LyricTiming.WORD_SYNCED_AI_TRANSCRIBED
     }
     if (any { it.isWordSynced && it.wordsAiMeasured && !it.wordsEstimated }) {
         return LyricTiming.WORD_SYNCED_AI_MEASURED
@@ -116,7 +141,12 @@ fun List<LyricLine>.withoutWordTimings(): List<LyricLine> {
     fun LyricLine.stripped(): LyricLine {
         val strippedBackground = background?.stripped()
         val own = if (words.isNotEmpty()) {
-            copy(words = emptyList(), wordsEstimated = false, wordsAiMeasured = false)
+            copy(
+                words = emptyList(),
+                wordsEstimated = false,
+                wordsAiMeasured = false,
+                wordsAiTranscribed = false,
+            )
         } else {
             this
         }
@@ -249,6 +279,11 @@ fun List<LyricLine>.withValidWordTimings(durationMs: Long = 0L): List<LyricLine>
             background = cleanBackground,
             wordsEstimated = if (wordsDropped) false else wordsEstimated,
             wordsAiMeasured = if (wordsDropped) false else wordsAiMeasured,
+            // Carried like the other two marks, and cleared with them
+            // when the words it describes are the ones dropped: a
+            // rebuild that silently lost the mark would re-price a
+            // transcription's timings as a provider's own.
+            wordsAiTranscribed = if (wordsDropped) false else wordsAiTranscribed,
         )
     }
 

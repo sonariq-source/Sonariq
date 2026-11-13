@@ -50,7 +50,8 @@ class LyricsLookupPolicyTest {
     ): LyricsRepository.Result {
         val lines = when (timing) {
             LyricTiming.WORD_SYNCED, LyricTiming.WORD_SYNCED_ESTIMATED,
-            LyricTiming.WORD_SYNCED_AI_MEASURED -> listOf(
+            LyricTiming.WORD_SYNCED_AI_MEASURED,
+            LyricTiming.WORD_SYNCED_AI_TRANSCRIBED -> listOf(
                 LyricLine(
                     timeMs = 5_000,
                     text = "verse",
@@ -72,6 +73,7 @@ class LyricsLookupPolicyTest {
                     sungUntilMs = 8_000,
                     wordsEstimated = timing == LyricTiming.WORD_SYNCED_ESTIMATED,
                     wordsAiMeasured = timing == LyricTiming.WORD_SYNCED_AI_MEASURED,
+                    wordsAiTranscribed = timing == LyricTiming.WORD_SYNCED_AI_TRANSCRIBED,
                 ),
             )
             LyricTiming.LINE_SYNCED -> listOf(
@@ -364,6 +366,45 @@ class LyricsLookupPolicyTest {
         assertTrue(
             LyricsLookupPolicy.timingRank(LyricTiming.WORD_SYNCED_ESTIMATED) >
                 LyricsLookupPolicy.timingRank(LyricTiming.PLAIN),
+        )
+    }
+
+    @Test
+    fun transcribedTimingsShareTheAiTierAndRank() {
+        // A transcription is an AI result like a measurement — real
+        // timings measured from the track's own audio, but not a
+        // provider's — and shares its tier and rank, so it is
+        // provisional, never final, and is upgraded by everything a
+        // measurement is upgraded by.
+        val transcribed = sourcedResult(
+            LyricsSource.AI_TRANSCRIPTION, LyricTiming.WORD_SYNCED_AI_TRANSCRIBED,
+        )
+        assertEquals(LyricTiming.WORD_SYNCED_AI_TRANSCRIBED, transcribed.timing)
+        assertEquals(4, LyricsLookupPolicy.tierOf(transcribed))
+        assertEquals(
+            2,
+            LyricsLookupPolicy.timingRank(LyricTiming.WORD_SYNCED_AI_TRANSCRIBED),
+        )
+        assertTrue(LyricsLookupPolicy.isProvisional(transcribed))
+        assertFalse(LyricsLookupPolicy.isFinal(transcribed))
+        // A provider's word sync upgrades it, as it upgrades a
+        // measurement: tiers 0–3 are the authority it stands in for.
+        assertTrue(
+            LyricsLookupPolicy.isUpgrade(
+                transcribed,
+                sourcedResult(LyricsSource.LRCLIB, LyricTiming.WORD_SYNCED),
+            ),
+        )
+        // Untimed provider text does not outrank it in the tier system:
+        // real measured timings sit above tier 5. (What keeps a
+        // transcription from ever displacing that text in the first
+        // place is the store door, not this ranking — a transcription
+        // is only ever stored where the cache holds nothing at all.)
+        assertFalse(
+            LyricsLookupPolicy.isUpgrade(
+                transcribed,
+                sourcedResult(LyricsSource.LRCLIB, LyricTiming.PLAIN),
+            ),
         )
     }
 

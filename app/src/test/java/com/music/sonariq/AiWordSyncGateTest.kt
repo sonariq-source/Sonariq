@@ -78,6 +78,24 @@ class AiWordSyncGateTest {
         assertFalse(gapsOnly.isAiWordSyncCandidate())
     }
 
+    @Test
+    fun `a transcribed result is not a candidate`() {
+        // Its words are already timed by the hearing that produced
+        // them, and there is no provider text to measure.
+        val transcribed = LyricsRepository.Result(
+            LyricsSource.AI_TRANSCRIPTION,
+            listOf(
+                LyricLine(
+                    timeMs = 4_000,
+                    text = "golden hour",
+                    words = listOf(LyricWord(4_000, 4_600, "golden")),
+                    wordsAiTranscribed = true,
+                ),
+            ),
+        )
+        assertFalse(transcribed.isAiWordSyncCandidate())
+    }
+
     /**
      * One attempt's outcome, as [AiLyricAligner.alignDetailed] reports it:
      * [complete] carries the timed lines (granted only when every lead

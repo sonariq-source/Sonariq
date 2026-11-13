@@ -94,6 +94,33 @@ import kotlin.math.roundToLong
  * truncation: an upload past the endpoint's own cap
  * ([MAX_AUDIO_BYTES]) is never sent, rather than sent to fail.
  */
+/**
+ * One stretch of a transcription, as the endpoint segments it: the
+ * words it heard between [startMs] and [endMs], in its own text.
+ *
+ * Segments are the transcription's phrasing — a breath, a line's worth
+ * of singing — and they are what [TranscriptionLines] groups words
+ * into lines by, where a track's lyrics are built from a transcription
+ * rather than timed from a provider's text. The aligner never looks at
+ * them: alignment works word to word, and a segment boundary is not
+ * evidence about any single word.
+ */
+data class TranscribedSegment(
+    val text: String,
+    val startMs: Long,
+    val endMs: Long,
+)
+
+/**
+ * Everything one transcription heard: the words, each with its own
+ * measured span ([TranscribedWord]), and the segments the endpoint
+ * grouped them into ([TranscribedSegment]).
+ */
+data class Transcription(
+    val words: List<TranscribedWord>,
+    val segments: List<TranscribedSegment>,
+)
+
 object TranscriptionClient {
 
     /** The transcription endpoint this build talks to. */
@@ -178,14 +205,34 @@ object TranscriptionClient {
         model: String = DEFAULT_MODEL,
         language: String? = null,
         prompt: String? = null,
-    ): List<TranscribedWord>? {
+    ): List<TranscribedWord>? = transcribeFull(
+        audio, mimeType, apiKey, endpointUrl, model, language, prompt,
+    )?.words
+
+    /**
+     * [transcribe], with the endpoint's segments kept alongside the
+     * words — the form a caller building lyric lines out of the hearing
+     * itself needs (see [TranscriptionLines]). Same request, same retry
+     * policy, same null on any failure; the words-only [transcribe] is
+     * this with the segments dropped, so the two can never disagree
+     * about what was heard.
+     */
+    suspend fun transcribeFull(
+        audio: File,
+        mimeType: String,
+        apiKey: String,
+        endpointUrl: String = DEFAULT_ENDPOINT,
+        model: String = DEFAULT_MODEL,
+        language: String? = null,
+        prompt: String? = null,
+    ): Transcription? {
         if (apiKey.isBlank() || !audio.isFile || audio.length() == 0L) return null
         // Past the endpoint's own cap the upload would only be refused
         // at the far end, after paying to send it. Refuse here instead.
         if (audio.length() > MAX_AUDIO_BYTES) return null
         return withContext(Dispatchers.IO) {
             var attempt = 0
-            var words: List<TranscribedWord>? = null
+            var heard: Transcription? = null
             var settled = false
             while (!settled) {
                 when (
@@ -194,7 +241,7 @@ object TranscriptionClient {
                     )
                 ) {
                     is Attempt.Words -> {
-                        words = outcome.words
+                        heard = outcome.transcription
                         settled = true
                     }
                     Attempt.Failed -> settled = true
@@ -209,14 +256,14 @@ object TranscriptionClient {
                     }
                 }
             }
-            words
+            heard
         }
     }
 
-    /** How one transcription request ended, for [transcribe]'s retry policy. */
+    /** How one transcription request ended, for [transcribeFull]'s retry policy. */
     private sealed interface Attempt {
-        /** The words the endpoint heard. */
-        data class Words(val words: List<TranscribedWord>) : Attempt
+        /** What the endpoint heard. */
+        data class Words(val transcription: Transcription) : Attempt
 
         /** A refusal, or an answer that does not parse: final, not retried. */
         data object Failed : Attempt
@@ -287,8 +334,8 @@ object TranscriptionClient {
                 val outcome = response.use {
                     when {
                         it.isSuccessful -> it.body?.string()
-                            ?.let { text -> parseWords(text) }
-                            ?.let { words -> Attempt.Words(words) }
+                            ?.let { text -> parseTranscription(text) }
+                            ?.let { heard -> Attempt.Words(heard) }
                             ?: Attempt.Failed
                         it.code == 429 || it.code >= 500 -> Attempt.Retryable
                         else -> Attempt.Failed
@@ -300,14 +347,29 @@ object TranscriptionClient {
     }
 
     /**
-     * The `words` array of a `verbose_json` answer, as [TranscribedWord]s.
-     *
-     * Seconds become milliseconds by rounding, so a word the service timed
-     * at 0.12s lands at 120ms rather than 119. Entries with no usable text
-     * or no usable span are skipped rather than repaired; a body with no
-     * words left after that is a failure (null), like any other.
+     * The `words` array of a `verbose_json` answer, as [TranscribedWord]s
+     * — [parseTranscription] with the segments dropped, kept for the
+     * callers (and the alignment) that only ever consume words.
      */
-    internal fun parseWords(body: String): List<TranscribedWord>? {
+    internal fun parseWords(body: String): List<TranscribedWord>? =
+        parseTranscription(body)?.words
+
+    /**
+     * A `verbose_json` answer as a [Transcription]: its `words` array
+     * as [TranscribedWord]s and its `segments` array as
+     * [TranscribedSegment]s.
+     *
+     * Seconds become milliseconds by rounding, so a word the service
+     * timed at 0.12s lands at 120ms rather than 119. Entries with no
+     * usable text or no usable span are skipped rather than repaired;
+     * a body with no words left after that is a failure (null), like
+     * any other. Segments are held to the same standard but not to the
+     * words' verdict: an answer whose segments are missing or unusable
+     * still answers, with an empty segment list — the words are the
+     * hearing, the segments only its phrasing, and a caller grouping
+     * words into lines falls back to the pauses between them.
+     */
+    internal fun parseTranscription(body: String): Transcription? {
         val root = runCatching { lyricsJson.parseToJsonElement(body).jsonObject }.getOrNull()
             ?: return null
         val words = runCatching { root["words"]?.jsonArray }.getOrNull() ?: return null
@@ -324,6 +386,25 @@ object TranscriptionClient {
                 endMs = (end * 1000.0).roundToLong(),
             )
         }
-        return tokens.takeIf { it.isNotEmpty() }
+        if (tokens.isEmpty()) return null
+        val segments = runCatching { root["segments"]?.jsonArray }.getOrNull()
+            ?.mapNotNull { element ->
+                val entry = runCatching { element.jsonObject }.getOrNull()
+                    ?: return@mapNotNull null
+                val text = entry["text"]?.jsonPrimitive?.contentOrNull?.trim()
+                    ?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                val start = entry["start"]?.jsonPrimitive?.doubleOrNull
+                    ?: return@mapNotNull null
+                val end = entry["end"]?.jsonPrimitive?.doubleOrNull
+                    ?: return@mapNotNull null
+                if (end <= start) return@mapNotNull null
+                TranscribedSegment(
+                    text = text,
+                    startMs = (start * 1000.0).roundToLong(),
+                    endMs = (end * 1000.0).roundToLong(),
+                )
+            }
+            .orEmpty()
+        return Transcription(words = tokens, segments = segments)
     }
 }

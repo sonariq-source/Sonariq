@@ -127,6 +127,24 @@ enum class LyricsSource(
         detail = "Plain text fallback, massive web catalogue",
         wordSynced = false,
     ),
+
+    /**
+     * Not a database at all: the name a result carries when its words
+     * are a transcription of the track's own audio, made because no
+     * database above had any (see [TranscriptionLines]). Hidden, so it
+     * is never offered in Settings, never put in an order, and never
+     * asked — the repository's race only ever *answers* with it, from
+     * the AI store, after every real source has missed. It exists so a
+     * transcription is labelled as what it is wherever a result names
+     * its origin, rather than borrowing a provider's name it never
+     * came from.
+     */
+    AI_TRANSCRIPTION(
+        label = "Sonariq AI",
+        detail = "Transcribed from the track's own audio when no source has lyrics",
+        wordSynced = true,
+        hidden = true,
+    ),
     ;
 
     companion object {

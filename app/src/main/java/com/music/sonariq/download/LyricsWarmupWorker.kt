@@ -14,6 +14,7 @@ import com.music.sonariq.data.lyrics.EmbeddedLyrics
 import com.music.sonariq.data.lyrics.LyricTiming
 import com.music.sonariq.data.lyrics.LyricsRepository
 import com.music.sonariq.data.lyrics.LyricsSource
+import com.music.sonariq.data.lyrics.PlaceholderLyrics
 import com.music.sonariq.data.lyrics.PrefetchCandidate
 import com.music.sonariq.data.lyrics.lyricTiming
 import com.music.sonariq.data.lyrics.planWarmup
@@ -173,6 +174,21 @@ class LyricsWarmupWorker(
                                         immediate = false,
                                     )
                                 }
+                            } else {
+                                // No provider had words for this one:
+                                // offered for AI transcription, which
+                                // builds word-synced lines from a hearing
+                                // of the track's own audio. The job
+                                // re-checks the cache before it spends
+                                // anything, so a result still landing from
+                                // a timed-out race is never overwritten.
+                                AiWordSync.maybeTranscribe(
+                                    videoId = candidate.videoId,
+                                    title = candidate.title,
+                                    artist = candidate.artist,
+                                    durationMs = candidate.durationMs,
+                                    immediate = false,
+                                )
                             }
                         } catch (e: CancellationException) {
                             throw e
@@ -200,18 +216,40 @@ class LyricsWarmupWorker(
      * there — the Wi-Fi-only setting, the once-a-day retry record, and
      * the rest.
      *
-     * A track is offered only where [downloadNeedsAiOffer] says neither
-     * the file's own snapshot nor the repository cache already holds
-     * word timings for it. Offers, not tracks scanned, are what
-     * [DOWNLOAD_SCAN_CAP] bounds.
+     * A track is offered for measurement only where
+     * [downloadNeedsAiOffer] says neither the file's own snapshot nor
+     * the repository cache already holds word timings for it. A file
+     * carrying no words at all — no snapshot, or a placeholder where
+     * one was baked in — is offered for transcription instead, where
+     * the cache likewise holds nothing. Offers, not tracks scanned,
+     * are what [DOWNLOAD_SCAN_CAP] bounds.
      */
     private suspend fun scanDownloads() {
         var offers = 0
         for (song in Downloads.getDownloadedSongs(applicationContext)) {
             if (offers >= DOWNLOAD_SCAN_CAP) break
             val localUri = song.localUri ?: continue
-            val embedded = EmbeddedLyrics.forUri(applicationContext, localUri) ?: continue
-            if (embedded.none { it.text.isNotBlank() }) continue
+            val embedded = EmbeddedLyrics.forUri(applicationContext, localUri)
+            // A file with no words in it at all — no snapshot, a blank
+            // one, or a placeholder card baked into its tags — is not a
+            // measurement candidate; there is nothing to time. Where
+            // the repository cache also holds nothing, the track is a
+            // transcription candidate instead: the download *is* the
+            // track's own audio, which is the one thing a transcription
+            // needs.
+            if (embedded == null || PlaceholderLyrics.isPlaceholderOnly(embedded)) {
+                if (LyricsRepository.readCache(song.videoId, null) == null) {
+                    AiWordSync.maybeTranscribe(
+                        videoId = song.videoId,
+                        title = song.title,
+                        artist = song.artist,
+                        durationMs = song.durationMillis(),
+                        immediate = false,
+                    )
+                    offers++
+                }
+                continue
+            }
             val embeddedTiming = embedded.lyricTiming()
             val cachedTiming = LyricsRepository.readCache(song.videoId, null)?.timing
             if (!downloadNeedsAiOffer(embeddedTiming, cachedTiming)) continue

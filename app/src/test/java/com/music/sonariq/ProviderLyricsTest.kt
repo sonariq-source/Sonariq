@@ -21,7 +21,10 @@ class ProviderLyricsTest {
 
     @Test
     fun `the imported providers are exposed`() {
-        assertEquals(17, LyricsSource.entries.size)
+        // Seventeen providers, plus the one entry that is not a provider
+        // at all: AI_TRANSCRIPTION, the hidden name a transcription of
+        // the track's own audio carries as its result's source.
+        assertEquals(18, LyricsSource.entries.size)
         assertTrue(LyricsSource.offered.containsAll(listOf(
             LyricsSource.BETTER_LYRICS_PORTATO,
             LyricsSource.PAXSENIX_SPOTIFY,

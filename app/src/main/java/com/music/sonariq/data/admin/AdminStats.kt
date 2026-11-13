@@ -59,7 +59,7 @@ object AdminStats {
                     entries++
                     when (timingOf(file)) {
                         "WORD_SYNCED" -> word++
-                        "WORD_SYNCED_AI_MEASURED" -> ai++
+                        "WORD_SYNCED_AI_MEASURED", "WORD_SYNCED_AI_TRANSCRIBED" -> ai++
                         // PLAIN carries no timings; ESTIMATED is a legacy
                         // class the engine strips back to line timing on
                         // read, so both count as line-level here.

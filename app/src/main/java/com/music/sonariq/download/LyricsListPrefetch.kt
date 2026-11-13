@@ -96,6 +96,23 @@ object LyricsListPrefetch {
                                     immediate = false,
                                 )
                             }
+                            // A settled nothing — every provider missed,
+                            // or answered with a placeholder — is offered
+                            // for AI transcription instead: word-synced
+                            // lines built from a hearing of the track's
+                            // own audio, stored below every provider
+                            // result. The job re-checks the cache before
+                            // spending anything, so a prefetch timeout on
+                            // a race that later lands is harmless.
+                            if (result == null) {
+                                AiWordSync.maybeTranscribe(
+                                    videoId = candidate.videoId,
+                                    title = candidate.title,
+                                    artist = candidate.artist,
+                                    durationMs = candidate.durationMs,
+                                    immediate = false,
+                                )
+                            }
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {

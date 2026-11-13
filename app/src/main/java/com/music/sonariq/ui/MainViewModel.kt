@@ -27,6 +27,7 @@ import com.music.sonariq.data.lyrics.LyricLine
 import com.music.sonariq.data.lyrics.LyricTiming
 import com.music.sonariq.data.lyrics.LyricsRepository
 import com.music.sonariq.data.lyrics.LyricsSource
+import com.music.sonariq.data.lyrics.PlaceholderLyrics
 import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.data.stats.SmartPlaylists
 import com.music.sonariq.data.stats.ListeningStats
@@ -394,7 +395,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // nothing is being matched here — these lyrics were written into
             // this exact file, for this exact recording.
             if (localUri != null) {
-                EmbeddedLyrics.forUri(getApplication(), localUri)?.let { embedded ->
+                // A file whose tags carry a placeholder — a source's "no
+                // words here" card, baked in on download day — has no
+                // embedded lyrics for this purpose: the card is skipped
+                // and the track falls through to the ordinary lookup, and
+                // from there, if nobody has words for it, to the AI
+                // transcription offer below.
+                EmbeddedLyrics.forUri(getApplication(), localUri)
+                    ?.takeUnless { PlaceholderLyrics.isPlaceholderOnly(it) }
+                    ?.let { embedded ->
                     _lyrics.value = embedded
                     // No source to name: what the file records is the lyrics,
                     // not which of the eight services they came from months ago.
@@ -520,6 +529,40 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     },
                 )
             }
+            // The lookup settled on nothing at all — every provider
+            // missed, or answered with a placeholder that no longer
+            // counts as an answer: offer the track for AI transcription,
+            // which builds word-synced lines out of a hearing of the
+            // track's own audio and stores them below every provider
+            // result, so the hunt for real lyrics goes on and replaces
+            // them when it lands. Only here, on the final result — the
+            // deadline path never reports a nothing, and a transcription
+            // spent on a track the race is about to serve is wasted.
+            // A stored transcription is applied exactly the way a
+            // measurement is: through validation, under the generation
+            // guard.
+            if (validated == null) {
+                val localFile = localUri
+                    ?.takeIf { it.startsWith("file://") }
+                    ?.let { Uri.parse(it).path?.let(::File) }
+                    ?.takeIf { it.isFile }
+                com.music.sonariq.download.AiWordSync.maybeTranscribe(
+                    videoId = videoId,
+                    title = title,
+                    artist = artist,
+                    durationMs = durationMs,
+                    localAudio = localFile,
+                    immediate = true,
+                    onTranscribed = { transcribed ->
+                        if (generation == lyricsGeneration) {
+                            val revalidated = validatedLyrics(transcribed)
+                            _lyrics.value = revalidated?.lines
+                            _lyricsSource.value = revalidated?.source
+                            _lyricsChecked.value = true
+                        }
+                    },
+                )
+            }
         }
     }
 
@@ -576,6 +619,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         winner: LyricsRepository.Result?,
     ): LyricsRepository.Result? {
         winner ?: return null
+        // A placeholder is not a result at this door either: a source's
+        // "no words here" card — cached by an older build, or carried
+        // in by a road that never passed the repository's funnel — is
+        // dropped to the honest no-lyrics state rather than shown as
+        // though it were the song.
+        if (PlaceholderLyrics.isPlaceholderOnly(winner.lines)) return null
         // The delivery judgement, applied at the player's door as well:
         // a result whose word timings this track's duration proves
         // belong to a different recording is shown as honest line sync,

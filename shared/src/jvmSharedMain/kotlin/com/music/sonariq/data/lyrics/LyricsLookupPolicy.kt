@@ -78,9 +78,14 @@ object LyricsLookupPolicy {
      *  - 2: any other source's true word sync, with syllable timings.
      *  - 3: any other source's true word sync.
      *  - 4: [LyricTiming.WORD_SYNCED_AI_MEASURED] — word timings measured
-     *    from the track's own audio by the AI alignment fallback. Real
+     *    from the track's own audio by the AI alignment fallback — and
+     *    [LyricTiming.WORD_SYNCED_AI_TRANSCRIBED], a transcription of
+     *    the track's own audio standing in as the lyric itself. Real
      *    measurements, so they sit above line sync, but no provider
-     *    supplied them, so they sit below every provider tier.
+     *    supplied them, so they sit below every provider tier. The two
+     *    share the tier; which of them may replace the other in the
+     *    cache is the store guards' call, not the race's (see
+     *    [LyricsRepository.storeAiResult]).
      *  - 5: everything else — line sync, plain text, and
      *    [LyricTiming.WORD_SYNCED_ESTIMATED], which is not real word sync
      *    and so earns no tier of its own.
@@ -91,7 +96,11 @@ object LyricsLookupPolicy {
      * AI-measured ones whenever they turn up.
      */
     fun tierOf(result: LyricsRepository.Result): Int {
-        if (result.timing == LyricTiming.WORD_SYNCED_AI_MEASURED) return 4
+        if (result.timing == LyricTiming.WORD_SYNCED_AI_MEASURED ||
+            result.timing == LyricTiming.WORD_SYNCED_AI_TRANSCRIBED
+        ) {
+            return 4
+        }
         if (result.timing != LyricTiming.WORD_SYNCED) return 5
         val fromTtml = result.source in TTML_SOURCES
         val syllables = hasSyllables(result)
@@ -123,6 +132,7 @@ object LyricsLookupPolicy {
     fun timingRank(timing: LyricTiming): Int = when (timing) {
         LyricTiming.WORD_SYNCED -> 3
         LyricTiming.WORD_SYNCED_AI_MEASURED -> 2
+        LyricTiming.WORD_SYNCED_AI_TRANSCRIBED -> 2
         LyricTiming.LINE_SYNCED -> 1
         LyricTiming.WORD_SYNCED_ESTIMATED -> 1
         LyricTiming.PLAIN -> 0

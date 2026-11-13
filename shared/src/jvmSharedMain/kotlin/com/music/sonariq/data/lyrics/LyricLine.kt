@@ -178,6 +178,23 @@ data class LyricLine(
      * settle the hunt this flag exists to keep open.
      */
     val wordsAiMeasured: Boolean = false,
+    /**
+     * True when this line's *text itself* — not only its timings — is a
+     * transcription of the track's own audio: no provider had words for
+     * the track at all, so the transcription's hearing is the lyric (see
+     * [LyricTiming.WORD_SYNCED_AI_TRANSCRIBED] and [TranscriptionLines]).
+     * The words are the transcription's own, each with the span it was
+     * heard over, so the line is word-synced by measurement exactly as
+     * an AI-measured one is; what differs is the text's authority, which
+     * is why a result carrying these lines ranks below even an
+     * AI-measured one in the cache's store guards: a provider's text,
+     * whenever one turns up, replaces a transcription outright.
+     * Writers (file tags) leave these lines out entirely, like the other
+     * AI timings: a transcription is this app's stand-in for a missing
+     * catalogue entry, not a property of the recording to be baked into
+     * a file and carried elsewhere as though a provider had supplied it.
+     */
+    val wordsAiTranscribed: Boolean = false,
 ) {
     val isGap: Boolean get() = text.isEmpty()
 

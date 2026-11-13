@@ -181,4 +181,44 @@ class LyricTimingValidationTest {
         assertTrue(!cleaned.wordsAiMeasured && !cleaned.wordsEstimated)
         assertEquals(LyricTiming.LINE_SYNCED, listOf(cleaned).lyricTiming())
     }
+
+    @Test
+    fun aRepairKeepsTheTranscribedMark() {
+        // The line start is negative and gets clamped, so the line is
+        // rebuilt by the sanitizer — and the rebuild must carry the
+        // mark, or the surviving timings would silently re-price as a
+        // provider's own word sync.
+        val lines = listOf(
+            LyricLine(
+                timeMs = -500,
+                text = "hello world",
+                words = listOf(word("hello", 100, 600), word("world", 700, 1_200)),
+                sungUntilMs = 1_200,
+                wordsAiTranscribed = true,
+            ),
+        )
+        val cleaned = lines.withValidWordTimings(180_000).single()
+        assertEquals(0, cleaned.timeMs)
+        assertEquals(2, cleaned.words.size)
+        assertTrue(cleaned.wordsAiTranscribed)
+        assertEquals(
+            LyricTiming.WORD_SYNCED_AI_TRANSCRIBED,
+            listOf(cleaned).lyricTiming(),
+        )
+    }
+
+    @Test
+    fun droppingWordsClearsTheTranscribedMark() {
+        val lines = listOf(
+            LyricLine(
+                timeMs = 5_000,
+                text = "hello",
+                words = listOf(word("hello", -1, 500)),
+                wordsAiTranscribed = true,
+            ),
+        )
+        val cleaned = lines.withValidWordTimings(180_000).single()
+        assertTrue(cleaned.words.isEmpty())
+        assertTrue(!cleaned.wordsAiTranscribed)
+    }
 }
