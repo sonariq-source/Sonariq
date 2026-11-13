@@ -107,6 +107,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.sonariq.data.NerdStats
 import com.music.sonariq.data.listentogether.PartyMember
 import com.music.sonariq.data.settings.TrackAnalysisState
+import com.music.sonariq.data.settings.SmartAnalysis
+import com.music.sonariq.data.settings.TransitionMethod
 import com.music.sonariq.data.settings.AudioQuality
 import com.music.sonariq.data.model.Song
 import java.util.Locale
@@ -396,8 +398,73 @@ internal fun SleeveNerdStats(song: Song, modifier: Modifier = Modifier) {
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
             )
+            // The transition the planner has actually prepared for this
+            // pair, in its own words — method, both measured tempi, both
+            // trusted keys. It exists only while a plan does; a pair with
+            // no plan yet (or a party, or a video-origin song, where the
+            // line above already explains the stop) gets no line at all
+            // rather than a placeholder.
+            if (!inParty && !song.isVideoOrigin) {
+                transitionDetailText(smartAnalysis)?.let { detail ->
+                    Text(
+                        text = detail,
+                        style = nerdStyle,
+                        color = Color.White.copy(alpha = 0.5f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
         }
     }
+}
+
+/**
+ * The prepared transition's line: its method first, then the measured
+ * facts the method rests on — both tempi when both are known, both keys
+ * when both are trusted, and whether those keys agree. Null when no plan
+ * describes the current pair, which is most of the time: plans exist
+ * only once the next track is analysed and its window is in reach.
+ */
+@Composable
+private fun transitionDetailText(analysis: SmartAnalysis): String? {
+    val method = analysis.transitionMethod ?: return null
+    val label = stringResource(
+        when (method) {
+            TransitionMethod.BEATMATCHED -> Res.string.transition_method_beatmatched
+            TransitionMethod.HARMONIC_BLEND -> Res.string.transition_method_harmonic
+            TransitionMethod.INSTRUMENTAL -> Res.string.transition_method_instrumental
+            TransitionMethod.AMBIENT -> Res.string.transition_method_ambient
+            TransitionMethod.STANDARD_CROSSFADE -> Res.string.transition_method_crossfade
+        },
+    )
+    val parts = mutableListOf(label)
+    if (analysis.currentBpm > 0 && analysis.nextBpm > 0) {
+        parts += stringResource(
+            Res.string.transition_bpm_pair,
+            analysis.currentBpm.roundToInt(),
+            analysis.nextBpm.roundToInt(),
+        )
+    }
+    if (analysis.currentKey.isNotBlank() && analysis.nextKey.isNotBlank()) {
+        var keys = stringResource(
+            Res.string.transition_key_pair,
+            analysis.currentKey,
+            analysis.nextKey,
+        )
+        analysis.keysCompatible?.let { compatible ->
+            keys += " · " + stringResource(
+                if (compatible) {
+                    Res.string.transition_keys_compatible
+                } else {
+                    Res.string.transition_keys_clash
+                },
+            )
+        }
+        parts += keys
+    }
+    return parts.joinToString(" · ")
 }
 
 /**

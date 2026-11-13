@@ -13,13 +13,16 @@ import com.music.sonariq.data.model.Song
 import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.data.sources.SourceRegistry
 import com.music.sonariq.data.sources.TrackMatcher
+import com.music.sonariq.data.stats.ListeningStats
 import com.music.sonariq.download.Downloads
 import com.music.sonariq.playback.QueueCoordinator.asQueueEntry
+import com.music.sonariq.playback.smart.TrackAnalysis
 import com.music.sonariq.playback.vibe.VibeAnalyzer
 import com.music.sonariq.playback.vibe.VibeAutoplay
 import com.music.sonariq.playback.vibe.VibePlayStats
 import com.music.sonariq.playback.vibe.VibeStore
 import com.music.sonariq.playback.vibe.VibeVector
+import kotlin.math.log10
 import kotlinx.coroutines.CancellationException
 
 /** Most AutoPlay-suggested tracks kept queued ahead of the current one at once. */
@@ -90,6 +93,159 @@ fun autoplayQueueNeedsRefresh(
     currentIndex == itemCount - 1
 
 /**
+ * What the last scored AutoPlay batch looked like, for the admin
+ * diagnostics surface: how many candidates carried enough evidence to
+ * judge, how many of those were held back as poor fits, and whether the
+ * batch that actually shipped had to settle for the best available
+ * rather than a passing match. Written by the discovery loader, read by
+ * Admin; plain volatile fields, because a stat that needs a lock is a
+ * stat nobody should be keeping.
+ */
+object AutoplayPickDiagnostics {
+
+    @Volatile
+    var scoredCandidates: Int = 0
+        private set
+
+    @Volatile
+    var rejectedCandidates: Int = 0
+        private set
+
+    @Volatile
+    var lastBatchLowConfidence: Boolean = false
+        private set
+
+    @Volatile
+    var hasRecord: Boolean = false
+        private set
+
+    fun record(scored: Int, rejected: Int, lowConfidence: Boolean) {
+        scoredCandidates = scored
+        rejectedCandidates = rejected
+        lastBatchLowConfidence = lowConfidence
+        hasRecord = true
+    }
+}
+
+/**
+ * Records one delivered batch in [AutoplayPickDiagnostics]. A batch is
+ * lower confidence when it contains a candidate the scorer judged and
+ * rejected, or when none of its picks passed — the honest summary of
+ * "we played the best available", kept here rather than on the batch
+ * itself so the queue entries stay plain songs.
+ */
+private fun recordPickDiagnostics(
+    scored: List<AutoplayCompatibility.Scored>,
+    picks: List<Song>,
+) {
+    if (picks.isEmpty()) {
+        AutoplayPickDiagnostics.record(scored.size, scored.count { it.rejected }, false)
+        return
+    }
+    val byId = scored.associateBy { it.song.videoId }
+    val judged = picks.mapNotNull { byId[it.videoId] }
+    val low = judged.any { it.rejected } || judged.none { it.passes }
+    AutoplayPickDiagnostics.record(scored.size, scored.count { it.rejected }, low)
+}
+
+/**
+ * Everything [AutoplayCompatibility] needs about one seed, gathered once
+ * per batch: the seed's stored analysis, taste over tracks and artists,
+ * the predictor's learned affinities, and this session's skip pattern.
+ * Every input degrades to null independently — a missing history or an
+ * unmeasured seed narrows the judgement instead of blocking it.
+ */
+private class ScoringInputs(
+    val currentAnalysis: TrackAnalysis?,
+    private val taste: ((String) -> Float)?,
+    private val artistPlays: Map<String, Int>,
+    private val maxArtistPlays: Int,
+    private val seedArtists: Set<String>,
+    private val heardSongs: List<Song>,
+    private val skippedIds: Set<String>,
+    private val affinity: (String) -> Double,
+    private val analysisFor: (String) -> TrackAnalysis?,
+) {
+    fun signalsFor(candidate: Song): AutoplayCandidateSignals {
+        val artists = QueueBuilder.artistSet(candidate.artist)
+        return AutoplayCandidateSignals(
+            analysis = analysisFor(candidate.videoId),
+            learnedAffinity = affinity(candidate.videoId).takeIf { it > 0 },
+            trackTaste = taste?.invoke(candidate.videoId)?.toDouble(),
+            artistTaste = artistTaste(artists),
+            artistSkipShare = artistSkipShare(artists),
+        )
+    }
+
+    /** Log-scaled lifetime plays for the candidate's best-known artist, floored for the seed's own. */
+    private fun artistTaste(artists: Set<String>): Double? {
+        if (artistPlays.isEmpty() || artists.isEmpty()) return null
+        var best: Double? = null
+        for (artist in artists) {
+            val plays = artistPlays[artist] ?: continue
+            val value = if (maxArtistPlays > 0) {
+                log10(plays + 1.0) / log10(maxArtistPlays + 1.0)
+            } else {
+                0.0
+            }
+            if (best == null || value > best!!) best = value
+        }
+        // Continuing with the seed's own artist is the continuation radio
+        // itself leans on; floor it, so a little-played seed artist is not
+        // scored as a stranger in its own station.
+        if (artists.any { it in seedArtists }) {
+            best = maxOf(best ?: 0.0, 0.75)
+        }
+        return best
+    }
+
+    /** Of the session's tracks sharing the candidate's artist, the fraction skipped. */
+    private fun artistSkipShare(artists: Set<String>): Double? {
+        if (artists.isEmpty() || skippedIds.isEmpty()) return null
+        var heard = 0
+        var skipped = 0
+        for (song in heardSongs) {
+            val theirs = QueueBuilder.artistSet(song.artist)
+            if (theirs.any { it in artists }) {
+                heard++
+                if (song.videoId in skippedIds) skipped++
+            }
+        }
+        return if (heard > 0) skipped.toDouble() / heard else null
+    }
+}
+
+/** Gathers the [ScoringInputs] for one batch; see that class for the degradation rules. */
+private suspend fun scoringInputs(
+    context: Context,
+    seedSong: Song,
+    existing: List<Song>,
+    session: AutoplaySessionMemory?,
+    analysisFor: (String) -> TrackAnalysis?,
+): ScoringInputs {
+    val stats = runCatching { VibeAutoplay.loadPlayStats(context) }.getOrNull()
+    val artistPlays = HashMap<String, Int>()
+    runCatching {
+        for (track in ListeningStats.allTracks()) {
+            for (artist in QueueBuilder.artistSet(track.artist)) {
+                artistPlays[artist] = (artistPlays[artist] ?: 0) + track.plays
+            }
+        }
+    }
+    return ScoringInputs(
+        currentAnalysis = analysisFor(seedSong.videoId),
+        taste = stats?.let { VibeAutoplay.tasteScore(it) },
+        artistPlays = artistPlays,
+        maxArtistPlays = artistPlays.values.maxOrNull() ?: 0,
+        seedArtists = QueueBuilder.artistSet(seedSong.artist),
+        heardSongs = existing,
+        skippedIds = session?.skippedIds().orEmpty(),
+        affinity = { candidateId -> SmartAutoplay.transitionAffinity(context, seedSong, candidateId) },
+        analysisFor = analysisFor,
+    )
+}
+
+/**
  * Finds the streaming id that should seed AutoPlay for a song. Module tracks do
  * not carry streaming ids, so they are matched against the catalogue first.
  */
@@ -126,6 +282,8 @@ suspend fun loadAutoplayTracks(
     session: AutoplaySessionMemory? = null,
     queueIds: Set<String> = emptySet(),
     alternateSeedSong: Song? = null,
+    /** Stored Automix analysis for a track id, when the analyzer has measured it. */
+    analysisFor: (String) -> TrackAnalysis? = { null },
 ): Result<List<Song>> {
     val bannedIds = AppSettings.autoplayBannedSongIds.value
     val bannedArtists = AppSettings.autoplayBannedArtists.value
@@ -152,6 +310,7 @@ suspend fun loadAutoplayTracks(
                     session = session,
                     queueIds = queueIds,
                     alternateSeedSong = alternateSeedSong,
+                    analysisFor = analysisFor,
                 ).getOrDefault(emptyList())
             }
         }.getOrDefault(emptyList())
@@ -166,6 +325,7 @@ suspend fun loadAutoplayTracks(
         session = session,
         queueIds = queueIds,
         alternateSeedSong = alternateSeedSong,
+        analysisFor = analysisFor,
     ).getOrElse { return Result.failure(it) }
     if (discovery.isEmpty()) return Result.success(emptyList())
     return Result.success(freshSessionBatch(context, toQueueEntries(discovery, seedSong), seedSong))
@@ -212,6 +372,7 @@ private suspend fun loadDiscoveryBatch(
     session: AutoplaySessionMemory? = null,
     queueIds: Set<String> = emptySet(),
     alternateSeedSong: Song? = null,
+    analysisFor: (String) -> TrackAnalysis? = { null },
 ): Result<List<Song>> = runCatching {
     val seed = youtubeSeedFor(seedSong) ?: return@runCatching emptyList()
     val related = YtMusicRepository.radio(seed).getOrThrow()
@@ -258,9 +419,26 @@ private suspend fun loadDiscoveryBatch(
     } else {
         combined
     }
-    if (session == null) {
-        QueueBuilder.extend(existing, freshFirst, limit)
+    // Compatibility scoring: the pool is judged against the seed's own
+    // measured features and the listener's history before selection
+    // touches it (see [AutoplayCompatibility]). Without a context there
+    // are no evidence stores to judge from, and the pool passes through
+    // in its freshness order exactly as before.
+    val inputs = if (context != null) {
+        scoringInputs(context, seedSong, existing, session, analysisFor)
     } else {
+        null
+    }
+    val scored = inputs?.let {
+        AutoplayCompatibility.rank(it.currentAnalysis, freshFirst, it::signalsFor)
+    }
+
+    if (session == null) {
+        val ordered = scored?.let { AutoplayCompatibility.allRanked(it) } ?: freshFirst
+        val picks = QueueBuilder.extend(existing, ordered, limit)
+        if (scored != null) recordPickDiagnostics(scored, picks)
+        picks
+    } else if (scored == null || inputs == null) {
         val selected = session.selectForQueue(freshFirst, existing, queueIds, limit)
         if (selected.isNotEmpty()) {
             selected
@@ -289,6 +467,61 @@ private suspend fun loadDiscoveryBatch(
             } else {
                 val merged = (freshFirst + alternateRelated).distinctBy { it.videoId }
                 session.selectForQueue(merged, existing, queueIds, limit)
+            }
+        }
+    } else {
+        // Stage one: passing and unjudgeable candidates only — a
+        // candidate the evidence judged and found wanting is held back
+        // while anything better exists. If stage one selects nothing,
+        // the pool either exhausted the session's exclusions or every
+        // judgeable candidate failed; both are what the alternate-seed
+        // re-request exists for.
+        val stageOne = session.selectForQueue(
+            AutoplayCompatibility.stageOne(scored), existing, queueIds, limit,
+        )
+        if (stageOne.isNotEmpty()) {
+            recordPickDiagnostics(scored, stageOne)
+            stageOne
+        } else {
+            val alternate = alternateSeedSong
+            val alternateRelated = if (alternate != null && alternate.videoId != seedSong.videoId) {
+                youtubeSeedFor(alternate)?.let { seed ->
+                    YtMusicRepository.radio(seed).getOrNull()
+                }.orEmpty()
+                    .filterNot {
+                        AutoplayPolicy.isBanned(it.videoId, it.artist, bannedIds, bannedArtists)
+                    }
+            } else {
+                emptyList()
+            }
+            if (alternateRelated.isEmpty()) {
+                // No second seed to ask: the best available from this
+                // pool, in ranked order, rather than a stalled queue.
+                // The batch is marked lower confidence in the diagnostics
+                // instead of the ranking pretending the fit was good.
+                val fallback = session.selectForQueue(
+                    AutoplayCompatibility.allRanked(scored), existing, queueIds, limit,
+                )
+                recordPickDiagnostics(scored, fallback)
+                fallback
+            } else {
+                val merged = (freshFirst + alternateRelated).distinctBy { it.videoId }
+                val mergedScored = AutoplayCompatibility.rank(
+                    inputs.currentAnalysis, merged, inputs::signalsFor,
+                )
+                val picked = session.selectForQueue(
+                    AutoplayCompatibility.stageOne(mergedScored), existing, queueIds, limit,
+                )
+                if (picked.isNotEmpty()) {
+                    recordPickDiagnostics(mergedScored, picked)
+                    picked
+                } else {
+                    val fallback = session.selectForQueue(
+                        AutoplayCompatibility.allRanked(mergedScored), existing, queueIds, limit,
+                    )
+                    recordPickDiagnostics(mergedScored, fallback)
+                    fallback
+                }
             }
         }
     }

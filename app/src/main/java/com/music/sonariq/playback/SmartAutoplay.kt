@@ -109,6 +109,28 @@ object SmartAutoplay {
     }
 
     /**
+     * How strongly the predictor links [current] to one specific
+     * [candidateId]: that transition's count against the strongest count
+     * out of [current], so 1 is the single most likely continuation the
+     * listener has ever taken from here. Zero when the link was never
+     * taken — which the compatibility scorer reads as "no evidence", not
+     * as evidence against: most good discoveries have no learned link.
+     */
+    fun transitionAffinity(context: Context, current: Song, candidateId: String): Double {
+        val store = prefs(context)
+        val transitions = parseTransitions(store.getString(KEY_TRANSITIONS, null))
+        val prefix = "${current.videoId}>"
+        var strongest = 0
+        var link = 0
+        for ((key, count) in transitions) {
+            if (!key.startsWith(prefix)) continue
+            if (count > strongest) strongest = count
+            if (key == "$prefix$candidateId") link = count
+        }
+        return if (strongest > 0) link.toDouble() / strongest else 0.0
+    }
+
+    /**
      * How confident the predictor is about [current] — used to decide whether
      * learned transitions should lead the autoplay queue or just season it.
      */

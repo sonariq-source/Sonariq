@@ -14,16 +14,22 @@ import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.data.settings.MixBlend
 import com.music.sonariq.data.settings.SmartAnalysis
 import com.music.sonariq.data.settings.TrackAnalysisState
+import com.music.sonariq.data.settings.TransitionMethod
 import com.music.sonariq.data.settings.TransitionWindow
 import com.music.sonariq.playback.smart.CrossfadeMode
 import com.music.sonariq.playback.smart.FILTER_ECHO_AT
 import com.music.sonariq.playback.smart.FilterTransitionVariant
 import com.music.sonariq.playback.smart.TrackAnalysis
 import com.music.sonariq.playback.smart.EnergySample
+import com.music.sonariq.playback.smart.TransitionPlan
 import com.music.sonariq.playback.smart.TransitionStyle
 import com.music.sonariq.playback.smart.TransitionTrackInfo
+import com.music.sonariq.playback.smart.camelotCompatible
+import com.music.sonariq.playback.smart.camelotScore
 import com.music.sonariq.playback.smart.echoTailSeconds
+import com.music.sonariq.playback.smart.keyClashBetween
 import com.music.sonariq.playback.smart.planTransition
+import com.music.sonariq.playback.smart.trustedKeyOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -481,6 +487,16 @@ class CrossfadeController(
     /** Dedupes the per-tick plan log down to one line per distinct verdict. */
     private var lastPlanVerdict = ""
 
+    /**
+     * The newest smart plan and the pair it describes, kept so the stats
+     * line can name the transition that is actually coming. Only ever
+     * read back against the pair currently at the head of the queue —
+     * a plan for a pair the listener has skipped away from describes
+     * nothing and is dropped, not displayed.
+     */
+    private var lastSmartPlan: TransitionPlan? = null
+    private var lastSmartPair: Pair<String, String>? = null
+
     // ---- Phase lock (Advanced Automix) --------------------------------------
 
     /** When the speed nudge in flight ends, from [SystemClock.elapsedRealtime]; 0 when none is. */
@@ -919,6 +935,9 @@ class CrossfadeController(
             mode = CrossfadeMode.SMART,
             advanced = advanced,
         )
+        lastSmartPlan = plan
+        lastSmartPair = currentItem.mediaId to nextItem.mediaId
+
         // One line per distinct verdict rather than one per 250ms tick, so the
         // log says what the planner decided for this pair without burying it.
         val verdict = "${plan.reason}|${plan.transitionStyle}|fade=${plan.fadeMs}" +
@@ -1190,10 +1209,76 @@ class CrossfadeController(
         val currentItem = player.currentMediaItem
         val nextIndex = player.nextMediaItemIndex
         val nextItem = if (nextIndex == C.INDEX_UNSET) null else player.getMediaItemAt(nextIndex)
+        val currentAnalysis = currentItem?.let { analysisFor(it) }
+        val nextAnalysis = nextItem?.let { analysisFor(it) }
+
+        // The transition detail rides along only when the newest smart
+        // plan describes the pair actually at the head of the queue. A
+        // plan left over from a pair the listener skipped away from is
+        // dropped: naming a transition that is no longer coming would be
+        // worse than naming none.
+        val plan = lastSmartPlan?.takeIf {
+            currentItem != null && nextItem != null &&
+                lastSmartPair == (currentItem.mediaId to nextItem.mediaId)
+        }
+        val currentKey = currentAnalysis?.let { trustedKeyOf(it) }
+        val nextKey = nextAnalysis?.let { trustedKeyOf(it) }
         AppSettings.smartAnalysis.value = SmartAnalysis(
-            current = currentItem?.let { stateOf(it, analysisFor(it)) } ?: TrackAnalysisState.WAITING,
-            next = nextItem?.let { stateOf(it, analysisFor(it)) } ?: TrackAnalysisState.WAITING,
+            current = currentItem?.let {
+                stateOf(it, currentAnalysis ?: TrackAnalysis())
+            } ?: TrackAnalysisState.WAITING,
+            next = nextItem?.let {
+                stateOf(it, nextAnalysis ?: TrackAnalysis())
+            } ?: TrackAnalysisState.WAITING,
+            transitionMethod = plan?.let {
+                transitionMethodOf(it, currentAnalysis, nextAnalysis)
+            },
+            currentBpm = currentAnalysis?.bpm?.takeIf { it > 0 } ?: 0.0,
+            nextBpm = nextAnalysis?.bpm?.takeIf { it > 0 } ?: 0.0,
+            currentKey = currentKey ?: "",
+            nextKey = nextKey ?: "",
+            keysCompatible = if (currentKey != null && nextKey != null) {
+                camelotScore(currentKey, nextKey)?.let { score -> score >= 0.8 }
+            } else {
+                null
+            },
         )
+    }
+
+    /**
+     * The stats line's name for a plan, in words that do not claim more
+     * than the plan does. A blend is "Beatmatched"; an ambient plan is
+     * "Ambient"; the plain tier is a standard crossfade and says so. A
+     * filter ride is named for what routed the pair to it: two voices the
+     * planner had to keep apart, or two clashing keys it declined to
+     * blend, make it an instrumental handoff; compatible keys carrying a
+     * transition the tempi could not make it a harmonic one. A ride with
+     * neither story gets no name rather than a borrowed one.
+     */
+    private fun transitionMethodOf(
+        plan: TransitionPlan,
+        currentAnalysis: TrackAnalysis?,
+        nextAnalysis: TrackAnalysis?,
+    ): TransitionMethod? {
+        if (plan.blocked) return null
+        return when (plan.transitionStyle) {
+            TransitionStyle.AMBIENT -> TransitionMethod.AMBIENT
+            TransitionStyle.DJ_BLEND -> TransitionMethod.BEATMATCHED
+            TransitionStyle.GAPLESS -> null
+            TransitionStyle.EQUAL_POWER -> TransitionMethod.STANDARD_CROSSFADE
+            TransitionStyle.DJ_FILTER -> {
+                if (currentAnalysis == null || nextAnalysis == null) return null
+                val leftKey = trustedKeyOf(currentAnalysis)
+                val rightKey = trustedKeyOf(nextAnalysis)
+                when {
+                    plan.vocalOverlap >= 0.18 || keyClashBetween(currentAnalysis, nextAnalysis) ->
+                        TransitionMethod.INSTRUMENTAL
+                    leftKey != null && rightKey != null && camelotCompatible(leftKey, rightKey) ->
+                        TransitionMethod.HARMONIC_BLEND
+                    else -> null
+                }
+            }
+        }
     }
 
     /**
@@ -2094,6 +2179,11 @@ class CrossfadeController(
             // full vocals over each other, because the weak half of the evidence
             // was silencing the strong half.
             TransitionStyle.EQUAL_POWER -> rideVocalSeparation(progress)
+            // AMBIENT is an equal-power fade the planner chose on energy
+            // evidence and gave length to; spectrally it wants exactly
+            // what EQUAL_POWER wants — nothing but the vocal separation
+            // the measured overlap calls for.
+            TransitionStyle.AMBIENT -> rideVocalSeparation(progress)
         }
         if (render.echo) rideEchoOut(progress)
     }
@@ -2391,6 +2481,7 @@ class CrossfadeController(
     private fun isRealMix(): Boolean = smartFadeActive && (
         render.style == TransitionStyle.DJ_BLEND ||
             render.style == TransitionStyle.DJ_FILTER ||
+            render.style == TransitionStyle.AMBIENT ||
             incomingCueTimeMs > 0L ||
             incomingPlaybackRate != 1.0 ||
             outgoingPlaybackRate != 1.0

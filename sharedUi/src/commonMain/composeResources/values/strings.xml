@@ -7,6 +7,15 @@
     <string name="audio_output_playing">Playing here</string>
     <string name="audio_pipeline">Audio Pipeline</string>
     <string name="automix_analysis_status">Automix · this song: %1$s · next: %2$s</string>
+    <string name="transition_method_beatmatched">Beatmatched</string>
+    <string name="transition_method_harmonic">Harmonic blend</string>
+    <string name="transition_method_instrumental">Instrumental</string>
+    <string name="transition_method_ambient">Ambient</string>
+    <string name="transition_method_crossfade">Standard crossfade</string>
+    <string name="transition_bpm_pair">%1$d → %2$d BPM</string>
+    <string name="transition_key_pair">%1$s → %2$s</string>
+    <string name="transition_keys_compatible">keys compatible</string>
+    <string name="transition_keys_clash">keys clash</string>
     <string name="automix_not_supported_video">Automix not supported on video songs</string>
     <string name="automix_stopped_in_party">Automix: stopped in listen together</string>
     <string name="autoplay">AutoPlay</string>

@@ -53,7 +53,7 @@
 - **Search, browse and play** anything available on YouTube Music.
 - **Hi-Res lossless audio** — FLAC/ALAC from a configured module source, with YouTube Music as fallback.
 - **Gapless playback with true crossfade**, adjustable 0–12s.
-- **Automix [Beta]** — transitions chosen per pair from real on-device analysis (tempo and beat grid, key, energy, loudness, vocal activity): beat-matched blends on phrase boundaries for compatible songs, filter rides and vocal-aware fades when they are not, and a plain equal-power crossfade or a natural ending when a pair has not been analysed yet.
+- **Automix [Beta]** — transitions chosen per pair from real on-device analysis (tempo and beat grid, key, energy, loudness, vocal activity): beat-matched blends on phrase boundaries for compatible songs, harmonic awareness that keeps clashing keys apart, a long ambient blend for calm pairs, filter rides and vocal-aware fades when a pair does not blend, and a plain equal-power crossfade or a natural ending when a pair has not been analysed yet. The player stats line names the prepared transition with both songs' tempo and key.
 - **Offline downloads** — save tracks with embedded metadata.
 - **Local music library** integration.
 - **Background playback** via a proper foreground media session.
@@ -93,7 +93,7 @@
 
 ### Smart autoplay & AI radio
 - **Vibe autoplay engine** — detects the vibe of what you're playing (Last.fm listener tags + on-device tempo/key/energy analysis + your listening behaviour) and keeps the music flowing in that mood forever; the queue refills when 3 songs remain, skips teach it your taste, and a vibe badge on Now Playing shows what it's feeling.
-- **Smart Autoplay** — learns your song-to-song transitions and predicts what plays next.
+- **Smart Autoplay** — learns your song-to-song transitions and predicts what plays next; discovery picks are scored against the playing song's measured energy, tempo, key and vocals plus your listening history, so poor fits are held back while better matches exist.
 - **Fresh every session** — replaying a song starts a new discovery session: what autoplay recommended last time is demoted, never handed back as the same sequence, and nothing is banned for good — favourites return, just not on repeat.
 - **No repeats within a session** — autoplay remembers everything it has played, skipped, queued and suggested this session and never serves it again while alternatives exist; every finished song triggers a fresh batch, and only when the catalogue genuinely runs out does it relax — unplayed suggestions first, then skips, then a rotation starting from the session's oldest plays. On by default; the "Don't repeat songs in current session" switch in Settings turns it off.
 - **AI mood stations** — pick Chill, Party, Focus or Workout; Sonariq builds a ~25-track station from your taste.

@@ -42,6 +42,7 @@ import com.music.sonariq.data.stats.ReplayPeriod
 import com.music.sonariq.data.stats.ReplaySummary
 import com.music.sonariq.download.Downloads
 import com.music.sonariq.playback.AutoplayHistoryStore
+import com.music.sonariq.playback.AutoplayPickDiagnostics
 import kotlinx.coroutines.launch
 
 /**
@@ -186,13 +187,26 @@ private fun AdminAutoplaySection(modifier: Modifier = Modifier) {
                 }
                 AdminStatRow("Seeds with freshness history", "$seeds")
                 AdminStatRow("Remembered batches", "$batches")
+                AdminStatRow(
+                    "Last batch match",
+                    when {
+                        !AutoplayPickDiagnostics.hasRecord -> "—"
+                        AutoplayPickDiagnostics.lastBatchLowConfidence ->
+                            "Best available (low confidence)"
+                        else -> "Scored fit"
+                    },
+                )
                 AdminNote(
                     "Within a session, songs already played, skipped, queued or " +
                         "suggested are not offered again while alternatives exist — " +
                         "the session guard in Settings, on by default. Across " +
                         "sessions, this freshness history stops a repeated seed " +
                         "from serving the same batch again: earlier picks are " +
-                        "demoted, never banned.",
+                        "demoted, never banned. Discovery picks are also scored " +
+                        "against the playing song's measured energy, tempo, key " +
+                        "and vocals plus your listening history: poor fits are " +
+                        "held back while alternatives exist, and a batch that " +
+                        "had to settle says so above.",
                 )
             }
         }

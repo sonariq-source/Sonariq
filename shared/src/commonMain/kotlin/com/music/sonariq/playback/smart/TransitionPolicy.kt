@@ -484,6 +484,15 @@ fun assessTransitionTier(
     if (outgoingConfidence < MIN_BEATMATCH_CONFIDENCE || incomingConfidence < MIN_BEATMATCH_CONFIDENCE) {
         reasons += "beat-confidence"
     }
+    // Harmony is a routing fact of the same standing as tempo: two trusted
+    // keys that clash on the Camelot wheel demote the pair out of the
+    // beat-matched tier, because the blend that tier exists to authorize is
+    // a harmonic move and would put the clash on the shared grid for its
+    // whole length. A key either side cannot state with confidence never
+    // vetoes anything (see [keyClashBetween]).
+    if (keyClashBetween(analysis, nextAnalysis)) {
+        reasons += "key-clash"
+    }
 
     return TransitionPolicyVerdict(
         tier = if (reasons.isEmpty()) TransitionTier.BEATMATCHED else TransitionTier.DJ_ASSISTED,

@@ -27,10 +27,43 @@ enum class TrackAnalysisState {
     FAILED,
 }
 
+/**
+ * The method of the transition planned into the next track, in the honest
+ * words the stats line uses. Only ever set from a real plan: a method is
+ * claimed only when the planner actually chose it, and the fallback
+ * crossfade says so.
+ */
+enum class TransitionMethod {
+    /** Beat grids aligned and blended on the shared grid. */
+    BEATMATCHED,
+
+    /** Keys carried a transition the tempi could not. */
+    HARMONIC_BLEND,
+
+    /** The two were kept apart spectrally and vocally rather than blended. */
+    INSTRUMENTAL,
+
+    /** A calm pair given a long, smooth blend. */
+    AMBIENT,
+
+    /** The conventional equal-power crossfade. */
+    STANDARD_CROSSFADE,
+}
+
 /** Both sides of the next transition, for stats for nerds. */
 data class SmartAnalysis(
     val current: TrackAnalysisState = TrackAnalysisState.WAITING,
     val next: TrackAnalysisState = TrackAnalysisState.WAITING,
+    /** The planned transition's method, or null when no plan describes this pair. */
+    val transitionMethod: TransitionMethod? = null,
+    /** Measured tempi of the pair, 0 when either side has none. */
+    val currentBpm: Double = 0.0,
+    val nextBpm: Double = 0.0,
+    /** Measured keys of the pair, blank when either side has none it trusts. */
+    val currentKey: String = "",
+    val nextKey: String = "",
+    /** Whether the two trusted keys are Camelot-compatible; null when either is unknown. */
+    val keysCompatible: Boolean? = null,
 )
 
 /**

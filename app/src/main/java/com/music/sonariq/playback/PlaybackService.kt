@@ -2579,6 +2579,7 @@ class PlaybackService : MediaLibraryService() {
                     } else {
                         null
                     },
+                    analysisFor = { id -> trackAnalyzer.analysisFor(id).takeIf { it.isUsable } },
                 )
                 val resolved = result.getOrElse {
                     TrackLog.w(

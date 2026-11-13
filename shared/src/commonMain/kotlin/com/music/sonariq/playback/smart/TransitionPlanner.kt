@@ -108,6 +108,16 @@ enum class TransitionStyle {
 
     /** Filtered handoff for tempi too far apart to blend flat. */
     DJ_FILTER,
+
+    /**
+     * A long, smooth equal-power blend for a calm pair: both tracks
+     * measured quiet at the join, neither sung through. No tempo
+     * manipulation and no filtering — the renderer treats it as an
+     * equal-power fade; what makes it a strategy of its own is the
+     * evidence that selects it and the length it is given, not a rename
+     * of the plain crossfade it would otherwise have been.
+     */
+    AMBIENT,
 }
 
 /**
@@ -277,19 +287,19 @@ private fun keyDistance(left: String, right: String): Int? {
     return pitchDistance + if (leftMode != null && rightMode != null && leftMode != rightMode) 1 else 0
 }
 
-private fun harmonicallyCompatible(left: String, right: String): Boolean {
-    val (leftIndex, leftMode) = splitKey(left)
-    val (rightIndex, rightMode) = splitKey(right)
-    if (leftIndex == null || rightIndex == null) return false
-    val distance = min((leftIndex - rightIndex + 12) % 12, (rightIndex - leftIndex + 12) % 12)
-    if (leftMode != null && rightMode != null && leftMode != rightMode) return distance <= 1
-    // A fifth is as close as a second here: it is the move every DJ makes.
-    return distance <= 2 || distance == 5
-}
+/**
+ * Harmonic compatibility on the Camelot wheel (see [camelotCompatible]):
+ * the same code, a relative major/minor pair, or one step around the
+ * wheel. This replaces an earlier pitch-distance rule that counted a
+ * semitone move as close and the relative pair — the most common good
+ * move there is — as far.
+ */
+private fun harmonicallyCompatible(left: String, right: String): Boolean =
+    camelotCompatible(left, right)
 
 /** A key the analyzer was not confident about is no key at all. */
 private fun trustedKey(analysis: TrackAnalysis): String =
-    if (analysis.key.isBlank() || analysis.keyConfidence < 0.25) "" else analysis.key
+    trustedKeyOf(analysis) ?: ""
 
 private fun nearestTimedValue(
     values: List<Double>,
@@ -1126,6 +1136,105 @@ private fun echoSecondsFor(beatSeconds: Double): Double = min(beatSeconds, MAX_E
 
 fun echoTailSeconds(echoSeconds: Double): Double = echoSeconds * ECHO_REPEATS
 
+/** The fade an ambient blend is given: long, and bounded like every other overlap. */
+private const val AMBIENT_MIN_FADE_SECONDS = 10.0
+private const val AMBIENT_MAX_FADE_SECONDS = 16.0
+
+/** Below this an ambient plan has shrunk to an ordinary crossfade and should not claim the name. */
+private const val AMBIENT_SHAPE_MIN_SECONDS = 6.0
+
+/** How much of each side's edge, in seconds, is averaged to judge whether the join is calm. */
+private const val AMBIENT_EDGE_SECONDS = 8.0
+
+/**
+ * Whether the join at [exitAt] is calm on both sides: the outgoing track's
+ * last seconds before the exit and the incoming track's first seconds sit
+ * below [CALM_ENERGY] of their own track's mean energy. The same evidence
+ * Advanced Automix uses to lengthen a calm join (see [energyScale]), read
+ * here as a routing fact. No energy curve on either side is no evidence,
+ * and no evidence never routes.
+ */
+private fun isCalmJoin(analysis: TrackAnalysis, nextAnalysis: TrackAnalysis, exitAt: Double): Boolean {
+    if (analysis.energyCurve.isEmpty() || nextAnalysis.energyCurve.isEmpty()) return false
+    val outgoingMean = meanEnergy(analysis.energyCurve)
+    val incomingMean = meanEnergy(nextAnalysis.energyCurve)
+    if (outgoingMean <= 0 || incomingMean <= 0) return false
+    val outgoingTail = averageEnergy(analysis.energyCurve, exitAt - AMBIENT_EDGE_SECONDS, exitAt)
+        ?: return false
+    val incomingStart = incomingStartPoint(nextAnalysis)
+    val incomingHead = averageEnergy(
+        nextAnalysis.energyCurve,
+        incomingStart,
+        incomingStart + AMBIENT_EDGE_SECONDS,
+    ) ?: return false
+    return outgoingTail < CALM_ENERGY * outgoingMean &&
+        incomingHead < CALM_ENERGY * incomingMean
+}
+
+/**
+ * The ambient strategy's plan, or null when the pair does not earn it.
+ *
+ * Earned by measurement, not by tempo: both analyses usable with tempi in
+ * range, both energy curves present, the join calm on both sides, and
+ * neither track sung through (whole-track vocal likelihood under the
+ * conflict threshold the vocal logic already uses). The plan itself is
+ * deliberately plain in shape — a long equal-power fade ending at the
+ * analyzed mix anchor, the incoming track cued where it first makes
+ * sound, no rate change, no bass swap, no filter sweep. What is new is
+ * that a pair like this is *chosen* for that treatment and given the
+ * length for it, instead of falling into whatever the tempo ladder
+ * happened to hand it.
+ */
+private fun ambientPlan(
+    analysis: TrackAnalysis,
+    nextAnalysis: TrackAnalysis,
+    mixAnchor: Double,
+    nextLength: Double,
+    playbackTime: Double,
+    standardFade: Double,
+    policyReasons: List<String>,
+): TransitionPlan? {
+    if (!analysis.isUsable || !nextAnalysis.isUsable) return null
+    if (analysis.bpm.orZero() !in MIN_BPM..MAX_BPM) return null
+    if (nextAnalysis.bpm.orZero() !in MIN_BPM..MAX_BPM) return null
+    if (analysis.vocalProbability >= VOCAL_CONFLICT_PROBABILITY) return null
+    if (nextAnalysis.vocalProbability >= VOCAL_CONFLICT_PROBABILITY) return null
+    if (!isCalmJoin(analysis, nextAnalysis, mixAnchor)) return null
+
+    var fade = clamp(
+        max(standardFade * 2, AMBIENT_MIN_FADE_SECONDS),
+        AMBIENT_MIN_FADE_SECONDS,
+        AMBIENT_MAX_FADE_SECONDS,
+    )
+    fade = min(fade, mixAnchor * 0.4)
+    if (nextLength > 0) fade = min(fade, nextLength * 0.4)
+    if (fade < AMBIENT_SHAPE_MIN_SECONDS) return null
+
+    val transitionStart = max(0.0, mixAnchor - fade)
+    val cue = incomingStartPoint(nextAnalysis)
+    val started = playbackTime >= transitionStart
+    return TransitionPlan(
+        shouldStart = started,
+        markerVisible = true,
+        transitionStart = transitionStart,
+        transitionEnd = mixAnchor,
+        fadeSeconds = fade,
+        transitionStyle = TransitionStyle.AMBIENT,
+        incomingCueTime = cue,
+        incomingHandoffTime = cue,
+        vocalOverlap = plannedVocalOverlap(
+            analysis = analysis,
+            nextAnalysis = nextAnalysis,
+            transitionStart = transitionStart,
+            transitionEnd = mixAnchor,
+            incomingCueTime = cue,
+            incomingPlaybackRate = 1.0,
+        ),
+        policyReasons = policyReasons,
+        reason = if (started) "smart-ambient" else "before-ambient-window",
+    )
+}
+
 private fun standardTransition(
     length: Double,
     playbackTime: Double,
@@ -1248,7 +1357,27 @@ fun planTransition(
             preferredMixAnchor
         }
 
+    val nextLength = max(nextAnalysis.duration.orZero(), trackDurationSeconds(nextTrack))
+
     val policy = assessTransitionTier(analysis, nextAnalysis, advanced)
+
+    // The ambient strategy is judged on energy and vocals, not on the
+    // tempo ladder, so it is tried before that ladder's verdicts route the
+    // pair anywhere: a calm pair whose grids are too weak to beat-match
+    // would otherwise land on the plain tier and get a plain-length fade,
+    // and a calm pair that *could* beat-match would get a DJ blend it
+    // never asked for. Either way the measured calm at the join is the
+    // fact that should decide.
+    ambientPlan(
+        analysis = analysis,
+        nextAnalysis = nextAnalysis,
+        mixAnchor = mixAnchor,
+        nextLength = nextLength,
+        playbackTime = playbackTime,
+        standardFade = standardFade,
+        policyReasons = policy.reasons,
+    )?.let { return it }
+
     if (policy.tier == TransitionTier.PLAIN_CROSSFADE) {
         val transitionStart = max(0.0, mixAnchor - standardFade)
         val started = playbackTime >= transitionStart
@@ -1264,8 +1393,6 @@ fun planTransition(
             reason = if (started) "smart-plain-crossfade" else "before-plain-crossfade-window",
         )
     }
-
-    val nextLength = max(nextAnalysis.duration.orZero(), trackDurationSeconds(nextTrack))
 
     phraseSwitch(analysis, nextAnalysis, length, nextLength, advanced)
         ?.takeIf { playbackTime < it.transitionEnd }
@@ -1347,7 +1474,15 @@ private fun mixPlan(
     val handoffBpm = if (currentBpm > 0) currentBpm else nextBpm
     // Advanced also blends any pair a speed-up matches on two trusted grids —
     // the 5-10% apart that used to be left to a filter ride.
-    val sameBeatBlend = (traits == null || incomingPlaybackRate >= 1.0) && (
+    //
+    // A trusted key clash vetoes the blend in every mode: a blend is the
+    // harmonic move, and putting two clashing keys on one shared grid for
+    // the whole overlap is exactly what it would advertise. The pair falls
+    // to the filter ride instead, which separates the two spectrally and
+    // rides the vocal logic rather than pretending the keys agree. A key
+    // either side cannot state never vetoes (see [keyClashBetween]).
+    val sameBeatBlend = !keyClashBetween(analysis, nextAnalysis) &&
+        (traits == null || incomingPlaybackRate >= 1.0) && (
         currentBpm > 0 && nextBpm > 0 &&
             abs(1 - normalizedTempoRatio(currentBpm, nextBpm)) <= 0.05 &&
             (analysis.beatConfidence.orZero() >= 0.2 || nextAnalysis.beatConfidence.orZero() >= 0.2) ||
