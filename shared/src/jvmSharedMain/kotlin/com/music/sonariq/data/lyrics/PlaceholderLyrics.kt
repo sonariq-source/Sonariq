@@ -76,7 +76,7 @@ object PlaceholderLyrics {
     fun isMarkerLine(text: String): Boolean {
         val normalized = normalize(text)
         if (normalized.isEmpty()) return false
-        if (normalized.all { it in NOTE_SYMBOLS }) return true
+        if (normalized.isAllNoteSymbols()) return true
         if (normalized.contains("纯音乐") && normalized.length <= PURE_MUSIC_MAX_CHARS) {
             return true
         }
@@ -121,6 +121,18 @@ object PlaceholderLyrics {
         '"', '\'', '“', '”', '‘', '’', '<', '>', '《', '》',
     )
 
+    /**
+     * Whether this string is nothing but the symbols a timed file
+     * writes for a wordless stretch. Compared as strings rather than
+     * chars: two of the usual notes are surrogate pairs, which no
+     * single char literal can hold.
+     */
+    private fun String.isAllNoteSymbols(): Boolean {
+        var rest = this
+        for (symbol in NOTE_SYMBOLS) rest = rest.replace(symbol, "")
+        return rest.isEmpty()
+    }
+
     /** The symbols a timed file writes for a wordless stretch. */
-    private val NOTE_SYMBOLS = setOf('♪', '♫', '♩', '♬', '🎵', '🎶')
+    private val NOTE_SYMBOLS = listOf("♪", "♫", "♩", "♬", "🎵", "🎶")
 }
