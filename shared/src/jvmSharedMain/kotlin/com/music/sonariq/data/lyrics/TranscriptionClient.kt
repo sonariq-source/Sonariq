@@ -185,22 +185,31 @@ object TranscriptionClient {
         if (audio.length() > MAX_AUDIO_BYTES) return null
         return withContext(Dispatchers.IO) {
             var attempt = 0
-            while (true) {
+            var words: List<TranscribedWord>? = null
+            var settled = false
+            while (!settled) {
                 when (
                     val outcome = requestOnce(
                         audio, mimeType, apiKey, endpointUrl, model, language, prompt,
                     )
                 ) {
-                    is Attempt.Words -> return@withContext outcome.words
-                    Attempt.Failed -> return@withContext null
+                    is Attempt.Words -> {
+                        words = outcome.words
+                        settled = true
+                    }
+                    Attempt.Failed -> settled = true
                     Attempt.Retryable -> {
                         val waitMs = retryDelaysMs.getOrNull(attempt)
-                            ?: return@withContext null
-                        delay(waitMs)
-                        attempt++
+                        if (waitMs == null) {
+                            settled = true
+                        } else {
+                            delay(waitMs)
+                            attempt += 1
+                        }
                     }
                 }
             }
+            words
         }
     }
 
