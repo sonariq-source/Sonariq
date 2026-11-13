@@ -884,6 +884,34 @@ class AiLyricAlignerTest {
     }
 
     @Test
+    fun anUnrelatedTranscriptionIsRejectedWhole() {
+        // A transcription of a *different song* — plausible words, in
+        // the right places, none of them this song's. Nothing in it may
+        // be forced onto these lines: the alignment refuses, in full,
+        // rather than timing the words it was given with another song's
+        // performance.
+        val lines = listOf(
+            line(10_000, "midnight city lights are calling"),
+            line(20_000, "hold me closer through the morning"),
+        )
+        val tokens = listOf(
+            token("purple", 10_100, 10_600),
+            token("elephants", 10_700, 11_400),
+            token("dancing", 11_500, 12_000),
+            token("slowly", 12_100, 12_700),
+            token("quantum", 20_100, 20_600),
+            token("bananas", 20_700, 21_300),
+            token("orbiting", 21_400, 22_000),
+            token("gently", 22_100, 22_700),
+        )
+        assertNull(AiLyricAligner.align(lines, tokens))
+        val outcome = AiLyricAligner.alignDetailed(lines, tokens)
+        assertNull(outcome.lines)
+        assertEquals(0, outcome.passedLeadLines)
+        assertEquals(2, outcome.leadLineCount)
+    }
+
+    @Test
     fun emptyInputsReturnNull() {
         val lines = listOf(line(1_000, "hello brave world"))
         val tokens = listOf(token("hello", 1_100, 1_400))

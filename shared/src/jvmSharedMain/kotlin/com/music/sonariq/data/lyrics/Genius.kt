@@ -173,9 +173,18 @@ object Genius {
         val normArtist = targetArtist.lowercase(Locale.ROOT)
 
         val scored = candidates.mapNotNull { item ->
-            val title = item["title"]?.jsonPrimitive?.contentOrNull?.lowercase(Locale.ROOT) ?: ""
+            val rawTitle = item["title"]?.jsonPrimitive?.contentOrNull ?: ""
+            val title = rawTitle.lowercase(Locale.ROOT)
             val artist = item["artist_names"]?.jsonPrimitive?.contentOrNull?.lowercase(Locale.ROOT) ?: ""
             var score = 0
+
+            // A different recording of the song — the remix, the live
+            // cut — is not a worse match to be outscored, it is a
+            // different song's page, and no score it earns makes its
+            // words this recording's. Out before scoring, not under it.
+            if (!RecordingMatch.versionsCompatible(targetTitle, rawTitle)) {
+                return@mapNotNull null
+            }
 
             val titleMatches = normTitle.isNotBlank() && (title == normTitle || title.contains(normTitle) || normTitle.contains(title))
             val artistMatches = normArtist.isNotBlank() && (artist == normArtist || artist.contains(normArtist) || normArtist.contains(artist))

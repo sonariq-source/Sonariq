@@ -475,6 +475,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 },
             )
+            // The race runs in the repository's shared scope, which
+            // outlives this job: a lookup that completes in the same
+            // moment the track changes has passed every suspension
+            // point, and cancellation alone no longer stops its answer
+            // being applied. The generation is the token — if it has
+            // moved on, these lyrics belong to the previous song and
+            // are dropped, exactly as the deadline and AI callbacks
+            // below already drop theirs.
+            if (generation != lyricsGeneration) return@launch
             val validated = validatedLyrics(found)
             _lyrics.value = validated?.lines
             _lyricsSource.value = validated?.source
@@ -567,13 +576,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         winner: LyricsRepository.Result?,
     ): LyricsRepository.Result? {
         winner ?: return null
-        val firstSung = winner.lines.firstOrNull { it.text.isNotBlank() } ?: return winner
-        if (firstSung.timeMs >= FIRST_LINE_SUSPICIOUS_MS) return winner
+        // The delivery judgement, applied at the player's door as well:
+        // a result whose word timings this track's duration proves
+        // belong to a different recording is shown as honest line sync,
+        // never as word sync. Repository deliveries already passed it;
+        // results that reach here by another road (a cache entry read
+        // for a downloaded track) have not. Idempotent — a fitting
+        // result passes through as the same instance.
+        val judged = with(com.music.sonariq.data.lyrics.LyricsValidation) {
+            winner.withoutUnfitWordTimings(currentLyricsRequest?.durationMs ?: 0L)
+        }
+        val firstSung = judged.lines.firstOrNull { it.text.isNotBlank() } ?: return judged
+        if (firstSung.timeMs >= FIRST_LINE_SUSPICIOUS_MS) return judged
         val firstText = firstSung.text.trim().lowercase()
         var best: LyricsRepository.Result? = null
         var bestTime = firstSung.timeMs
         for ((source, result) in lyricsProviderResults) {
-            if (result.source == winner.source) continue
+            if (result.source == judged.source) continue
             val otherFirst = result.lines.firstOrNull { it.text.isNotBlank() } ?: continue
             if (otherFirst.text.trim().lowercase() != firstText) continue
             if (otherFirst.timeMs > bestTime + FIRST_LINE_MIN_GAP_MS &&
@@ -583,7 +602,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 bestTime = otherFirst.timeMs
             }
         }
-        return best ?: winner
+        // The alternate this heuristic can swap in never passed through
+        // delivery either, so it gets the same judgement on its way out.
+        val chosen = best ?: return judged
+        return with(com.music.sonariq.data.lyrics.LyricsValidation) {
+            chosen.withoutUnfitWordTimings(currentLyricsRequest?.durationMs ?: 0L)
+        }
     }
 
     private fun providerStarted(generation: Long, source: LyricsSource) {

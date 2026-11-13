@@ -888,6 +888,17 @@ class PlaybackService : MediaLibraryService() {
     private val lyricsPrefetchInFlight = CopyOnWriteArraySet<String>()
 
     private var serviceLyrics: List<LyricLine>? = null
+
+    /**
+     * The video id [serviceLyrics] belongs to — the token every lyrics
+     * write for the service's own displays (the notification subtitle,
+     * the Cast receiver) is checked against. A fetch that finishes after
+     * its track has been skipped past finds the token moved on and its
+     * lines are dropped, never shown against the new song; and the
+     * moment a track starts, lines owned by the previous one are cleared
+     * rather than left standing while the new fetch runs.
+     */
+    private var serviceLyricsForVideoId: String? = null
     private var lastPublishedSubtitle: String? = null
     /**
      * The raw text of the lyric line currently shown (or to be shown) on the
@@ -7057,6 +7068,15 @@ class PlaybackService : MediaLibraryService() {
             return
         }
 
+        // The new track owns the token from this moment, and the
+        // previous track's lines go with its ownership: nothing of the
+        // old song stays on the notification or the TV while this one's
+        // lyrics are still being fetched.
+        if (serviceLyricsForVideoId != currentSong.videoId) {
+            serviceLyricsForVideoId = currentSong.videoId
+            serviceLyrics = null
+        }
+
         val trackDurationMs = (player?.duration ?: 0L).takeIf { it > 0 } ?: 0L
 
         serviceLyricsJob?.cancel()
@@ -7080,9 +7100,19 @@ class PlaybackService : MediaLibraryService() {
                 lines = found?.lines
             }
             withContext(Dispatchers.Main) {
-                serviceLyrics = lines
-                if (player?.isPlaying == true) {
-                    updateLyricSubtitle()
+                // The token guard, not the job's cancellation alone: a
+                // fetch that completed in the same moment the track
+                // changed has already passed every suspension point, and
+                // its lines belong to a song that is no longer playing.
+                // They are dropped unless the player is still on the
+                // track they were fetched for.
+                if (serviceLyricsForVideoId == currentSong.videoId &&
+                    player?.currentMediaItem?.toSong()?.videoId == currentSong.videoId
+                ) {
+                    serviceLyrics = lines
+                    if (player?.isPlaying == true) {
+                        updateLyricSubtitle()
+                    }
                 }
             }
         }

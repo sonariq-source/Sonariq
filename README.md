@@ -79,6 +79,7 @@
 - **Fully automatic** — every provider is raced in parallel; the best sync wins with zero setup.
 - **Smart timing** — cross-checks providers so the first line never jumps the gun on instrumental intros.
 - **Better-matched sync** — lyrics are checked against the track they play on, and lines that sit uniformly off are measured and corrected automatically.
+- **Lyrics accuracy improvements** — stricter recording matching and verification, so the words shown belong to the song playing.
 - **Clean UI** — no provider badges, no sync estimates. Just the words.
 - **Lyrics appearance menu** — right on the lyrics screen: text size, highlight intensity, background (artwork, dimmed or solid), word highlighting, auto-scroll and reduced motion, all saved.
 - **Tap a word to seek** — on word-synced lines, tapping a single word jumps the song to that word; tapping a line still seeks to the line.

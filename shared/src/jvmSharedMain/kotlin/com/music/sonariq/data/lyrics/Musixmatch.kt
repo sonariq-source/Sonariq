@@ -69,9 +69,45 @@ object Musixmatch {
         LrcLib.parseLrc(lrc).takeIf { it.isNotEmpty() }
     }
 
+    /**
+     * The best search hit that may be believed, or none.
+     *
+     * Ranking alone is not acceptance: a search that comes back with
+     * only strangers still has a maximum, and this used to take it —
+     * the least-wrong hit for a title won whatever it was, including a
+     * different artist's song that shared nothing but a search token.
+     * A hit is now accepted only when it clears [ACCEPTANCE_FLOOR] on
+     * the strength of an actual title relation *and* independent support
+     * (the artist matching, or a score only an exact title with a close
+     * length reaches), and when its title declares the same recording
+     * version as the track's — a remix's words are not the original's,
+     * however well the names otherwise agree.
+     */
     private suspend fun bestTrack(title: String, artist: String, seconds: Int): Track? {
         val tracks = searchTrack(title, artist) ?: return null
-        return tracks.maxByOrNull { score(it, title, artist, seconds) }
+        return tracks
+            .filter { accepts(it, title, artist, seconds) }
+            .maxByOrNull { score(it, title, artist, seconds) }
+    }
+
+    /** The weakest total a hit may carry and still be this track; see [bestTrack]. */
+    private const val ACCEPTANCE_FLOOR = 80.0
+
+    /** A score only an exact title with artist or close-length support reaches. */
+    private const val STRONG_MATCH_FLOOR = 110.0
+
+    private fun accepts(track: Track, title: String, artist: String, seconds: Int): Boolean {
+        if (!RecordingMatch.versionsCompatible(title, track.trackName)) return false
+        val total = score(track, title, artist, seconds)
+        if (total < ACCEPTANCE_FLOOR) return false
+        val name = track.trackName.trim().lowercase(Locale.ROOT)
+        val targetTitle = title.trim().lowercase(Locale.ROOT)
+        val titleRelated = name == targetTitle ||
+            name.contains(targetTitle) || targetTitle.contains(name)
+        if (!titleRelated) return false
+        val artistMatched = track.artistName.trim().lowercase(Locale.ROOT)
+            .contains(artist.trim().lowercase(Locale.ROOT))
+        return artistMatched || total >= STRONG_MATCH_FLOOR
     }
 
     private fun score(track: Track, title: String, artist: String, seconds: Int): Double {

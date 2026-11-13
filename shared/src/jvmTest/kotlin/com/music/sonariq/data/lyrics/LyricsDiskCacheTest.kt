@@ -445,6 +445,58 @@ class LyricsDiskCacheTest {
     }
 
     @Test
+    fun cachedLyricsNeverLeakAcrossVideoIds() = runBlocking {
+        // An entry belongs to the exact upload it was fetched for: the
+        // same song under a different video id is a different lookup,
+        // and another song's id reads nothing at all.
+        val root = Files.createTempDirectory("lyrics-cache-test").toFile()
+        val lines = listOf(
+            LyricLine(timeMs = 4_000, text = "verse", sungUntilMs = 8_000),
+        )
+        writeCacheEntry(
+            root,
+            "video-one",
+            cachePayload(LyricsSource.LRCLIB, LyricTiming.LINE_SYNCED, lines),
+        )
+
+        LyricsRepository.cacheDir = root
+        checkNotNull(LyricsRepository.readCache("video-one", null))
+        assertNull(LyricsRepository.readCache("video-two", null))
+        assertTrue(
+            LyricsRepository.cacheKey("video-one", null) !=
+                LyricsRepository.cacheKey("video-two", null),
+        )
+    }
+
+    @Test
+    fun cachedInvalidWordTimingsAreSanitisedOnRead() = runBlocking {
+        // A stored entry whose words break the timing rules — here a
+        // word stamped before the song starts — reads back as the
+        // honest line sync underneath, never as word sync.
+        val root = Files.createTempDirectory("lyrics-cache-test").toFile()
+        val lines = listOf(
+            LyricLine(
+                timeMs = 4_000,
+                text = "verse",
+                words = listOf(LyricWord(-500, 4_600, "verse")),
+                sungUntilMs = 8_000,
+            ),
+        )
+        writeCacheEntry(
+            root,
+            "video-invalid",
+            cachePayload(LyricsSource.LRCLIB, LyricTiming.WORD_SYNCED, lines),
+        )
+
+        LyricsRepository.cacheDir = root
+        val hit = LyricsRepository.readCache("video-invalid", null)
+        checkNotNull(hit)
+        assertEquals("verse", hit.lines.single().text)
+        assertTrue(hit.lines.single().words.isEmpty())
+        assertEquals(LyricTiming.LINE_SYNCED, hit.timing)
+    }
+
+    @Test
     fun knownMissExpiresDiskEntryPastTtl() = runBlocking {
         val root = Files.createTempDirectory("lyrics-miss-test").toFile()
         val key = LyricsRepository.cacheKey("video-stale", null)!!

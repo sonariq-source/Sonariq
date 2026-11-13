@@ -2,18 +2,24 @@ package com.music.sonariq.data.lyrics
 
 import com.music.sonariq.data.Http
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
 import kotlin.math.roundToLong
 
 /**
@@ -67,6 +73,26 @@ import kotlin.math.roundToLong
  * does not parse, an empty word list. A failed transcription is not a
  * verdict about the track, so nothing is remembered anywhere: the next
  * attempt, whenever it comes, simply asks again.
+ *
+ * Transient failures — a dropped connection, a rate limit, a server
+ * error — are retried inside one call, on the [retryDelaysMs] backoff:
+ * they are the far side having a moment, and the caller's attempt ladder
+ * should not be spent re-asking a question the network fumbled. A
+ * refusal (any other 4xx) and a successful answer that does not parse
+ * are not retried: asking again would get the same answer slower.
+ *
+ * The request runs as an asynchronous call tied to the caller's
+ * coroutine, so cancelling the caller cancels the upload on the wire —
+ * a job abandoned because the track changed does not keep paying for a
+ * transcription nobody is waiting for.
+ *
+ * One request carries the whole track: there is no chunking, because
+ * the audio here is a compressed rendition of one song — a few megabytes
+ * in practice — and splitting compressed audio honestly would mean
+ * decoding and re-encoding it, which this app does not do. What the
+ * size limit below therefore means in practice is a refusal, not a
+ * truncation: an upload past the endpoint's own cap
+ * ([MAX_AUDIO_BYTES]) is never sent, rather than sent to fail.
  */
 object TranscriptionClient {
 
@@ -96,6 +122,23 @@ object TranscriptionClient {
      */
     private const val TRANSCRIPTION_TIMEOUT_SECONDS = 180L
 
+    /**
+     * The largest upload the endpoint accepts, in bytes. A track whose
+     * audio runs past it cannot be transcribed by this client at all —
+     * see the class doc on why the answer is a refusal rather than a
+     * chunked upload.
+     */
+    const val MAX_AUDIO_BYTES = 25L * 1024 * 1024
+
+    /**
+     * The waits between the retries of one [transcribe] call, in
+     * milliseconds — its length is the retry count, and each wait is
+     * twice the last: a rate limit clears on its own schedule, and
+     * backing off is what keeps a retry from being the same failure
+     * twice more. A `var` so tests can run the policy at full speed.
+     */
+    internal var retryDelaysMs: List<Long> = listOf(1_000L, 2_000L)
+
     private val client by lazy {
         // Derived from the shared client, so the connection pool and DNS
         // stay common — only the deadline differs, as in LyricsHttp.
@@ -123,9 +166,9 @@ object TranscriptionClient {
      * [buildTranscriptionPrompt]. A non-blank one is sent as its own form
      * part; null (or blank) sends no prompt part at all.
      *
-     * The blocking OkHttp call runs on [Dispatchers.IO]; the multipart
-     * build only stats the file. Never logs [apiKey], [prompt] — or the
-     * audio.
+     * The request itself is asynchronous and cancellable (see
+     * [requestOnce]); retries wait on [retryDelaysMs] between attempts.
+     * Never logs [apiKey], [prompt] — or the audio.
      */
     suspend fun transcribe(
         audio: File,
@@ -137,50 +180,114 @@ object TranscriptionClient {
         prompt: String? = null,
     ): List<TranscribedWord>? {
         if (apiKey.isBlank() || !audio.isFile || audio.length() == 0L) return null
+        // Past the endpoint's own cap the upload would only be refused
+        // at the far end, after paying to send it. Refuse here instead.
+        if (audio.length() > MAX_AUDIO_BYTES) return null
         return withContext(Dispatchers.IO) {
-            runCatching {
-                val body = MultipartBody.Builder()
-                    .setType(MultipartBody.FORM)
-                    .addFormDataPart(
-                        "file",
-                        audio.name,
-                        audio.asRequestBody(mimeType.toMediaTypeOrNull()),
+            var attempt = 0
+            while (true) {
+                when (
+                    val outcome = requestOnce(
+                        audio, mimeType, apiKey, endpointUrl, model, language, prompt,
                     )
-                    .addFormDataPart("model", model)
-                    .apply {
-                        // The language hint, only where the caller actually
-                        // has one: with no part sent, the far side detects
-                        // the language itself instead of trusting a guess.
-                        if (!language.isNullOrBlank()) {
-                            addFormDataPart("language", language)
-                        }
-                        // The prompt, only where the caller actually has
-                        // lyric text worth sending: with no part sent, the
-                        // far side transcribes the audio on its own terms
-                        // rather than being steered by nothing.
-                        if (!prompt.isNullOrBlank()) {
-                            addFormDataPart("prompt", prompt)
-                        }
+                ) {
+                    is Attempt.Words -> return@withContext outcome.words
+                    Attempt.Failed -> return@withContext null
+                    Attempt.Retryable -> {
+                        val waitMs = retryDelaysMs.getOrNull(attempt)
+                            ?: return@withContext null
+                        delay(waitMs)
+                        attempt++
                     }
-                    .addFormDataPart("response_format", "verbose_json")
-                    // Asked for twice, once per granularity: the words are
-                    // what the aligner consumes, and the segments keep the
-                    // answer shaped like the endpoint's full verbose form,
-                    // which is the form its word timings are calibrated in.
-                    .addFormDataPart("timestamp_granularities[]", "word")
-                    .addFormDataPart("timestamp_granularities[]", "segment")
-                    .build()
-                val request = Request.Builder()
-                    .url(endpointUrl)
-                    .header("Authorization", "Bearer $apiKey")
-                    .post(body)
-                    .build()
-                client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) return@use null
-                    response.body?.string()?.let { parseWords(it) }
                 }
-            }.getOrNull()
+            }
         }
+    }
+
+    /** How one transcription request ended, for [transcribe]'s retry policy. */
+    private sealed interface Attempt {
+        /** The words the endpoint heard. */
+        data class Words(val words: List<TranscribedWord>) : Attempt
+
+        /** A refusal, or an answer that does not parse: final, not retried. */
+        data object Failed : Attempt
+
+        /** A dropped connection, a rate limit, a server error: worth another ask. */
+        data object Retryable : Attempt
+    }
+
+    /**
+     * One request, run as an asynchronous call bound to the caller's
+     * coroutine: cancelling the caller cancels the call on the wire (see
+     * the class doc). The multipart body is built per attempt — a body
+     * is consumed by being sent, and a retry must send a whole one.
+     */
+    private suspend fun requestOnce(
+        audio: File,
+        mimeType: String,
+        apiKey: String,
+        endpointUrl: String,
+        model: String,
+        language: String?,
+        prompt: String?,
+    ): Attempt = suspendCancellableCoroutine { continuation ->
+        val body = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart(
+                "file",
+                audio.name,
+                audio.asRequestBody(mimeType.toMediaTypeOrNull()),
+            )
+            .addFormDataPart("model", model)
+            .apply {
+                // The language hint, only where the caller actually
+                // has one: with no part sent, the far side detects
+                // the language itself instead of trusting a guess.
+                if (!language.isNullOrBlank()) {
+                    addFormDataPart("language", language)
+                }
+                // The prompt, only where the caller actually has
+                // lyric text worth sending: with no part sent, the
+                // far side transcribes the audio on its own terms
+                // rather than being steered by nothing.
+                if (!prompt.isNullOrBlank()) {
+                    addFormDataPart("prompt", prompt)
+                }
+            }
+            .addFormDataPart("response_format", "verbose_json")
+            // Asked for twice, once per granularity: the words are
+            // what the aligner consumes, and the segments keep the
+            // answer shaped like the endpoint's full verbose form,
+            // which is the form its word timings are calibrated in.
+            .addFormDataPart("timestamp_granularities[]", "word")
+            .addFormDataPart("timestamp_granularities[]", "segment")
+            .build()
+        val request = Request.Builder()
+            .url(endpointUrl)
+            .header("Authorization", "Bearer $apiKey")
+            .post(body)
+            .build()
+        val call = client.newCall(request)
+        continuation.invokeOnCancellation { call.cancel() }
+        call.enqueue(object : Callback {
+            override fun onFailure(call: Call, error: IOException) {
+                if (continuation.isActive) continuation.resume(Attempt.Retryable)
+            }
+
+            override fun onResponse(call: Call, response: okhttp3.Response) {
+                val outcome = response.use {
+                    when {
+                        it.isSuccessful -> it.body?.string()
+                            ?.let { text -> parseWords(text) }
+                            ?.let { words -> Attempt.Words(words) }
+                            ?: Attempt.Failed
+                        it.code == 429 || it.code >= 500 -> Attempt.Retryable
+                        else -> Attempt.Failed
+                    }
+                }
+                if (continuation.isActive) continuation.resume(outcome)
+            }
+        })
     }
 
     /**

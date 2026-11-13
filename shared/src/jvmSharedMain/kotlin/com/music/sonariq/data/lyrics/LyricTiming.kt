@@ -96,6 +96,169 @@ fun List<LyricLine>.withoutEstimatedWords(): List<LyricLine> {
 }
 
 /**
+ * These lines with every word timing taken back out, whatever measured
+ * them — a provider's, the AI alignment's, an estimate's.
+ *
+ * Any line carrying words — including a nested background line, which
+ * carries its own — is copied with its words emptied and both measured
+ * flags cleared, so what remains is the honest line sync underneath.
+ * Lines with no words are untouched, and a list with no words anywhere
+ * is returned as-is. No timings are created here: this only removes
+ * ones a caller has judged cannot belong to the track they would be
+ * shown against — see [LyricsValidation] — leaving the words of the
+ * song itself in place, honestly line-timed rather than confidently
+ * word-timed to a different recording.
+ */
+fun List<LyricLine>.withoutWordTimings(): List<LyricLine> {
+    fun LyricLine.hasWords(): Boolean =
+        words.isNotEmpty() || background?.hasWords() == true
+
+    fun LyricLine.stripped(): LyricLine {
+        val strippedBackground = background?.stripped()
+        val own = if (words.isNotEmpty()) {
+            copy(words = emptyList(), wordsEstimated = false, wordsAiMeasured = false)
+        } else {
+            this
+        }
+        return if (strippedBackground === background) {
+            own
+        } else {
+            own.copy(background = strippedBackground)
+        }
+    }
+
+    if (none { it.hasWords() }) return this
+    return map { it.stripped() }
+}
+
+/**
+ * These lines with their word timings made safe to show, or taken out
+ * where they cannot be made safe.
+ *
+ * Word timings reach the parsers from files and services this app does
+ * not control, and nothing downstream re-checks them: a word stamped
+ * before the song starts, a line whose words run backwards, a span that
+ * ends where it begins would each be drawn exactly as written. The
+ * rules here are the ones a timing must satisfy to be a timing at all:
+ *
+ *  - No negative stamps: a line's own stamp is held at zero, and a word
+ *    may not start before the song does.
+ *  - Words arrive in the order they are sung: their starts do not run
+ *    backwards against each other. (An end reaching past the *next*
+ *    word's start is not a violation — a held word runs until the next
+ *    begins throughout this app's own measured output.)
+ *  - No word starts at or after the track's end, and where the track's
+ *    length is known ([durationMs] > 0) a word's end is held at it: a
+ *    provider rounding its last word a breath past the file is a
+ *    rounding, not a different song.
+ *  - A word whose end does not run past its start — a degenerate span
+ *    some word-timed formats genuinely emit for a fragment — is
+ *    repaired, not believed: it runs until the nearest honest bound
+ *    (the next word's start, the line's stated end, the next line's
+ *    stamp), and where no bound leaves it room the word alone is
+ *    dropped. No span is ever invented past a bound the data states.
+ *  - A line's stated end is held inside the track the same way, and
+ *    dropped where it no longer runs past the line's own stamp.
+ *  - A word's syllables must sit inside the word; one that does not
+ *    costs the word its syllable split, never the word itself.
+ *
+ * A line with a word that breaks a rule it cannot be repaired under —
+ * a negative start, an out-of-order start, a start past the track's
+ * end — loses **all** its words, not just the offender's: those are
+ * the marks of a timing track that was never this song's, and a
+ * partial word set would leave the survivors' spans pointing at the
+ * wrong places in the text. What remains is the line itself, honestly
+ * line-timed. Lines whose words all satisfy the rules, and lines with
+ * no words, pass through untouched — the same list instance, where
+ * nothing changed anywhere.
+ */
+fun List<LyricLine>.withValidWordTimings(durationMs: Long = 0L): List<LyricLine> {
+    fun LyricLine.sanitized(nextLineStartMs: Long?): LyricLine {
+        val cleanBackground = background?.sanitized(nextLineStartMs)
+        val cleanStart = maxOf(0L, timeMs)
+        var cleanEnd = sungUntilMs
+        if (cleanEnd != null) {
+            if (durationMs > 0L) cleanEnd = minOf(cleanEnd, durationMs)
+            if (cleanEnd <= cleanStart) cleanEnd = null
+        }
+        var cleanWords = words
+        if (words.isNotEmpty()) {
+            var previousStart = Long.MIN_VALUE
+            var broken = false
+            for (word in words) {
+                if (word.startMs < 0L || word.startMs < previousStart ||
+                    (durationMs > 0L && word.startMs >= durationMs)
+                ) {
+                    broken = true
+                    break
+                }
+                previousStart = word.startMs
+            }
+            cleanWords = if (broken) {
+                emptyList()
+            } else {
+                var changed = false
+                val repaired = ArrayList<LyricWord>(words.size)
+                words.forEachIndexed { index, word ->
+                    var end = word.endMs
+                    if (durationMs > 0L) end = minOf(end, durationMs)
+                    if (end <= word.startMs) {
+                        val bound = listOfNotNull(
+                            words.getOrNull(index + 1)?.startMs,
+                            cleanEnd,
+                            nextLineStartMs,
+                        ).filter { it > word.startMs }.minOrNull()
+                        if (bound == null) {
+                            // No honest bound leaves this word room:
+                            // it alone is dropped.
+                            changed = true
+                            return@forEachIndexed
+                        }
+                        end = bound
+                        if (durationMs > 0L) end = minOf(end, durationMs)
+                    }
+                    val syllables = if (
+                        word.syllables.any {
+                            it.endMs <= it.startMs || it.startMs < word.startMs || it.endMs > end
+                        }
+                    ) {
+                        emptyList()
+                    } else {
+                        word.syllables
+                    }
+                    if (end == word.endMs && syllables === word.syllables) {
+                        repaired += word
+                    } else {
+                        changed = true
+                        repaired += word.copy(endMs = end, syllables = syllables)
+                    }
+                }
+                if (changed) repaired else words
+            }
+        }
+        val wordsDropped = words.isNotEmpty() && cleanWords.isEmpty()
+        if (cleanStart == timeMs && cleanEnd == sungUntilMs &&
+            cleanWords === words && cleanBackground === background
+        ) {
+            return this
+        }
+        return copy(
+            timeMs = cleanStart,
+            words = cleanWords,
+            sungUntilMs = cleanEnd,
+            background = cleanBackground,
+            wordsEstimated = if (wordsDropped) false else wordsEstimated,
+            wordsAiMeasured = if (wordsDropped) false else wordsAiMeasured,
+        )
+    }
+
+    val sanitized = mapIndexed { index, line ->
+        line.sanitized(getOrNull(index + 1)?.timeMs)
+    }
+    return if (sanitized.indices.all { sanitized[it] === this[it] }) this else sanitized
+}
+
+/**
  * These lines with every AI-measured word timing taken back out.
  *
  * The counterpart of [withoutEstimatedWords] for the other kind of word

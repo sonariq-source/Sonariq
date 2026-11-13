@@ -36,28 +36,63 @@ object LrcLib {
             val cleanArtist = artist.clean()
             val seconds = (durationMs / 1000).toInt()
 
-            val exact = runCatching { exactMatch(cleanTitle, cleanArtist, seconds) }.getOrNull()
-            val synced = exact ?: runCatching { bestSearchHit(cleanTitle, cleanArtist, seconds) }
-                .getOrNull()
+            val exact = runCatching {
+                exactMatch(cleanTitle, cleanArtist, seconds, title, artist)
+            }.getOrNull()
+            val synced = exact ?: runCatching {
+                bestSearchHit(cleanTitle, cleanArtist, seconds, title, artist)
+            }.getOrNull()
             synced?.let(::parseLrc)?.takeIf { it.isNotEmpty() }
         }
 
-    private fun exactMatch(title: String, artist: String, seconds: Int): String? {
+    /**
+     * The exact endpoint, keyed on artist + title + duration — and still
+     * verified against what it hands back. The endpoint answers with the
+     * record it matched, whose own name ships in the same payload: if
+     * that name is not this track's (the cleaning in [clean] can reshape
+     * a title past recognition, and a database can simply be wrong), the
+     * answer is refused rather than believed. A refusal is a miss, and a
+     * miss is recoverable; the wrong song's words are not.
+     */
+    private fun exactMatch(
+        title: String,
+        artist: String,
+        seconds: Int,
+        rawTitle: String,
+        rawArtist: String,
+    ): String? {
         val url = "$BASE/get".toHttpUrl().newBuilder()
             .addQueryParameter("track_name", title)
             .addQueryParameter("artist_name", artist)
             .addQueryParameter("duration", seconds.toString())
             .build()
         val body = get(url.toString()) ?: return null
-        return (json.parseToJsonElement(body) as? JsonObject)
-            ?.get("syncedLyrics")?.jsonPrimitive?.contentOrNull
+        val record = json.parseToJsonElement(body) as? JsonObject ?: return null
+        if (!identityAccepted(record, rawTitle, rawArtist)) return null
+        return record["syncedLyrics"]?.jsonPrimitive?.contentOrNull
     }
 
     /**
-     * Fuzzy fallback. Prefers whichever hit is closest in length to what we're
-     * actually playing — same song, different edit, would drift otherwise.
+     * Fuzzy fallback. A search hit is only ever a *claim* about which
+     * recording it is, so each hit's own title, artist and duration are
+     * checked against the track before its lyrics are considered
+     * ([identityAccepted] plus the duration window), and among the hits
+     * that pass, whichever is closest in length to what we're actually
+     * playing wins — same song, different edit, would drift otherwise.
+     *
+     * This check is the whole point of the fallback's shape: it used to
+     * pick on duration alone, and a different song that happened to run
+     * about as long as this one — another artist's, another title's —
+     * was answered with in full. Duration is a property of thousands of
+     * songs; a name is not.
      */
-    private fun bestSearchHit(title: String, artist: String, seconds: Int): String? {
+    private fun bestSearchHit(
+        title: String,
+        artist: String,
+        seconds: Int,
+        rawTitle: String,
+        rawArtist: String,
+    ): String? {
         val url = "$BASE/search".toHttpUrl().newBuilder()
             .addQueryParameter("track_name", title)
             .addQueryParameter("artist_name", artist)
@@ -66,12 +101,38 @@ object LrcLib {
         val hits = json.parseToJsonElement(body) as? JsonArray ?: return null
         return hits.mapNotNull { it as? JsonObject }
             .filter { it["syncedLyrics"]?.jsonPrimitive?.contentOrNull?.isNotBlank() == true }
+            .filter { identityAccepted(it, rawTitle, rawArtist) }
+            .filter {
+                seconds <= 0 ||
+                    abs((it["duration"]?.jsonPrimitive?.doubleOrNull ?: 0.0) - seconds) <=
+                    SEARCH_DURATION_TOLERANCE_SECONDS
+            }
             .minByOrNull {
                 val d = it["duration"]?.jsonPrimitive?.doubleOrNull ?: 0.0
                 abs(d - seconds)
             }
             ?.get("syncedLyrics")?.jsonPrimitive?.contentOrNull
     }
+
+    /**
+     * Whether a LRCLIB record's own title and artist make it this
+     * track's recording — see [RecordingMatch.identityAccepted]. A
+     * record that does not name itself cannot be verified and is not
+     * believed: the fields are part of both endpoints' payloads, so an
+     * absent one is a malformed answer, not a gap to guess across.
+     */
+    private fun identityAccepted(
+        record: JsonObject,
+        rawTitle: String,
+        rawArtist: String,
+    ): Boolean {
+        val hitTitle = record["trackName"]?.jsonPrimitive?.contentOrNull ?: return false
+        val hitArtist = record["artistName"]?.jsonPrimitive?.contentOrNull ?: return false
+        return RecordingMatch.identityAccepted(rawTitle, rawArtist, hitTitle, hitArtist)
+    }
+
+    /** How far a search hit's length may sit from the track's and still be the same recording. */
+    private const val SEARCH_DURATION_TOLERANCE_SECONDS = 10.0
 
     private fun get(url: String): String? {
         val request = Request.Builder().url(url).header("User-Agent", AGENT).build()
@@ -201,8 +262,14 @@ object LrcLib {
 
     private val STAMP = Regex("""\[(\d{1,2}):(\d{2})[.:](\d{2,3})]""")
     private val WORD_STAMP = Regex("""<(\d{1,3}):(\d{2})[.:](\d{2,3})>""")
+    // What names a *different recording* is deliberately absent from
+    // this pattern: "(Remix)", "(Live)", "(Acoustic)" stay on the title
+    // asked for, exactly as [String.forLyricsSearch] leaves them —
+    // stripping one turns a search for one recording into a search for
+    // another, and the hit validation in [identityAccepted] reads the
+    // markers from the uncleaned title for the same reason.
     private val NOISE = Regex(
-        """\((?:from|feat\.?|official|lyrical|video|audio|remix)[^)]*\)|\[[^]]*]|""" +
+        """\((?:from|feat\.?|official|lyrical|video|audio)[^)]*\)|\[[^]]*]|""" +
             """\b(?:official (?:video|audio|music video)|lyrical|full song|4k video)\b""",
         RegexOption.IGNORE_CASE,
     )

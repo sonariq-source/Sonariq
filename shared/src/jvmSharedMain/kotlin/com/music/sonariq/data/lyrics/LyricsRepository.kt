@@ -268,7 +268,15 @@ object LyricsRepository {
             ) {
                 return@coroutineScope cached
             }
-            provisionalSeed = cached
+            // A provisional seed can still carry word timings (an AI
+            // measurement is tier 4), and the seed's return paths hand it
+            // up exactly as read — so it passes the same delivery
+            // judgement here: timings this duration proves belong to a
+            // different recording are stripped before the seed can be
+            // surfaced, cached copy or not. See [LyricsValidation].
+            provisionalSeed = with(LyricsValidation) {
+                cached.withoutUnfitWordTimings(durationMs)
+            }
         }
         val hit = if (known == null) {
             identify(videoId, searchTitle, searchArtist, durationMs, album, sequence)
@@ -295,7 +303,7 @@ object LyricsRepository {
                         recording,
                         hit,
                         documents::get,
-                    )?.let { result(source, it) }
+                    )?.let { result(source, it, durationMs) }
                     emitResult(source, found)
                     found
                 } catch (cancelled: CancellationException) {
@@ -327,7 +335,17 @@ object LyricsRepository {
             // Fake word timings are worse than honest lines.
             suspend fun deliver(result: Result): Result {
                 val lines = result.lines.withoutEstimatedWords()
-                val timed = result.copy(lines = lines, timing = lines.lyricTiming())
+                val stripped = result.copy(lines = lines, timing = lines.lyricTiming())
+                // The last word on what may be shown as word sync: word
+                // timings this track's own duration proves belong to a
+                // different recording are rejected here, at delivery —
+                // the result is handed up (and cached) as the honest
+                // line sync underneath its text instead. Fit still never
+                // blocks a result; it is the timings it condemns that do
+                // not survive, not the words. See [LyricsValidation].
+                val timed = with(LyricsValidation) {
+                    stripped.withoutUnfitWordTimings(durationMs)
+                }
                 writeCache(videoId, recording, timed)
                 return timed
             }
@@ -639,8 +657,18 @@ object LyricsRepository {
      * [TtmlLyrics] knows it structurally — [withBackgroundVocals] leaves that
      * one's own split alone.
      */
-    private fun result(source: LyricsSource, lines: List<LyricLine>): Result {
-        val prepared = lines.withBackgroundVocals()
+    private fun result(
+        source: LyricsSource,
+        lines: List<LyricLine>,
+        durationMs: Long,
+    ): Result {
+        // The one funnel every provider's answer passes through, so the
+        // timing rules are enforced here once rather than in each
+        // parser: no negative stamps, no backwards or out-of-order
+        // words, nothing starting past the track's end — a line whose
+        // words break a rule they cannot be repaired under keeps its
+        // text and loses the timings (see [withValidWordTimings]).
+        val prepared = lines.withBackgroundVocals().withValidWordTimings(durationMs)
         return Result(source, prepared, prepared.lyricTiming())
     }
 
@@ -1057,6 +1085,7 @@ object LyricsRepository {
                         cached.lines
                     }
                     val lines = unmeasured.withoutEstimatedWords()
+                        .withValidWordTimings()
                     Result(
                         source = LyricsSource.valueOf(cached.source),
                         lines = lines,
@@ -1125,7 +1154,7 @@ object LyricsRepository {
      * disk when each of them checked.
      */
     suspend fun storeAiResult(videoId: String, isrc: String?, result: Result): Boolean {
-        val lines = result.lines.withoutEstimatedWords()
+        val lines = result.lines.withoutEstimatedWords().withValidWordTimings()
         val timed = result.copy(lines = lines, timing = lines.lyricTiming())
         if (timed.timing != LyricTiming.WORD_SYNCED_AI_MEASURED) return false
         val existing = readCache(videoId, isrc)

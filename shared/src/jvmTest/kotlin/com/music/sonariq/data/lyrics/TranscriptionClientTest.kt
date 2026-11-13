@@ -34,10 +34,16 @@ class TranscriptionClientTest {
         val directory = Files.createTempDirectory("transcription-test").toFile()
         audio = File(directory, "track.m4a")
         audio.writeBytes("AUDIOBYTES".toByteArray())
+        // The retry policy at full speed: the same number of retries the
+        // production backoff makes, with none of its waiting.
+        TranscriptionClient.retryDelaysMs = listOf(0L, 0L)
     }
 
     @AfterTest
-    fun stop() = server.shutdown()
+    fun stop() {
+        TranscriptionClient.retryDelaysMs = listOf(1_000L, 2_000L)
+        server.shutdown()
+    }
 
     private fun endpoint(): String =
         server.url("/openai/v1/audio/transcriptions").toString()
@@ -248,14 +254,62 @@ class TranscriptionClientTest {
 
     @Test
     fun aRefusalAnswersNull() = runBlocking {
-        server.enqueue(MockResponse().setResponseCode(503).setBody("no key configured"))
+        // A server error is retried on the backoff before it is believed,
+        // so one call costs the initial request plus every retry — three
+        // with the two waits [start] installs.
+        repeat(3) {
+            server.enqueue(MockResponse().setResponseCode(503).setBody("no key configured"))
+        }
         assertNull(
             TranscriptionClient.transcribe(audio, "audio/mp4", "test-key", endpoint()),
         )
+        repeat(3) {
+            server.enqueue(MockResponse().setResponseCode(500).setBody("boom"))
+        }
+        assertNull(
+            TranscriptionClient.transcribe(audio, "audio/mp4", "test-key", endpoint()),
+        )
+    }
+
+    @Test
+    fun aTransientFailureIsRetriedAndCanStillAnswer() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(500).setBody("boom"))
+        server.enqueue(
+            MockResponse().setBody(
+                """{"words":[{"word":"hello","start":0.12,"end":0.34}]}""",
+            ),
+        )
+        val tokens = TranscriptionClient.transcribe(
+            audio, "audio/mp4", "test-key", endpoint(),
+        )
+        assertEquals(listOf(TranscribedWord("hello", 120, 340)), tokens)
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun aClientRefusalIsNotRetried() = runBlocking {
+        // A 4xx is the far side's final answer about this request; the
+        // retry budget is for failures that can clear, not refusals.
+        server.enqueue(MockResponse().setResponseCode(403).setBody("forbidden"))
         assertNull(
             TranscriptionClient.transcribe(audio, "audio/mp4", "test-key", endpoint()),
         )
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun anOversizeFileIsNeverSent() = runBlocking {
+        // Past the endpoint's own cap the upload would only be refused
+        // at the far end; the client refuses first, and sends nothing.
+        val directory = Files.createTempDirectory("transcription-oversize").toFile()
+        val big = File(directory, "big.m4a")
+        java.io.RandomAccessFile(big, "rw").use {
+            it.setLength(TranscriptionClient.MAX_AUDIO_BYTES + 1)
+        }
+        assertNull(
+            TranscriptionClient.transcribe(big, "audio/mp4", "test-key", endpoint()),
+        )
+        assertEquals(0, server.requestCount)
     }
 
     @Test
