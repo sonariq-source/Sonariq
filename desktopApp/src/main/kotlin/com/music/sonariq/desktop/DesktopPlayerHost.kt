@@ -23,10 +23,9 @@ import com.music.sonariq.ui.player.DEFAULT_VISUALIZER_INTENSITY
 import com.music.sonariq.ui.player.LyricsRomanizationResult
 import com.music.sonariq.ui.player.LyricsTranslationResult
 import com.music.sonariq.ui.player.MAX_LYRICS_FONT_SIZE_SP
-import com.music.sonariq.ui.player.MAX_LYRICS_OFFSET_MS
+import com.music.sonariq.ui.player.MAX_ROUTE_CALIBRATION_MS
 import com.music.sonariq.ui.player.MAX_VISUALIZER_INTENSITY
 import com.music.sonariq.ui.player.MIN_LYRICS_FONT_SIZE_SP
-import com.music.sonariq.ui.player.MIN_LYRICS_OFFSET_MS
 import com.music.sonariq.ui.player.MIN_VISUALIZER_INTENSITY
 import com.music.sonariq.ui.player.OutputFormatUi
 import com.music.sonariq.ui.player.PartyUi
@@ -36,10 +35,9 @@ import com.music.sonariq.ui.player.SystemVolume
 import com.music.sonariq.ui.player.VisualizerStyle
 import com.music.sonariq.data.lyrics.LyricsAutoOffset
 import com.music.sonariq.ui.player.decodeLyricAutoOffsets
-import com.music.sonariq.ui.player.decodeLyricOffsets
+import com.music.sonariq.ui.player.decodeRouteCalibrations
 import com.music.sonariq.ui.player.encodeLyricAutoOffsets
-import com.music.sonariq.ui.player.encodeLyricOffsets
-import com.music.sonariq.ui.player.withLyricOffset
+import com.music.sonariq.ui.player.encodeRouteCalibrations
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -211,13 +209,15 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
             .coerceIn(MIN_LYRICS_FONT_SIZE_SP, MAX_LYRICS_FONT_SIZE_SP),
     )
     override val lyricsKaraokeEffects = MutableStateFlow(persistence.boolean(KEY_LYRICS_KARAOKE, true))
-    override val lyricsOffsetMs = MutableStateFlow(
-        persistence.int(KEY_LYRICS_OFFSET, 0).coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS),
+    /**
+     * The per-route "Lyrics ms" values. The desktop tracks no output
+     * route, so its one value lives under OTHER and the shared
+     * composition applies it like any route's.
+     */
+    override val lyricsRouteCalibrations = MutableStateFlow(
+        decodeRouteCalibrations(persistence.string(KEY_LYRICS_ROUTE_CALIBRATIONS)),
     )
-    override val lyricsOffsetOverrides = MutableStateFlow(
-        decodeLyricOffsets(persistence.string(KEY_LYRICS_OFFSET_OVERRIDES)),
-    )
-    /** Per-track measured lyric offsets, beside the manual overrides; written only by the measurement job. */
+    /** Per-track measured lyric offsets; written only by the measurement job. */
     override val lyricsAutoOffsets = MutableStateFlow(
         decodeLyricAutoOffsets(persistence.string(KEY_LYRICS_AUTO_OFFSETS)),
     )
@@ -251,17 +251,23 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
         persistence.saveString(KEY_LAST_SCREEN, value.name)
     }
 
-    override fun setLyricsOffsetMs(value: Int) {
-        val clamped = value.coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
-        lyricsOffsetMs.value = clamped
-        persistence.saveInt(KEY_LYRICS_OFFSET, clamped)
-    }
-
-    override fun setLyricsOffsetForTrack(videoId: String, offsetMs: Int?) {
-        val updated = lyricsOffsetOverrides.value.withLyricOffset(videoId, offsetMs)
-        if (updated == lyricsOffsetOverrides.value) return
-        lyricsOffsetOverrides.value = updated
-        persistence.saveString(KEY_LYRICS_OFFSET_OVERRIDES, encodeLyricOffsets(updated))
+    override fun setLyricsRouteCalibration(route: AudioOutputKind, offsetMs: Int?) {
+        val updated = if (offsetMs == null) {
+            lyricsRouteCalibrations.value - route
+        } else {
+            lyricsRouteCalibrations.value + (
+                route to offsetMs.coerceIn(
+                    -MAX_ROUTE_CALIBRATION_MS,
+                    MAX_ROUTE_CALIBRATION_MS,
+                )
+            )
+        }
+        if (updated == lyricsRouteCalibrations.value) return
+        lyricsRouteCalibrations.value = updated
+        persistence.saveString(
+            KEY_LYRICS_ROUTE_CALIBRATIONS,
+            encodeRouteCalibrations(updated),
+        )
     }
 
     /** Records a track's measured auto offset; null forgets it. Written only by the AI measurement job. */
@@ -309,8 +315,7 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
     }
 
     private const val KEY_LAST_SCREEN = "last_player_screen"
-    private const val KEY_LYRICS_OFFSET = "lyrics_offset_ms"
-    private const val KEY_LYRICS_OFFSET_OVERRIDES = "lyrics_offset_overrides"
+    private const val KEY_LYRICS_ROUTE_CALIBRATIONS = "lyrics_route_calibrations"
     private const val KEY_LYRICS_AUTO_OFFSETS = "lyrics_auto_offsets"
     private const val KEY_LYRICS_FONT_SIZE_SP = "lyrics_font_size_sp"
     private const val KEY_LYRICS_AUTO_SCROLL = "lyrics_auto_scroll"

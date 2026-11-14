@@ -197,6 +197,80 @@ class AutoplayCompatibilityTest {
     }
 
     @Test
+    fun popularityLiftsAFittingCandidateAboveAnObscureOne() {
+        // Identical measured fit; the charting one wins on familiarity.
+        val charting = AutoplayCompatibility.score(
+            chillSeed,
+            song("chill"),
+            AutoplayCandidateSignals(analysis = chill, chartRank = 0),
+        )
+        val obscure = scoredWith(chill)
+        assertTrue(charting.score > obscure.score, "${charting.score} vs ${obscure.score}")
+        assertTrue(charting.passes)
+    }
+
+    @Test
+    fun popularityCannotCarryAZeroFitCandidatePastTheLine() {
+        // The country's number one with every other signal at zero:
+        // its rank prices at most its own weight of the judgement
+        // (0.18 of 0.43 here), which lands under the acceptance line —
+        // fame alone never makes a pick.
+        val famousNobody = AutoplayCompatibility.score(
+            chillSeed,
+            song("nobody"),
+            AutoplayCandidateSignals(trackTaste = 0.0, artistTaste = 0.0, chartRank = 0),
+        )
+        assertTrue(famousNobody.judgeable)
+        assertTrue(famousNobody.rejected, "zero-fit chart-topper scored ${famousNobody.score}")
+        assertTrue(famousNobody.score < scoredWith(chill).score)
+        // And a chart-topping poor fit still loses to a good fit: the
+        // borderline metal track, lifted by its rank exactly as the
+        // learned-affinity signal already lifts it, stays below the
+        // track that actually matches the seed.
+        val popularMetal = AutoplayCompatibility.score(
+            chillSeed,
+            song("metal"),
+            AutoplayCandidateSignals(analysis = metal, chartRank = 0),
+        )
+        assertTrue(popularMetal.score < scoredWith(chill).score)
+    }
+
+    @Test
+    fun rankOrdersEqualFitsAndDecaysDownTheChart() {
+        fun atRank(rank: Int) = AutoplayCompatibility.score(
+            chillSeed,
+            song("chill"),
+            AutoplayCandidateSignals(analysis = chill, chartRank = rank),
+        ).score
+        assertTrue(atRank(0) > atRank(3))
+        assertTrue(atRank(3) > atRank(24))
+        assertTrue(atRank(24) > scoredWith(chill).score)
+        // The decay itself: top of the chart is full strength, halved
+        // by rank 8, quartered by rank 24.
+        assertEquals(1.0, AutoplayCompatibility.popularityForRank(0), 1e-9)
+        assertEquals(0.5, AutoplayCompatibility.popularityForRank(8), 1e-9)
+        assertEquals(0.25, AutoplayCompatibility.popularityForRank(24), 1e-9)
+    }
+
+    @Test
+    fun popularityAloneIsNotEnoughToJudgeOn() {
+        // A chart rank with no fit evidence at all is a thin signal:
+        // the candidate keeps its pool place in stage one rather than
+        // being promoted or rejected on fame alone.
+        val famous = AutoplayCompatibility.score(
+            null,
+            song("x"),
+            AutoplayCandidateSignals(chartRank = 0),
+        )
+        assertFalse(famous.judgeable)
+        assertFalse(famous.rejected)
+        val scored = AutoplayCompatibility.rank(null, listOf(song("x"))) {
+            AutoplayCandidateSignals(chartRank = 0)
+        }
+        assertEquals(listOf("x"), AutoplayCompatibility.stageOne(scored).map { it.videoId })
+    }
+
+    @Test
     fun sessionExclusionStillDecidesWhatRepeats() {
         // The scorer ranks; the session memory still owns repetition.
         // A heard candidate, however well it scores, is not re-picked
@@ -219,6 +293,34 @@ class AutoplayCompatibilityTest {
             // passes them: history rides inside `existing`, which is how
             // the tier exclusions reach the builder.
             existing = listOf(current, heardChill),
+            queueIds = setOf(current.videoId),
+            limit = 1,
+        )
+        assertEquals(listOf("chill2"), picks.map { it.videoId })
+    }
+
+    @Test
+    fun aHeardChartTopperIsStillExcluded() {
+        // Popularity buys a lift in the ranking, never an exemption
+        // from the session's no-repeat tiers: the heard number one
+        // stays out while an unheard, uncharted fit fills the slot.
+        val session = AutoplaySessionMemory()
+        val current = song("seed")
+        val heardHit = song("hit")
+        val freshChill = song("chill2")
+        session.noteBecameCurrent(current.videoId, previousEnded = false)
+        session.noteBecameCurrent(heardHit.videoId, previousEnded = true)
+        val pool = listOf(heardHit, freshChill)
+        val scored = AutoplayCompatibility.rank(chillSeed, pool) { candidate ->
+            if (candidate.videoId == "hit") {
+                AutoplayCandidateSignals(analysis = chill, chartRank = 0)
+            } else {
+                AutoplayCandidateSignals(analysis = chill.copy(trackId = "chill2"))
+            }
+        }
+        val picks = session.selectForQueue(
+            AutoplayCompatibility.stageOne(scored),
+            existing = listOf(current, heardHit),
             queueIds = setOf(current.videoId),
             limit = 1,
         )

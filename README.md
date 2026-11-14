@@ -80,12 +80,12 @@
 - **Smart timing** — cross-checks providers so the first line never jumps the gun on instrumental intros.
 - **Better-matched sync** — lyrics are checked against the track they play on, and lines that sit uniformly off are measured and corrected automatically.
 - **Lyrics accuracy improvements** — stricter recording matching and verification, so the words shown belong to the song playing.
-- **Lyrics sync improvements** — the highlight now accounts for the output in use, with a per-output calibration in the lyrics offset sheet, so words land closer to when they are heard.
+- **Lyrics sync improvements** — one simple "Lyrics ms" adjustment (0 by default, remembered per output) on top of the automatic measured correction, so words land closer to when they are heard.
 - **Lyrics improvements** — placeholder cards some sources return instead of lyrics are never shown as lyrics, and a song no source has lyrics for can get word-synced lyrics built from the track's own audio while the search for the real thing continues.
 - **Clean UI** — no provider badges, no sync estimates. Just the words.
 - **Lyrics appearance menu** — right on the lyrics screen: text size, highlight intensity, background (artwork, dimmed or solid), word highlighting, auto-scroll and reduced motion, all saved.
 - **Tap a word to seek** — on word-synced lines, tapping a single word jumps the song to that word; tapping a line still seeks to the line.
-- **Translations & romanisation**, per-track offset, in-lyrics search and copy.
+- **Translations & romanisation**, in-lyrics search and copy.
 - **Lyrics translation overlay** — automatic translated subtitle lines in Now Playing (an explicit romanise tap wins over the overlay).
 - **Lock-screen lyrics** — the current line shows right on your lock screen.
 - **Instant lyrics** — your whole queue, home shelves and playlist pages are prefetched before you press play, and your liked songs and favourites are warmed up in the background; lookups surface the best match within seconds, so lyrics are simply there when the song starts.
@@ -95,6 +95,7 @@
 ### Smart autoplay & AI radio
 - **Vibe autoplay engine** — detects the vibe of what you're playing (Last.fm listener tags + on-device tempo/key/energy analysis + your listening behaviour) and keeps the music flowing in that mood forever; the queue refills when 3 songs remain, skips teach it your taste, and a vibe badge on Now Playing shows what it's feeling.
 - **Smart Autoplay** — learns your song-to-song transitions and predicts what plays next; discovery picks are scored against the playing song's measured energy, tempo, key and vocals plus your listening history, so poor fits are held back while better matches exist.
+- **Popular first** — autoplay also draws on your country's popular songs, local and international hits alike: charting songs that fit the vibe are lifted, and when the local pool runs out it falls back to the global charts, then to radio as before.
 - **Fresh every session** — replaying a song starts a new discovery session: what autoplay recommended last time is demoted, never handed back as the same sequence, and nothing is banned for good — favourites return, just not on repeat.
 - **No repeats within a session** — autoplay remembers everything it has played, skipped, queued and suggested this session and never serves it again while alternatives exist; every finished song triggers a fresh batch, and only when the catalogue genuinely runs out does it relax — unplayed suggestions first, then skips, then a rotation starting from the session's oldest plays. On by default; the "Don't repeat songs in current session" switch in Settings turns it off.
 - **AI mood stations** — pick Chill, Party, Focus or Workout; Sonariq builds a ~25-track station from your taste.

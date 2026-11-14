@@ -815,23 +815,20 @@ internal fun rememberLyricPlayhead(
     videoId: String? = null,
     autoMs: Int = 0,
 ): LyricPlayhead {
-    val global = PlayerSettings.lyricsOffsetMs.collectAsStateWithLifecycle()
-    val overrides = PlayerSettings.lyricsOffsetOverrides.collectAsStateWithLifecycle()
     val syncShift = rememberOutputSyncShiftMs()
-    // The track's own offset when one exists, otherwise the global one
-    // with the track's measured auto offset composed under it (see
-    // [resolveLyricsOffsetMs]) — with the output side composed over
-    // that: the current route's calibration and the measured output
-    // latency (see OutputSync.kt). The clock below only ever sees this
-    // one total shift. A derived state rather than a value computed in
+    // The track's measured auto offset (see [resolveLyricsOffsetMs]) —
+    // with the output side composed over that: the current route's
+    // "Lyrics ms" value and the measured output latency (see
+    // OutputSync.kt). The clock below only ever sees this one total
+    // shift. A derived state rather than a value computed in
     // composition: the playhead reads it off-composition, in the frame
     // loop and in effects. A route change moves the total, which moves
     // the playhead's discontinuity token, which re-anchors the clock at
     // the new shift instead of steering towards it.
-    val offset = remember(videoId, autoMs) {
+    val offset = remember(autoMs) {
         derivedStateOf {
             effectiveLyricsShiftMs(
-                resolveLyricsOffsetMs(overrides.value, global.value, videoId, autoMs),
+                resolveLyricsOffsetMs(autoMs),
                 syncShift.value,
             )
         }

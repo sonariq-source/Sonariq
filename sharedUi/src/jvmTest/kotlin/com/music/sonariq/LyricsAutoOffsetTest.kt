@@ -30,45 +30,25 @@ class LyricsAutoOffsetTest {
     // -- Resolution composition ------------------------------------------
 
     @Test
-    fun `auto offset composes under the global offset`() {
+    fun `the resolution is the applicable auto offset alone`() {
+        // Nothing composes over or under the measurement any more: the
+        // hand-set layers are gone, so what applies to the lines is
+        // exactly what resolution hands the playhead.
+        val records = mapOf(videoId to record(lineSync))
         assertEquals(
-            1_300,
-            resolveLyricsOffsetMs(
-                overrides = emptyMap(),
-                globalMs = -200,
-                videoId = videoId,
-                autoMs = 1_500,
-            ),
+            1_500,
+            resolveLyricsOffsetMs(applicableAutoOffsetMs(records, videoId, lineSync)),
+        )
+        assertEquals(
+            0,
+            resolveLyricsOffsetMs(applicableAutoOffsetMs(records, videoId, null)),
         )
     }
 
     @Test
-    fun `per-track override wins outright over the auto offset`() {
-        // The listener's own word for this track: the measurement does
-        // not dilute it, exactly as it has never diluted it under the
-        // global.
-        assertEquals(
-            300,
-            resolveLyricsOffsetMs(
-                overrides = mapOf(videoId to 300),
-                globalMs = -200,
-                videoId = videoId,
-                autoMs = 1_500,
-            ),
-        )
-    }
-
-    @Test
-    fun `composed base is held to the offset range`() {
-        assertEquals(
-            5_000,
-            resolveLyricsOffsetMs(
-                overrides = emptyMap(),
-                globalMs = 4_800,
-                videoId = videoId,
-                autoMs = 1_500,
-            ),
-        )
+    fun `resolution is held to the offset range`() {
+        assertEquals(5_000, resolveLyricsOffsetMs(autoMs = 99_999))
+        assertEquals(-5_000, resolveLyricsOffsetMs(autoMs = -99_999))
     }
 
     // -- Applicability -----------------------------------------------------

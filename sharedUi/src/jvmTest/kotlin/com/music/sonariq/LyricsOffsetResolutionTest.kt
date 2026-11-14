@@ -1,67 +1,33 @@
 package com.music.sonariq
 
+import com.music.sonariq.ui.player.MAX_LYRICS_OFFSET_MS
+import com.music.sonariq.ui.player.MIN_LYRICS_OFFSET_MS
 import com.music.sonariq.ui.player.resolveLyricsOffsetMs
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
+/**
+ * The resolved lyrics offset is measurement alone: the track's measured
+ * auto offset, or 0 where nothing was measured. The hand-set layers
+ * that used to compose above it — a global offset and per-track
+ * overrides — no longer exist in the resolution at all, so values
+ * stored by them can never reach the playhead again.
+ */
 class LyricsOffsetResolutionTest {
     @Test
-    fun `per-track override wins over the global offset`() {
-        assertEquals(
-            300,
-            resolveLyricsOffsetMs(
-                overrides = mapOf("dQw4w9WgXcQ" to 300),
-                globalMs = -200,
-                videoId = "dQw4w9WgXcQ",
-            ),
-        )
+    fun `the measured auto offset is the resolution`() {
+        assertEquals(1_500, resolveLyricsOffsetMs(autoMs = 1_500))
+        assertEquals(-250, resolveLyricsOffsetMs(autoMs = -250))
     }
 
     @Test
-    fun `a track without an override falls back to the global offset`() {
-        assertEquals(
-            -200,
-            resolveLyricsOffsetMs(
-                overrides = mapOf("dQw4w9WgXcQ" to 300),
-                globalMs = -200,
-                videoId = "9bZkp7q19f0",
-            ),
-        )
+    fun `no measurement resolves to zero`() {
+        assertEquals(0, resolveLyricsOffsetMs(autoMs = 0))
     }
 
     @Test
-    fun `null videoId falls back to the global offset`() {
-        assertEquals(
-            -200,
-            resolveLyricsOffsetMs(
-                overrides = mapOf("dQw4w9WgXcQ" to 300),
-                globalMs = -200,
-                videoId = null,
-            ),
-        )
-    }
-
-    @Test
-    fun `blank videoId falls back to the global offset`() {
-        assertEquals(
-            -200,
-            resolveLyricsOffsetMs(
-                overrides = mapOf("dQw4w9WgXcQ" to 300),
-                globalMs = -200,
-                videoId = "",
-            ),
-        )
-    }
-
-    @Test
-    fun `an empty override map uses the global offset`() {
-        assertEquals(
-            -200,
-            resolveLyricsOffsetMs(
-                overrides = emptyMap(),
-                globalMs = -200,
-                videoId = "dQw4w9WgXcQ",
-            ),
-        )
+    fun `the resolution is held to the offset range`() {
+        assertEquals(MAX_LYRICS_OFFSET_MS, resolveLyricsOffsetMs(autoMs = 99_999))
+        assertEquals(MIN_LYRICS_OFFSET_MS, resolveLyricsOffsetMs(autoMs = -99_999))
     }
 }

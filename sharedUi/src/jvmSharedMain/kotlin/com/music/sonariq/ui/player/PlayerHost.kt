@@ -196,9 +196,6 @@ interface PlayerSettingsSource {
     val lyricsBackground: StateFlow<LyricsBackground> get() = DefaultLyricsBackground
     /** Lyrics-only reduced motion, on top of the app-wide reduce-animation setting. */
     val lyricsReducedMotion: StateFlow<Boolean> get() = DefaultLyricsReducedMotion
-    val lyricsOffsetMs: StateFlow<Int>
-    /** Per-track lyric offsets, videoId to offsetMs; a track without an entry follows [lyricsOffsetMs]. */
-    val lyricsOffsetOverrides: StateFlow<Map<String, Int>>
     /**
      * Per-track *measured* lyric offsets, videoId to record — the auto
      * offset the AI measurement found for that track's exact lines, read
@@ -208,9 +205,9 @@ interface PlayerSettingsSource {
      */
     val lyricsAutoOffsets: StateFlow<Map<String, LyricsAutoOffset>> get() = DefaultLyricsAutoOffsets
     /**
-     * The listener's per-route output calibrations, route class to
+     * The listener's per-route "Lyrics ms" values, route class to
      * offsetMs — the output-side half of the lyrics shift, kept per
-     * route so a wireless calibration never reaches the speaker. Read
+     * route so a wireless value never reaches the speaker. Read
      * through [routeCalibrationMs]; see OutputSync.kt for the model.
      * Platforms without output tracking keep the empty default.
      */
@@ -254,10 +251,7 @@ interface PlayerSettingsSource {
     fun setLyricsHighlightIntensity(value: Float) = Unit
     fun setLyricsBackground(value: LyricsBackground) = Unit
     fun setLyricsReducedMotion(value: Boolean) = Unit
-    fun setLyricsOffsetMs(value: Int)
-    /** Null clears the track's own offset, handing it back to the global one. */
-    fun setLyricsOffsetForTrack(videoId: String, offsetMs: Int?)
-    /** Null clears the route's calibration, handing it back to automatic. */
+    /** Null clears the route's "Lyrics ms" value, handing it back to 0. */
     fun setLyricsRouteCalibration(route: AudioOutputKind, offsetMs: Int?) = Unit
     fun setLyricsTranslationOverlay(value: Boolean)
     fun setVisualizerStyle(value: VisualizerStyle)
@@ -269,7 +263,7 @@ interface PlayerSettingsSource {
 internal val PlayerSettings: PlayerSettingsSource
     get() = PlayerPlatform.host.settings
 
-/** The lyric offset sheet's range, in milliseconds either way. */
+/** The measured auto offset's range, in milliseconds either way. */
 const val MIN_LYRICS_OFFSET_MS = -5_000
 const val MAX_LYRICS_OFFSET_MS = 5_000
 
@@ -303,29 +297,22 @@ const val MAX_VISUALIZER_INTENSITY = 2f
 const val DEFAULT_VISUALIZER_INTENSITY = 1f
 
 /**
- * The offset a track actually reads: its own override when one exists,
- * otherwise the global offset with the track's measured auto offset
- * composed under it.
+ * The offset a track actually reads: its measured auto offset, and
+ * nothing else.
  *
- * The layering is the manual system's own, extended by one layer at the
- * bottom: a per-track override is the listener's explicit word for that
- * track and wins outright, exactly as it has always beaten the global;
- * beneath it the global (the listener's standing nudge for everything)
- * and [autoMs] (what measurement found for this track's lines) add,
- * because they answer different questions — taste and measurement —
- * and neither was set with the other in hand. With no auto offset
- * measured, [autoMs] is 0 and the resolution is the manual one,
- * unchanged. The composed base is held to the offset range, as every
- * stored offset already is.
+ * There used to be manual layers above this — a per-track override and
+ * a global offset the listener set by hand. They are gone: the only
+ * hand-set correction left in the app is the per-route "Lyrics ms"
+ * value, which answers a different question (the output's delay, not
+ * the lyric file's) and composes separately — see OutputSync.kt.
+ * Offsets stored by the manual system are never read again; what
+ * remains is measurement: [autoMs] is what the AI measurement found
+ * for this track's exact lines (see [applicableAutoOffsetMs]), or 0
+ * when nothing was measured. Held to the offset range, as every stored
+ * offset already is.
  */
-fun resolveLyricsOffsetMs(
-    overrides: Map<String, Int>,
-    globalMs: Int,
-    videoId: String?,
-    autoMs: Int = 0,
-): Int =
-    videoId?.let { overrides[it] }
-        ?: (globalMs + autoMs).coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
+fun resolveLyricsOffsetMs(autoMs: Int): Int =
+    autoMs.coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
 
 /**
  * The auto offset that applies to [lines] for [videoId], or 0 when none
@@ -349,49 +336,12 @@ fun applicableAutoOffsetMs(
     return record.offsetMs.coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
 }
 
-/**
- * A per-track offset edit applied to the stored map: null removes the track's
- * entry, a value is coerced to the offset range first.
- */
-fun Map<String, Int>.withLyricOffset(videoId: String, offsetMs: Int?): Map<String, Int> =
-    if (offsetMs == null) {
-        this - videoId
-    } else {
-        this + (videoId to offsetMs.coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS))
-    }
-
 private val LYRIC_OFFSET_VIDEO_ID = Regex("^[A-Za-z0-9_-]{11}$")
 
 /**
- * `"videoId:ms,videoId:ms"`. A videoId is always `[A-Za-z0-9_-]{11}`, so
- * neither delimiter can appear inside one; capped at
- * [MAX_LYRIC_OFFSET_OVERRIDES], oldest edits first to fall off.
- */
-fun encodeLyricOffsets(overrides: Map<String, Int>): String =
-    overrides.entries
-        .toList()
-        .takeLast(MAX_LYRIC_OFFSET_OVERRIDES)
-        .joinToString(",") { (videoId, offsetMs) -> "$videoId:$offsetMs" }
-
-/** The inverse of [encodeLyricOffsets]; malformed entries fall out quietly. */
-fun decodeLyricOffsets(stored: String): Map<String, Int> {
-    if (stored.isBlank()) return emptyMap()
-    return stored.split(",")
-        .mapNotNull { entry ->
-            val videoId = entry.substringBefore(":")
-            val offsetMs = entry.substringAfter(":", "").toIntOrNull()
-                ?: return@mapNotNull null
-            if (!LYRIC_OFFSET_VIDEO_ID.matches(videoId)) return@mapNotNull null
-            videoId to offsetMs.coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
-        }
-        .take(MAX_LYRIC_OFFSET_OVERRIDES)
-        .toMap()
-}
-
-/**
  * `"videoId:version:ms:fingerprint,videoId:..."` — the stored form of
- * the measured auto offsets, kept beside the manual overrides' codec
- * above. A fingerprint is lowercase hex, so neither delimiter can
+ * the measured auto offsets. A fingerprint is lowercase hex, so
+ * neither delimiter can
  * appear inside one; the record version rides in every entry so a
  * future shape retires old entries by reading, not by migration.
  * Capped like the overrides: the oldest measurements fall off first.

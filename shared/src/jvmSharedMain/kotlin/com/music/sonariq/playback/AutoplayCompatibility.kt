@@ -28,6 +28,10 @@ import kotlin.math.min
  *    fresh discovery has no learned link by definition);
  *  - taste: the candidate track's own play history, and its artist's,
  *    aggregated from the same history;
+ *  - popularity: the candidate's place on the listener's country
+ *    charts (see [PopularPool]), rank-decayed — real familiarity
+ *    evidence, but a bounded one: it seasons the fit judgement, it
+ *    never replaces it (see [popularityForRank]);
  *  - how often this session has skipped this candidate's artist, which
  *    demotes rather than vetoes.
  *
@@ -61,6 +65,12 @@ data class AutoplayCandidateSignals(
      * artist at all.
      */
     val artistSkipShare: Double? = null,
+    /**
+     * The candidate's rank in the popular pool (0 = the top of the
+     * listener's country charts), or null when it is not charting.
+     * Priced through [AutoplayCompatibility.popularityForRank].
+     */
+    val chartRank: Int? = null,
 )
 
 object AutoplayCompatibility {
@@ -78,6 +88,7 @@ object AutoplayCompatibility {
     private const val W_LEARNED = 0.17
     private const val W_TRACK_TASTE = 0.10
     private const val W_ARTIST_TASTE = 0.15
+    private const val W_POPULARITY = 0.18
 
     /** How hard a fully-skipped artist demotes its candidates: a multiplier, never a veto. */
     private const val SKIP_DEMOTION = 0.35
@@ -128,12 +139,33 @@ object AutoplayCompatibility {
         add(W_LEARNED, signals.learnedAffinity)
         add(W_TRACK_TASTE, signals.trackTaste)
         add(W_ARTIST_TASTE, signals.artistTaste)
+        add(W_POPULARITY, signals.chartRank?.let(::popularityForRank))
 
         var value = if (weight > 0) weighted / weight else 0.0
         signals.artistSkipShare?.let { share ->
             value *= 1.0 - SKIP_DEMOTION * share.coerceIn(0.0, 1.0)
         }
         return Scored(candidate, value, weight)
+    }
+
+    /**
+     * How much a chart rank is worth, 0..1: the top of the chart is
+     * full-strength familiarity, halved by rank 8 and quartered by
+     * rank 24, fading down the chart rather than cutting off at an
+     * arbitrary depth.
+     *
+     * The bound that matters is the weight, not the curve: popularity
+     * enters the weighted average at [W_POPULARITY] of the full
+     * judgement, so it can only ever move a score by that share. A
+     * candidate whose fit evidence is zero everywhere stays rejected
+     * even at rank 0 (0.18 of weight against zeroes elsewhere prices
+     * under the line), and no rank outranks a genuinely good fit —
+     * popular *and* fitting beats obscure and fitting, which is the
+     * whole of what the charts are allowed to say.
+     */
+    fun popularityForRank(rank: Int): Double {
+        if (rank < 0) return 0.0
+        return 1.0 / (1.0 + rank / 8.0)
     }
 
     /** Scores every song in [pool], in pool order. */

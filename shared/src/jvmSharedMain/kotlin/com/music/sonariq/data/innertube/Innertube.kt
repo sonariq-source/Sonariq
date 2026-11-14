@@ -528,8 +528,12 @@ object Innertube {
 
     // ---- Public API ---------------------------------------------------------
 
-    suspend fun browse(browseId: String, params: String? = null): JsonObject =
-        postMusic("browse") {
+    suspend fun browse(
+        browseId: String,
+        params: String? = null,
+        contentCountry: String? = null,
+    ): JsonObject =
+        postMusic("browse", contentCountry = contentCountry) {
             put("browseId", browseId)
             params?.let { put("params", it) }
         }
@@ -1143,6 +1147,7 @@ object Innertube {
     private suspend fun postMusic(
         endpoint: String,
         query: Map<String, String> = emptyMap(),
+        contentCountry: String? = null,
         bodyExtras: JsonObjectBuilder.() -> Unit,
     ): JsonObject {
         // This is the common authenticated request path: Home, Library,
@@ -1184,7 +1189,12 @@ object Innertube {
                                 put("clientName", "WEB_REMIX")
                                 put("clientVersion", clientVersion)
                                 put("hl", currentLanguage)
-                                put("gl", "US")
+                                // The content country steers the
+                                // regional pages (charts above all);
+                                // US is the long-standing default and
+                                // only a caller that names a country
+                                // changes it.
+                                put("gl", contentCountry ?: "US")
                                 visitorData?.let { put("visitorData", it) }
                             }
                             putJsonObject("user") {

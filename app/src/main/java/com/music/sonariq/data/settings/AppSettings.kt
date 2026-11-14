@@ -17,15 +17,12 @@ import com.music.sonariq.playback.EqLayout
 import com.music.sonariq.playback.EqualizerPreset
 import com.music.sonariq.ui.player.AudioOutputKind
 import com.music.sonariq.ui.player.decodeLyricAutoOffsets
-import com.music.sonariq.ui.player.decodeLyricOffsets
 import com.music.sonariq.ui.player.decodeRouteCalibrations
 import com.music.sonariq.ui.player.encodeLyricAutoOffsets
-import com.music.sonariq.ui.player.encodeLyricOffsets
 import com.music.sonariq.ui.player.encodeRouteCalibrations
 import com.music.sonariq.ui.player.LyricsBackground
 import com.music.sonariq.ui.player.MAX_ROUTE_CALIBRATION_MS
 import com.music.sonariq.ui.player.VisualizerStyle
-import com.music.sonariq.ui.player.withLyricOffset
 import com.music.sonariq.ui.theme.AccentColor
 import com.music.sonariq.ui.theme.accentColorFromStored
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -705,24 +702,20 @@ object AppSettings {
     /** Blurs unfocused lyric lines, keeping the active line sharp. */
     val lyricsBlur = MutableStateFlow(true)
 
-    /** Positive values delay synced lyrics; negative values bring them forward. */
-    val lyricsOffsetMs = MutableStateFlow(0)
-
-    /** Per-track lyric offsets, videoId to ms; a track without an entry follows [lyricsOffsetMs]. */
-    val lyricsOffsetOverrides = MutableStateFlow<Map<String, Int>>(emptyMap())
-
     /**
      * Per-track *measured* lyric offsets, videoId to record — what the AI
-     * measurement found for that track's exact lines, beside the manual
-     * overrides above. Written only by the measurement job; the player
-     * reads it through the offset resolution.
+     * measurement found for that track's exact lines. Written only by
+     * the measurement job; the player reads it through the offset
+     * resolution. (The hand-set offsets that used to sit beside this —
+     * a global value and per-track overrides — are gone; stored values
+     * are never read again.)
      */
     val lyricsAutoOffsets = MutableStateFlow<Map<String, LyricsAutoOffset>>(emptyMap())
 
     /**
-     * Per-route output calibrations, route class to ms — the listener's
+     * Per-route "Lyrics ms" values, route class to ms — the listener's
      * own correction for an output's delay, kept per route so a wireless
-     * calibration never reaches the speaker. Read through the player's
+     * value never reaches the speaker. Read through the player's
      * output-sync composition; see the shared timing model.
      */
     val lyricsRouteCalibrations = MutableStateFlow<Map<AudioOutputKind, Int>>(emptyMap())
@@ -1273,10 +1266,6 @@ object AppSettings {
         reduceDynamicBlur.value = prefs.getBoolean(KEY_REDUCE_BLUR, false)
         liquidGlass.value = prefs.getBoolean(KEY_LIQUID_GLASS, true)
         lyricsBlur.value = prefs.getBoolean(KEY_LYRICS_BLUR, true)
-        lyricsOffsetMs.value = prefs.getInt(KEY_LYRICS_OFFSET_MS, 0)
-            .coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
-        lyricsOffsetOverrides.value =
-            decodeLyricOffsets(prefs.getString(KEY_LYRICS_OFFSET_OVERRIDES, null).orEmpty())
         lyricsAutoOffsets.value =
             decodeLyricAutoOffsets(prefs.getString(KEY_LYRICS_AUTO_OFFSETS, null).orEmpty())
         lyricsRouteCalibrations.value =
@@ -1980,21 +1969,6 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_LYRICS_BLUR, value).apply()
     }
 
-    fun setLyricsOffsetMs(value: Int) {
-        val normalized = value.coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
-        if (lyricsOffsetMs.value == normalized) return
-        lyricsOffsetMs.value = normalized
-        prefs.edit().putInt(KEY_LYRICS_OFFSET_MS, normalized).apply()
-    }
-
-    /** Null removes the track's own offset, handing it back to the global one. */
-    fun setLyricsOffsetForTrack(videoId: String, offsetMs: Int?) {
-        val updated = lyricsOffsetOverrides.value.withLyricOffset(videoId, offsetMs)
-        if (updated == lyricsOffsetOverrides.value) return
-        lyricsOffsetOverrides.value = updated
-        prefs.edit().putString(KEY_LYRICS_OFFSET_OVERRIDES, encodeLyricOffsets(updated)).apply()
-    }
-
     /** Records a track's measured auto offset; null forgets it. Written only by the AI measurement job. */
     fun setLyricsAutoOffset(videoId: String, record: LyricsAutoOffset?) {
         val updated = if (record == null) {
@@ -2007,7 +1981,7 @@ object AppSettings {
         prefs.edit().putString(KEY_LYRICS_AUTO_OFFSETS, encodeLyricAutoOffsets(updated)).apply()
     }
 
-    /** Records the calibration for one output route; null returns that route to automatic. */
+    /** Records the "Lyrics ms" value for one output route; null returns that route to 0. */
     fun setLyricsRouteCalibration(route: AudioOutputKind, offsetMs: Int?) {
         val updated = if (offsetMs == null) {
             lyricsRouteCalibrations.value - route
@@ -2903,9 +2877,6 @@ object AppSettings {
     /** The cache limit with no ceiling: only free storage bounds it. */
     const val UNLIMITED_CACHE_LIMIT_BYTES = Long.MAX_VALUE
 
-    const val MIN_LYRICS_OFFSET_MS = -5_000
-    const val MAX_LYRICS_OFFSET_MS = 5_000
-
     const val MIN_LYRICS_FONT_SIZE_SP = 13f
     const val MAX_LYRICS_FONT_SIZE_SP = 24f
     const val DEFAULT_LYRICS_FONT_SIZE_SP = 17f
@@ -3015,8 +2986,6 @@ object AppSettings {
     private const val KEY_REDUCE_BLUR = "reduce_dynamic_blur"
     private const val KEY_LIQUID_GLASS = "liquid_glass"
     private const val KEY_LYRICS_BLUR = "lyrics_blur"
-    private const val KEY_LYRICS_OFFSET_MS = "lyrics_offset_ms"
-    private const val KEY_LYRICS_OFFSET_OVERRIDES = "lyrics_offset_overrides"
     private const val KEY_LYRICS_AUTO_OFFSETS = "lyrics_auto_offsets"
     private const val KEY_LYRICS_ROUTE_CALIBRATIONS = "lyrics_route_calibrations"
     private const val KEY_LYRICS_FONT_SIZE_SP = "lyrics_font_size_sp"

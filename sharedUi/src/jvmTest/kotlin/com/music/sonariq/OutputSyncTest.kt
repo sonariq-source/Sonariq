@@ -17,9 +17,10 @@ import org.junit.Test
 
 /**
  * The output-sync composition: one sign convention (a shift is a delay;
- * the playhead subtracts it), latency and calibration composed over the
- * resolved offset, calibrations that belong to exactly one route, and
- * nothing compensated when nothing was measured.
+ * the playhead subtracts it), latency and the per-route "Lyrics ms"
+ * value composed over the resolved offset (the measured auto offset),
+ * values that belong to exactly one route, and nothing compensated when
+ * nothing was measured.
  */
 class OutputSyncTest {
 
@@ -42,8 +43,8 @@ class OutputSyncTest {
     }
 
     @Test
-    fun userOffsetKeepsItsExistingDirection() {
-        // The offset UI's standing meaning: positive shows lyrics later.
+    fun resolvedOffsetKeepsItsDirection() {
+        // The standing meaning of a positive shift: lyrics show later.
         assertEquals(9_700L, adjustedLyricsPosition(10_000L, 300))
         assertEquals(10_300L, adjustedLyricsPosition(10_000L, -300))
         // And latency composes in the same direction as a positive offset.
@@ -53,6 +54,26 @@ class OutputSyncTest {
             sync = OutputSyncState(estimatedLatencyMs = 200L),
         )
         assertEquals(500, shift)
+    }
+
+    @Test
+    fun autoOffsetAndLyricsMsCompose() {
+        // The whole default path in one number: the track's measured
+        // auto offset plus the current route's "Lyrics ms" value, with
+        // no manual layer anywhere in it.
+        val shift = effectiveLyricsShiftMs(
+            resolvedOffsetMs = 120,
+            calibrations = mapOf(AudioOutputKind.BLUETOOTH to 180),
+            sync = OutputSyncState(AudioOutputKind.BLUETOOTH),
+        )
+        assertEquals(300, shift)
+        // The same auto offset on the speaker, where no value is set.
+        val speakerShift = effectiveLyricsShiftMs(
+            resolvedOffsetMs = 120,
+            calibrations = mapOf(AudioOutputKind.BLUETOOTH to 180),
+            sync = OutputSyncState(AudioOutputKind.PHONE),
+        )
+        assertEquals(120, speakerShift)
     }
 
     @Test

@@ -459,8 +459,6 @@ fun NowPlayingScreen(
     }
 
     val syncedLyricsEnabled by PlayerSettings.syncedLyrics.collectAsStateWithLifecycle()
-    val lyricsOffsetMs by PlayerSettings.lyricsOffsetMs.collectAsStateWithLifecycle()
-    val lyricsOffsetOverrides by PlayerSettings.lyricsOffsetOverrides.collectAsStateWithLifecycle()
     val lyricsAutoOffsets by PlayerSettings.lyricsAutoOffsets.collectAsStateWithLifecycle()
     // The measured auto offset for the lines on screen, where one
     // applies — recomputed when the track, the lines or the records
@@ -481,12 +479,7 @@ fun NowPlayingScreen(
             adjustedLyricsSeekTarget(
                 lineTimeMs,
                 effectiveLyricsShiftMs(
-                    resolveLyricsOffsetMs(
-                        lyricsOffsetOverrides,
-                        lyricsOffsetMs,
-                        song.videoId,
-                        autoOffsetMs,
-                    ),
+                    resolveLyricsOffsetMs(autoOffsetMs),
                     syncShift,
                 ),
             ),
@@ -1140,7 +1133,6 @@ fun NowPlayingScreen(
             LyricsOffsetSheet(
                 hazeState = playerHaze,
                 onDismiss = onDismissLyricsOffset,
-                videoId = song.videoId,
             )
         }
         lyricsShare?.let { request ->

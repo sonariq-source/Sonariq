@@ -2438,9 +2438,6 @@ private fun SonariqApp(
                 songShareLyrics = lyricSnippet(
                     lyrics,
                     player.position.positionMs + resolveLyricsOffsetMs(
-                        AppSettings.lyricsOffsetOverrides.value,
-                        AppSettings.lyricsOffsetMs.value,
-                        displayedSong.videoId,
                         applicableAutoOffsetMs(
                             AppSettings.lyricsAutoOffsets.value,
                             displayedSong.videoId,

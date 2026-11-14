@@ -555,6 +555,47 @@ object YtMusicRepository {
         InnertubeParser.parseWatchQueue(Innertube.next(videoId))
     }
 
+    private const val CHARTS_BROWSE_ID = "FEmusic_charts"
+
+    /** Deep enough to feed AutoPlay's pool; a chart runs longer than anyone queues. */
+    private const val CHARTS_LIMIT = 100
+
+    /**
+     * One country's popular songs, in chart order — or the global charts
+     * when [countryIso] is null.
+     *
+     * The charts page is the service's own popularity ranking for the
+     * country the request names (the request's content country is what
+     * localizes it), and a country's chart mixes its local hits with the
+     * international ones charting there — that mix is the point, so
+     * nothing is filtered by origin or language. Shelves are read in
+     * page order and flattened: the top-songs shelf leads, trending
+     * follows, and a song's position in the returned list is its rank.
+     * Rows with nothing to play (artist entries, video compilations)
+     * never survive the shelf parsers.
+     */
+    suspend fun charts(countryIso: String?): Result<List<Song>> =
+        call("charts:${countryIso ?: "GLOBAL"}") {
+            val response = Innertube.browse(CHARTS_BROWSE_ID, contentCountry = countryIso)
+            val shelves = InnertubeParser.parseHome(response)
+                .ifEmpty { InnertubeParser.parseHomeContinuation(response) }
+            shelves.asSequence()
+                .flatMap { shelf -> shelf.items.asSequence() }
+                .mapNotNull { item ->
+                    val videoId = item.videoId?.takeIf { it.isNotBlank() }
+                        ?: return@mapNotNull null
+                    Song(
+                        videoId = videoId,
+                        title = item.title,
+                        artist = item.subtitle,
+                        thumbnailUrl = item.thumbnailUrl,
+                    )
+                }
+                .distinctBy { it.videoId }
+                .take(CHARTS_LIMIT)
+                .toList()
+        }
+
     /**
      * The page of the artist called exactly [name], or null when there is none.
      *

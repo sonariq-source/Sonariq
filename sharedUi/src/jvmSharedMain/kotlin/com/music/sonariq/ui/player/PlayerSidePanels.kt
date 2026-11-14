@@ -47,8 +47,6 @@ fun LyricsSidePanel(
     modifier: Modifier = Modifier,
 ) {
     val haptics = rememberHaptics()
-    val lyricsOffsetMs by PlayerSettings.lyricsOffsetMs.collectAsStateWithLifecycle()
-    val lyricsOffsetOverrides by PlayerSettings.lyricsOffsetOverrides.collectAsStateWithLifecycle()
     val lyricsAutoOffsets by PlayerSettings.lyricsAutoOffsets.collectAsStateWithLifecycle()
     // The measured auto offset for the lines on screen, where one
     // applies — the same composition the full player makes.
@@ -65,12 +63,7 @@ fun LyricsSidePanel(
             adjustedLyricsSeekTarget(
                 lineTimeMs,
                 effectiveLyricsShiftMs(
-                    resolveLyricsOffsetMs(
-                        lyricsOffsetOverrides,
-                        lyricsOffsetMs,
-                        song.videoId,
-                        autoOffsetMs,
-                    ),
+                    resolveLyricsOffsetMs(autoOffsetMs),
                     syncShift,
                 ),
             ),

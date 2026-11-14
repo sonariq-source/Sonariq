@@ -165,6 +165,7 @@ private class ScoringInputs(
     private val skippedIds: Set<String>,
     private val affinity: (String) -> Double,
     private val analysisFor: (String) -> TrackAnalysis?,
+    private val chartRanks: Map<String, Int> = emptyMap(),
 ) {
     fun signalsFor(candidate: Song): AutoplayCandidateSignals {
         val artists = QueueBuilder.artistSet(candidate.artist)
@@ -174,6 +175,7 @@ private class ScoringInputs(
             trackTaste = taste?.invoke(candidate.videoId)?.toDouble(),
             artistTaste = artistTaste(artists),
             artistSkipShare = artistSkipShare(artists),
+            chartRank = chartRanks[candidate.videoId],
         )
     }
 
@@ -222,6 +224,7 @@ private suspend fun scoringInputs(
     existing: List<Song>,
     session: AutoplaySessionMemory?,
     analysisFor: (String) -> TrackAnalysis?,
+    chartRanks: Map<String, Int> = emptyMap(),
 ): ScoringInputs {
     val stats = runCatching { VibeAutoplay.loadPlayStats(context) }.getOrNull()
     val artistPlays = HashMap<String, Int>()
@@ -242,6 +245,7 @@ private suspend fun scoringInputs(
         skippedIds = session?.skippedIds().orEmpty(),
         affinity = { candidateId -> SmartAutoplay.transitionAffinity(context, seedSong, candidateId) },
         analysisFor = analysisFor,
+        chartRanks = chartRanks,
     )
 }
 
@@ -359,8 +363,14 @@ private fun freshSessionBatch(
 
 /**
  * The discovery share of a batch: SmartAutoplay predictions first (only once
- * the predictor has learned enough), then radio for the seed, all run
- * through the bans and the queue's own de-duplication and artist caps.
+ * the predictor has learned enough), then the popular pool — the listener's
+ * country charts with the global charts behind them (see
+ * [PopularPoolStore]) — then radio for the seed, all run through the bans
+ * and the queue's own de-duplication and artist caps. The popular songs
+ * also carry their chart rank into the scoring, so a candidate the radio
+ * surfaced is still lifted by charting; and when the pool is empty or the
+ * session's exclusions exhaust it, selection continues on the radio
+ * exactly as it did before the pool existed.
  */
 private suspend fun loadDiscoveryBatch(
     context: Context?,
@@ -399,7 +409,17 @@ private suspend fun loadDiscoveryBatch(
         }.getOrDefault(emptyList())
     } else emptyList()
 
-    val combined = (predicted + related)
+    // The popular pool: this device's country charts, global charts
+    // behind them. Fetched beside the radio rather than instead of it —
+    // the pool widens and re-prices the candidate set; it never narrows
+    // it, so a seed whose vibe the charts ignore still gets its station.
+    val popular = if (context != null) {
+        runCatching { PopularPoolStore.load(context) }.getOrDefault(PopularPool.EMPTY)
+    } else {
+        PopularPool.EMPTY
+    }
+
+    val combined = (predicted + popular.songs + related)
         .filterNot { AutoplayPolicy.isBanned(it.videoId, it.artist, bannedIds, bannedArtists) }
         .distinctBy { it.videoId }
     // Session freshness is applied to the whole candidate pool, before
@@ -425,7 +445,7 @@ private suspend fun loadDiscoveryBatch(
     // are no evidence stores to judge from, and the pool passes through
     // in its freshness order exactly as before.
     val inputs = if (context != null) {
-        scoringInputs(context, seedSong, existing, session, analysisFor)
+        scoringInputs(context, seedSong, existing, session, analysisFor, popular.ranks)
     } else {
         null
     }

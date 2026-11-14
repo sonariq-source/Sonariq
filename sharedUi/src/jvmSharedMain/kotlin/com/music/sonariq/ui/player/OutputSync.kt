@@ -20,16 +20,17 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
  * *plus* the total shift (see [adjustedLyricsSeekTarget]). The three
  * components all speak this one language, so they simply add:
  *
- *     total shift = resolved lyrics offset (per-track override, else
- *                   global + measured auto offset — [resolveLyricsOffsetMs])
- *                 + per-route calibration ([routeCalibrationMs])
+ *     total shift = resolved lyrics offset (the track's measured auto
+ *                   offset alone — [resolveLyricsOffsetMs])
+ *                 + per-route "Lyrics ms" value ([routeCalibrationMs])
  *                 + estimated output latency ([OutputSyncState.estimatedLatencyMs])
  *
- * The offset layers correct the *lyrics*; the calibration and the latency
- * correct the *output*. A positive output latency — the sound physically
- * leaves the device late — therefore enters with a plus: at any given
- * media position less of the song has been heard, so the heard position
- * is earlier and the words must land later by exactly that much.
+ * The auto offset corrects the *lyrics*; the "Lyrics ms" value and the
+ * latency correct the *output*. A positive output latency — the sound
+ * physically leaves the device late — therefore enters with a plus: at
+ * any given media position less of the song has been heard, so the
+ * heard position is earlier and the words must land later by exactly
+ * that much.
  *
  * THE DOUBLE-COMPENSATION GUARD. The position the player reports is the
  * media clock read at the audio sink's playback head: samples still
@@ -45,11 +46,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
  * When a platform cannot measure that remainder on the current route,
  * the estimate is null — never a fabricated number, and never displayed
  * as 0 ms — it contributes nothing, and the listener's per-route
- * calibration is the compensation. A calibration is keyed by the exact
- * route class: a wireless calibration must not leak onto the speaker.
+ * "Lyrics ms" value is the compensation. That value is keyed by the
+ * exact route class: a wireless value must not leak onto the speaker.
  */
 
-/** The most a per-route calibration may shift lyrics, either way. */
+/** The most the per-route "Lyrics ms" value may shift lyrics, either way. */
 const val MAX_ROUTE_CALIBRATION_MS = 1_000
 
 /**
@@ -85,9 +86,9 @@ interface OutputSyncSource {
     val state: StateFlow<OutputSyncState>
 
     /**
-     * Whether this platform has a real output-sync story at all (route
-     * tracking, and calibration worth offering). Where false, the offset
-     * UI shows no output-sync section and nothing is compensated.
+     * Whether this platform tracks the output route at all. Where false
+     * the route stays [AudioOutputKind.OTHER] and the "Lyrics ms" value
+     * is the single route-less one; compensation still applies.
      */
     val supported: Boolean get() = false
 }
@@ -98,10 +99,10 @@ object NoOutputSync : OutputSyncSource {
 }
 
 /**
- * The calibration stored for exactly [route], or 0 where the listener
- * has not calibrated that route. Route classes never inherit from one
- * another — the fallback for an uncalibrated route is the plain resolved
- * offset, not a neighbour's calibration.
+ * The "Lyrics ms" value stored for exactly [route], or 0 where the
+ * listener has not set one for that route. Route classes never inherit
+ * from one another — the fallback for an unset route is the plain
+ * resolved offset, not a neighbour's value.
  */
 fun routeCalibrationMs(
     calibrations: Map<AudioOutputKind, Int>,
@@ -111,8 +112,8 @@ fun routeCalibrationMs(
 
 /**
  * The output-side part of the total shift: the current route's
- * calibration plus the measured latency where one exists. A route whose
- * latency cannot be measured contributes its calibration alone.
+ * "Lyrics ms" value plus the measured latency where one exists. A route
+ * whose latency cannot be measured contributes its value alone.
  */
 fun outputSyncShiftMs(
     calibrations: Map<AudioOutputKind, Int>,
@@ -127,10 +128,9 @@ fun outputSyncShiftMs(
 /**
  * The total lyrics shift: the resolved offset (see
  * [resolveLyricsOffsetMs]) with the output side ([outputSyncShiftMs])
- * composed on top, bounded by [MAX_TOTAL_LYRICS_SHIFT_MS]. The per-track
- * manual override keeps its precedence inside the resolved part; the
- * output side applies regardless, because output latency does not care
- * which lyric file is on screen.
+ * composed on top, bounded by [MAX_TOTAL_LYRICS_SHIFT_MS]. The output
+ * side applies regardless of which track is showing, because output
+ * latency does not care which lyric file is on screen.
  */
 fun effectiveLyricsShiftMs(resolvedOffsetMs: Int, syncShiftMs: Int): Int =
     (resolvedOffsetMs + syncShiftMs)
