@@ -10,7 +10,7 @@ on:
       version:
         description: "Version to stamp into the packages, without the leading v"
         required: true
-        default: "2.6.0"
+        default: "2.6.1"
 
 permissions:
   contents: read
