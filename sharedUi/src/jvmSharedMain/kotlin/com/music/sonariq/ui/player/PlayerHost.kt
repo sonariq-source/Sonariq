@@ -33,6 +33,14 @@ import kotlinx.coroutines.flow.StateFlow
 interface PlayerHost {
     val settings: PlayerSettingsSource
 
+    /**
+     * Where this platform reports the audio output's route and measured
+     * latency for lyrics timing; see [OutputSyncSource]. Platforms with
+     * no output story keep the default: no compensation, and no
+     * output-sync section in the offset UI.
+     */
+    val outputSync: OutputSyncSource get() = NoOutputSync
+
     /** A Canvas already settled for [song], without a lookup. */
     fun cachedCanvas(song: Song): CanvasArtwork?
 
@@ -135,6 +143,8 @@ private val DefaultLyricsHighlightIntensity = MutableStateFlow(DEFAULT_LYRICS_HI
 private val DefaultLyricsBackground = MutableStateFlow(LyricsBackground.ARTWORK)
 private val DefaultLyricsReducedMotion = MutableStateFlow(false)
 private val DefaultLyricsAutoOffsets = MutableStateFlow<Map<String, LyricsAutoOffset>>(emptyMap())
+private val DefaultLyricsRouteCalibrations =
+    MutableStateFlow<Map<AudioOutputKind, Int>>(emptyMap())
 private val DefaultLiquidGlassEnabled = MutableStateFlow(true)
 
 /** What the output drawer needs to know about casting to draw its row. */
@@ -197,6 +207,15 @@ interface PlayerSettingsSource {
      * empty default and its lyrics are never auto-shifted.
      */
     val lyricsAutoOffsets: StateFlow<Map<String, LyricsAutoOffset>> get() = DefaultLyricsAutoOffsets
+    /**
+     * The listener's per-route output calibrations, route class to
+     * offsetMs — the output-side half of the lyrics shift, kept per
+     * route so a wireless calibration never reaches the speaker. Read
+     * through [routeCalibrationMs]; see OutputSync.kt for the model.
+     * Platforms without output tracking keep the empty default.
+     */
+    val lyricsRouteCalibrations: StateFlow<Map<AudioOutputKind, Int>>
+        get() = DefaultLyricsRouteCalibrations
     val lyricsSourceOrder: StateFlow<List<LyricsSource>>
     val meteredConnection: StateFlow<Boolean?>
     val preferUsbDac: StateFlow<Boolean>
@@ -238,6 +257,8 @@ interface PlayerSettingsSource {
     fun setLyricsOffsetMs(value: Int)
     /** Null clears the track's own offset, handing it back to the global one. */
     fun setLyricsOffsetForTrack(videoId: String, offsetMs: Int?)
+    /** Null clears the route's calibration, handing it back to automatic. */
+    fun setLyricsRouteCalibration(route: AudioOutputKind, offsetMs: Int?) = Unit
     fun setLyricsTranslationOverlay(value: Boolean)
     fun setVisualizerStyle(value: VisualizerStyle)
     fun setVisualizerIntensity(value: Float)

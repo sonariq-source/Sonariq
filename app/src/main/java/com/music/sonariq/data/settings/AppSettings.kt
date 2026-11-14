@@ -15,11 +15,15 @@ import com.music.sonariq.data.lyrics.LyricsSource
 import com.music.sonariq.data.sources.SourceKind
 import com.music.sonariq.playback.EqLayout
 import com.music.sonariq.playback.EqualizerPreset
+import com.music.sonariq.ui.player.AudioOutputKind
 import com.music.sonariq.ui.player.decodeLyricAutoOffsets
 import com.music.sonariq.ui.player.decodeLyricOffsets
+import com.music.sonariq.ui.player.decodeRouteCalibrations
 import com.music.sonariq.ui.player.encodeLyricAutoOffsets
 import com.music.sonariq.ui.player.encodeLyricOffsets
+import com.music.sonariq.ui.player.encodeRouteCalibrations
 import com.music.sonariq.ui.player.LyricsBackground
+import com.music.sonariq.ui.player.MAX_ROUTE_CALIBRATION_MS
 import com.music.sonariq.ui.player.VisualizerStyle
 import com.music.sonariq.ui.player.withLyricOffset
 import com.music.sonariq.ui.theme.AccentColor
@@ -715,6 +719,14 @@ object AppSettings {
      */
     val lyricsAutoOffsets = MutableStateFlow<Map<String, LyricsAutoOffset>>(emptyMap())
 
+    /**
+     * Per-route output calibrations, route class to ms — the listener's
+     * own correction for an output's delay, kept per route so a wireless
+     * calibration never reaches the speaker. Read through the player's
+     * output-sync composition; see the shared timing model.
+     */
+    val lyricsRouteCalibrations = MutableStateFlow<Map<AudioOutputKind, Int>>(emptyMap())
+
     /** Lyric line text size, in sp; the panel scales its line sizes around [DEFAULT_LYRICS_FONT_SIZE_SP]. */
     val lyricsFontSizeSp = MutableStateFlow(DEFAULT_LYRICS_FONT_SIZE_SP)
 
@@ -1267,6 +1279,8 @@ object AppSettings {
             decodeLyricOffsets(prefs.getString(KEY_LYRICS_OFFSET_OVERRIDES, null).orEmpty())
         lyricsAutoOffsets.value =
             decodeLyricAutoOffsets(prefs.getString(KEY_LYRICS_AUTO_OFFSETS, null).orEmpty())
+        lyricsRouteCalibrations.value =
+            decodeRouteCalibrations(prefs.getString(KEY_LYRICS_ROUTE_CALIBRATIONS, null).orEmpty())
         lyricsFontSizeSp.value =
             prefs.getFloat(KEY_LYRICS_FONT_SIZE_SP, DEFAULT_LYRICS_FONT_SIZE_SP)
                 .coerceIn(MIN_LYRICS_FONT_SIZE_SP, MAX_LYRICS_FONT_SIZE_SP)
@@ -1991,6 +2005,25 @@ object AppSettings {
         if (updated == lyricsAutoOffsets.value) return
         lyricsAutoOffsets.value = updated
         prefs.edit().putString(KEY_LYRICS_AUTO_OFFSETS, encodeLyricAutoOffsets(updated)).apply()
+    }
+
+    /** Records the calibration for one output route; null returns that route to automatic. */
+    fun setLyricsRouteCalibration(route: AudioOutputKind, offsetMs: Int?) {
+        val updated = if (offsetMs == null) {
+            lyricsRouteCalibrations.value - route
+        } else {
+            lyricsRouteCalibrations.value + (
+                route to offsetMs.coerceIn(
+                    -MAX_ROUTE_CALIBRATION_MS,
+                    MAX_ROUTE_CALIBRATION_MS,
+                )
+            )
+        }
+        if (updated == lyricsRouteCalibrations.value) return
+        lyricsRouteCalibrations.value = updated
+        prefs.edit()
+            .putString(KEY_LYRICS_ROUTE_CALIBRATIONS, encodeRouteCalibrations(updated))
+            .apply()
     }
 
     fun setLyricsFontSizeSp(value: Float) {
@@ -2985,6 +3018,7 @@ object AppSettings {
     private const val KEY_LYRICS_OFFSET_MS = "lyrics_offset_ms"
     private const val KEY_LYRICS_OFFSET_OVERRIDES = "lyrics_offset_overrides"
     private const val KEY_LYRICS_AUTO_OFFSETS = "lyrics_auto_offsets"
+    private const val KEY_LYRICS_ROUTE_CALIBRATIONS = "lyrics_route_calibrations"
     private const val KEY_LYRICS_FONT_SIZE_SP = "lyrics_font_size_sp"
     private const val KEY_LYRICS_AUTO_SCROLL = "lyrics_auto_scroll"
     private const val KEY_LYRICS_KARAOKE = "lyrics_karaoke"

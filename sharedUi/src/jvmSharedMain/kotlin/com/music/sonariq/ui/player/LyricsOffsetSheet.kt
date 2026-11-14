@@ -84,6 +84,16 @@ internal fun LyricsOffsetSheet(
 ) {
     val globalOffsetMs by PlayerSettings.lyricsOffsetMs.collectAsStateWithLifecycle()
     val overrides by PlayerSettings.lyricsOffsetOverrides.collectAsStateWithLifecycle()
+    // The output side of the shift (see OutputSync.kt): the current
+    // route, its measured latency where the platform has one, and the
+    // listener's calibration for that route. Collected unconditionally;
+    // the section below only renders where the platform supports it.
+    val outputSyncSource = PlayerPlatform.host.outputSync
+    val syncState by outputSyncSource.state.collectAsStateWithLifecycle()
+    val routeCalibrations by PlayerSettings.lyricsRouteCalibrations
+        .collectAsStateWithLifecycle()
+    val calibrationMs = routeCalibrationMs(routeCalibrations, syncState.route)
+    val syncShiftMs = outputSyncShiftMs(routeCalibrations, syncState)
     val haptics = rememberHaptics()
     // Per-track mode starts on when the song already carries its own offset.
     // Turning it off leaves a stored override in place — it simply stops
@@ -325,6 +335,36 @@ internal fun LyricsOffsetSheet(
                         }
                         .padding(horizontal = 18.dp, vertical = 9.dp),
                 )
+
+                if (outputSyncSource.supported) {
+                    Spacer(Modifier.height(14.dp))
+                    OutputSyncSection(
+                        route = syncState.route,
+                        estimatedLatencyMs = syncState.estimatedLatencyMs,
+                        calibrationMs = calibrationMs,
+                        // The shift the playhead is applying for this
+                        // track: the offset above with the output side
+                        // composed over it.
+                        effectiveMs = effectiveLyricsShiftMs(offsetMs, syncShiftMs),
+                        onStep = { step ->
+                            haptics.play(Haptic.Select)
+                            PlayerSettings.setLyricsRouteCalibration(
+                                syncState.route,
+                                (calibrationMs + step).coerceIn(
+                                    -MAX_ROUTE_CALIBRATION_MS,
+                                    MAX_ROUTE_CALIBRATION_MS,
+                                ),
+                            )
+                        },
+                        onReset = {
+                            haptics.play(Haptic.Tap)
+                            PlayerSettings.setLyricsRouteCalibration(
+                                syncState.route,
+                                null,
+                            )
+                        },
+                    )
+                }
             }
         }
     }
@@ -365,4 +405,163 @@ private fun formatOffset(offsetMs: Int): String = String.format(
     Locale.getDefault(),
     "%+.1f s",
     offsetMs / 1_000f,
+)
+
+private fun formatMs(ms: Long): String = String.format(Locale.getDefault(), "%+d ms", ms)
+
+/**
+ * The output-sync half of the sheet: what the current output adds to
+ * the lyrics shift, and the per-route calibration that corrects it.
+ *
+ * The latency line is honest about measurability — where the platform
+ * cannot measure the route it says so, rather than dressing a guess up
+ * as a reading. The calibration belongs to the route alone: steps taken
+ * here are stored against [route] and never reach another output.
+ */
+@Composable
+private fun OutputSyncSection(
+    route: AudioOutputKind,
+    estimatedLatencyMs: Long?,
+    calibrationMs: Int,
+    effectiveMs: Int,
+    onStep: (Int) -> Unit,
+    onReset: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(ControlShape)
+            .background(GlassTokens.panelSurface)
+            .glassEdge(ControlShape)
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(Res.string.lyrics_output_sync),
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                color = Color.White,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = stringResource(Res.string.lyrics_output_route) +
+                    ": " + routeLabel(route),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.7f),
+            )
+        }
+        Text(
+            text = stringResource(Res.string.lyrics_output_sync_description),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White.copy(alpha = 0.55f),
+            modifier = Modifier.padding(top = 3.dp),
+        )
+        Spacer(Modifier.height(10.dp))
+        SyncValueRow(
+            label = stringResource(Res.string.lyrics_output_latency),
+            value = estimatedLatencyMs?.let { formatMs(it) },
+            unavailable = stringResource(Res.string.lyrics_output_latency_unavailable),
+        )
+        SyncValueRow(
+            label = stringResource(Res.string.lyrics_route_calibration),
+            value = formatMs(calibrationMs.toLong()),
+            unavailable = null,
+        )
+        SyncValueRow(
+            label = stringResource(Res.string.lyrics_effective_offset),
+            value = formatMs(effectiveMs.toLong()),
+            unavailable = null,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            for (step in listOf(-100, -50, -10, 10, 50, 100)) {
+                CalibrationStepButton(
+                    step = step,
+                    enabled = if (step < 0) {
+                        calibrationMs > -MAX_ROUTE_CALIBRATION_MS
+                    } else {
+                        calibrationMs < MAX_ROUTE_CALIBRATION_MS
+                    },
+                    onClick = { onStep(step) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        Text(
+            text = stringResource(Res.string.lyrics_output_reset_automatic),
+            style = MaterialTheme.typography.labelLarge,
+            color = Color.White.copy(alpha = if (calibrationMs != 0) 0.8f else 0.35f),
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .padding(top = 10.dp)
+                .clip(CircleShape)
+                .clickable(enabled = calibrationMs != 0) { onReset() }
+                .padding(horizontal = 18.dp, vertical = 9.dp),
+        )
+    }
+}
+
+/** One label-and-value line of the output-sync section; a null [value] reads as [unavailable]. */
+@Composable
+private fun SyncValueRow(label: String, value: String?, unavailable: String?) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White.copy(alpha = 0.8f),
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = value ?: unavailable.orEmpty(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White.copy(alpha = if (value != null) 0.95f else 0.55f),
+        )
+    }
+}
+
+/** One calibration step: small, labelled in milliseconds, one tap per step. */
+@Composable
+private fun CalibrationStepButton(
+    step: Int,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = if (enabled) 0.10f else 0.04f))
+            .clickable(enabled = enabled) { onClick() }
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = formatMs(step.toLong()),
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White.copy(alpha = if (enabled) 0.9f else 0.3f),
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun routeLabel(route: AudioOutputKind): String = stringResource(
+    when (route) {
+        AudioOutputKind.PHONE -> Res.string.lyrics_output_route_speaker
+        AudioOutputKind.WIRED -> Res.string.lyrics_output_route_wired
+        AudioOutputKind.BLUETOOTH -> Res.string.lyrics_output_route_bluetooth
+        AudioOutputKind.USB -> Res.string.lyrics_output_route_usb
+        AudioOutputKind.HDMI -> Res.string.lyrics_output_route_hdmi
+        AudioOutputKind.OTHER -> Res.string.lyrics_output_route_other
+    },
 )

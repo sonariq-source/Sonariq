@@ -609,9 +609,9 @@ private class ScrollRun(val id: Int, val delta: Float, val durationMs: Int) {
  * nor the drift is what you want to be reading against.
  */
 private fun scrollLead(lines: List<LyricLine>, positionMs: Long): Long {
-    val current = lines.indexOfLast { it.timeMs <= positionMs }
+    val current = lines.lineIndexAt(positionMs)
     // Before the first line's own timestamp there is no current line to
-    // measure a run-up from. [indexOfLast] answers -1 there, and the guard
+    // measure a run-up from. [lineIndexAt] answers -1 there, and the guard
     // below does not catch it: `current + 1` is 0, which is a perfectly real
     // line, so the elvis never fires and `lines[current]` indexes at -1.
     //
@@ -817,13 +817,24 @@ internal fun rememberLyricPlayhead(
 ): LyricPlayhead {
     val global = PlayerSettings.lyricsOffsetMs.collectAsStateWithLifecycle()
     val overrides = PlayerSettings.lyricsOffsetOverrides.collectAsStateWithLifecycle()
+    val syncShift = rememberOutputSyncShiftMs()
     // The track's own offset when one exists, otherwise the global one
     // with the track's measured auto offset composed under it (see
-    // [resolveLyricsOffsetMs]). A derived state rather than a value
-    // computed in composition: the playhead reads it off-composition, in
-    // the frame loop and in effects.
+    // [resolveLyricsOffsetMs]) — with the output side composed over
+    // that: the current route's calibration and the measured output
+    // latency (see OutputSync.kt). The clock below only ever sees this
+    // one total shift. A derived state rather than a value computed in
+    // composition: the playhead reads it off-composition, in the frame
+    // loop and in effects. A route change moves the total, which moves
+    // the playhead's discontinuity token, which re-anchors the clock at
+    // the new shift instead of steering towards it.
     val offset = remember(videoId, autoMs) {
-        derivedStateOf { resolveLyricsOffsetMs(overrides.value, global.value, videoId, autoMs) }
+        derivedStateOf {
+            effectiveLyricsShiftMs(
+                resolveLyricsOffsetMs(overrides.value, global.value, videoId, autoMs),
+                syncShift.value,
+            )
+        }
     }
     return remember(position, offset) { LyricPlayhead(position, offset) }
 }
@@ -3540,7 +3551,7 @@ private fun CurrentLyricLine(
     val clock = rememberLyricClock(trackKey, playhead, isPlaying)
 
     val index by remember(lines) {
-        derivedStateOf { lines.indexOfLast { it.timeMs <= clock.longValue } }
+        derivedStateOf { lines.lineIndexAt(clock.longValue) }
     }
     val current = lines.getOrNull(index)
     // Before the first line, and through instrumental breaks, show the note.

@@ -245,4 +245,43 @@ class LyricClockTest {
         )
         assertTrue(abs(last - (15_000 - 1_500)) < 40)
     }
+
+    /**
+     * A route change moves the compensated shift by the new route's
+     * latency: the readings step by that much, the playhead announces it
+     * through the same token an offset move uses, and the words land on
+     * the shifted song at once rather than steering towards it.
+     */
+    @Test fun routeChangeShiftsTheWordsByTheNewLatency() {
+        var aSecondAfter = 0L
+        val last = steady(
+            until = 6_000.0,
+            discontinuity = { if (it >= 3_000) 1L else 0L },
+            readingAt = { taken -> 10_000 + taken.toLong() - if (taken >= 3_000) 250 else 0 },
+        ) { now, shown ->
+            if (now >= 4_000 && aSecondAfter == 0L) aSecondAfter = shown
+        }
+        assertTrue(
+            "still off a second after the switch: $aSecondAfter",
+            abs(aSecondAfter - (14_000 - 250)) < 40,
+        )
+        assertTrue(abs(last - (16_000 - 250)) < 40)
+    }
+
+    /**
+     * Drift must not accumulate at any speed the player offers: five
+     * minutes in, at every rate, the words are still where the dated
+     * readings put them — the learned rate, not a timer, carries them.
+     */
+    @Test fun everySpeedHoldsTheSongOverLongPlayback() {
+        for (rate in listOf(0.75, 1.0, 1.25, 1.5, 2.0)) {
+            val run = run(Playback(rate = rate, maxDelayMs = 60.0), seconds = 300.0)
+            for (i in run.frames.indices) {
+                if (run.frames[i] < 4_000) continue
+                val error = run.shown[i] - run.truth[i]
+                assertTrue("rate $rate off by $error at ${run.frames[i]}", abs(error) < 40.0)
+            }
+            assertNeverBack(run)
+        }
+    }
 }

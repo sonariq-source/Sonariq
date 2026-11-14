@@ -331,7 +331,7 @@ internal fun AmbientLyricLines(
     val isSynced = remember(lines) { lines.any { it.timeMs > 0L } }
     val activeIndex by remember(lines, isSynced) {
         derivedStateOf {
-            if (!isSynced) -1 else lines.indexOfLast { it.timeMs <= playhead.positionMs }
+            if (!isSynced) -1 else lines.lineIndexAt(playhead.positionMs)
         }
     }
     Column(modifier = modifier) {

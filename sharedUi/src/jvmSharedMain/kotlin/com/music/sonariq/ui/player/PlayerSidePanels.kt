@@ -56,15 +56,22 @@ fun LyricsSidePanel(
         applicableAutoOffsetMs(lyricsAutoOffsets, song.videoId, lyrics)
     }
     val lyricsPlayhead = rememberLyricPlayhead(position, song.videoId, autoOffsetMs)
+    // The same total shift the playhead displays through — the resolved
+    // offset with the output side composed over it — so a tap lands on
+    // the line as it is heard, not as the media clock alone would put it.
+    val syncShift by rememberOutputSyncShiftMs()
     val seekToLyric: (Long) -> Unit = { lineTimeMs ->
         onSeek(
             adjustedLyricsSeekTarget(
                 lineTimeMs,
-                resolveLyricsOffsetMs(
-                    lyricsOffsetOverrides,
-                    lyricsOffsetMs,
-                    song.videoId,
-                    autoOffsetMs,
+                effectiveLyricsShiftMs(
+                    resolveLyricsOffsetMs(
+                        lyricsOffsetOverrides,
+                        lyricsOffsetMs,
+                        song.videoId,
+                        autoOffsetMs,
+                    ),
+                    syncShift,
                 ),
             ),
         )

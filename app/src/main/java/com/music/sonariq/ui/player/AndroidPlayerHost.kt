@@ -20,6 +20,7 @@ import com.music.sonariq.data.lyrics.LyricsTranslation
 import com.music.sonariq.data.model.Song
 import com.music.sonariq.data.settings.AppSettings
 import com.music.sonariq.data.settings.LastPlayerScreen
+import com.music.sonariq.playback.AndroidOutputSync
 import com.music.sonariq.playback.AudioOutputStatus
 import com.music.sonariq.playback.AudioRouting
 import com.music.sonariq.playback.VisualizerController
@@ -79,6 +80,7 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         override val lyricsOffsetMs get() = AppSettings.lyricsOffsetMs
         override val lyricsOffsetOverrides get() = AppSettings.lyricsOffsetOverrides
         override val lyricsAutoOffsets get() = AppSettings.lyricsAutoOffsets
+        override val lyricsRouteCalibrations get() = AppSettings.lyricsRouteCalibrations
         override val lyricsSourceOrder get() = AppSettings.lyricsSourceOrder
         override val meteredConnection get() = AppSettings.meteredConnection
         override val preferUsbDac get() = AppSettings.preferUsbDac
@@ -114,6 +116,8 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         override fun setLyricsOffsetMs(value: Int) = AppSettings.setLyricsOffsetMs(value)
         override fun setLyricsOffsetForTrack(videoId: String, offsetMs: Int?) =
             AppSettings.setLyricsOffsetForTrack(videoId, offsetMs)
+        override fun setLyricsRouteCalibration(route: AudioOutputKind, offsetMs: Int?) =
+            AppSettings.setLyricsRouteCalibration(route, offsetMs)
         override fun setLyricsTranslationOverlay(value: Boolean) =
             AppSettings.setLyricsTranslationOverlay(value)
         override fun setVisualizerStyle(value: VisualizerStyle) =
@@ -133,6 +137,8 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
     }
 
     override val visualizer: VisualizerUi get() = visualizerController
+
+    override val outputSync: OutputSyncSource get() = AndroidOutputSync
 
     override fun cachedCanvas(song: Song): CanvasArtwork? = CanvasRepository.cached(song)
 
