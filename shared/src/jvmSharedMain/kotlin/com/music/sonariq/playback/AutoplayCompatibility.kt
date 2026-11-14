@@ -30,8 +30,9 @@ import kotlin.math.min
  *    aggregated from the same history;
  *  - popularity: the candidate's place on the listener's country
  *    charts (see [PopularPool]), rank-decayed — real familiarity
- *    evidence, but a bounded one: it seasons the fit judgement, it
- *    never replaces it (see [popularityForRank]);
+ *    evidence, applied as a bounded lift on top of the fit score: it
+ *    can raise a score towards the top, never lower one, and never
+ *    counts as fit evidence (see [popularityForRank]);
  *  - how often this session has skipped this candidate's artist, which
  *    demotes rather than vetoes.
  *
@@ -68,7 +69,9 @@ data class AutoplayCandidateSignals(
     /**
      * The candidate's rank in the popular pool (0 = the top of the
      * listener's country charts), or null when it is not charting.
-     * Priced through [AutoplayCompatibility.popularityForRank].
+     * Priced through [AutoplayCompatibility.popularityForRank] as a
+     * lift on the fit score — it is not one of the fit factors and
+     * adds nothing to the score's coverage.
      */
     val chartRank: Int? = null,
 )
@@ -88,7 +91,15 @@ object AutoplayCompatibility {
     private const val W_LEARNED = 0.17
     private const val W_TRACK_TASTE = 0.10
     private const val W_ARTIST_TASTE = 0.15
-    private const val W_POPULARITY = 0.18
+
+    /**
+     * The most of the remaining distance to a perfect score that a
+     * chart rank may close: at rank 0 the lift is this fraction of
+     * (1 − fit), scaled down the chart by [popularityForRank]. Small
+     * enough that a zero-fit candidate stays rejected (0.30 at most)
+     * and a strong fit is never overtaken by a weak one on fame.
+     */
+    private const val MAX_POPULARITY_LIFT = 0.30
 
     /** How hard a fully-skipped artist demotes its candidates: a multiplier, never a veto. */
     private const val SKIP_DEMOTION = 0.35
@@ -139,9 +150,17 @@ object AutoplayCompatibility {
         add(W_LEARNED, signals.learnedAffinity)
         add(W_TRACK_TASTE, signals.trackTaste)
         add(W_ARTIST_TASTE, signals.artistTaste)
-        add(W_POPULARITY, signals.chartRank?.let(::popularityForRank))
 
         var value = if (weight > 0) weighted / weight else 0.0
+        // Popularity lifts the fit judgement; it is not part of it.
+        // Closing a bounded fraction of the distance to 1 means a
+        // charting song always scores at least its fit, a low rank is
+        // a small nudge rather than a dilution, and the lift shrinks
+        // as the fit grows — fame breaks ties among good fits, it
+        // does not manufacture them.
+        signals.chartRank?.let { rank ->
+            value += (1.0 - value) * MAX_POPULARITY_LIFT * popularityForRank(rank)
+        }
         signals.artistSkipShare?.let { share ->
             value *= 1.0 - SKIP_DEMOTION * share.coerceIn(0.0, 1.0)
         }
@@ -154,14 +173,15 @@ object AutoplayCompatibility {
      * rank 24, fading down the chart rather than cutting off at an
      * arbitrary depth.
      *
-     * The bound that matters is the weight, not the curve: popularity
-     * enters the weighted average at [W_POPULARITY] of the full
-     * judgement, so it can only ever move a score by that share. A
-     * candidate whose fit evidence is zero everywhere stays rejected
-     * even at rank 0 (0.18 of weight against zeroes elsewhere prices
-     * under the line), and no rank outranks a genuinely good fit —
-     * popular *and* fitting beats obscure and fitting, which is the
-     * whole of what the charts are allowed to say.
+     * The value scales the lift in [score]: at rank 0 a candidate
+     * closes [MAX_POPULARITY_LIFT] of its distance to a perfect
+     * score, at rank 24 a quarter of that. The bounds that follow are
+     * the point: a candidate whose fit evidence is zero everywhere
+     * reaches at most 0.30 and stays rejected, and the lift is worth
+     * least exactly where the fit is strongest, so no rank outranks
+     * a genuinely better fit by much — popular *and* fitting beats
+     * obscure and fitting, which is the whole of what the charts are
+     * allowed to say.
      */
     fun popularityForRank(rank: Int): Double {
         if (rank < 0) return 0.0

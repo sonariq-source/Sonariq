@@ -211,10 +211,10 @@ class AutoplayCompatibilityTest {
 
     @Test
     fun popularityCannotCarryAZeroFitCandidatePastTheLine() {
-        // The country's number one with every other signal at zero:
-        // its rank prices at most its own weight of the judgement
-        // (0.18 of 0.43 here), which lands under the acceptance line —
-        // fame alone never makes a pick.
+        // The country's number one with every fit signal at zero: the
+        // lift closes at most 0.30 of the distance to a perfect score,
+        // which lands under the acceptance line — fame alone never
+        // makes a pick.
         val famousNobody = AutoplayCompatibility.score(
             chillSeed,
             song("nobody"),
@@ -250,6 +250,20 @@ class AutoplayCompatibilityTest {
         assertEquals(1.0, AutoplayCompatibility.popularityForRank(0), 1e-9)
         assertEquals(0.5, AutoplayCompatibility.popularityForRank(8), 1e-9)
         assertEquals(0.25, AutoplayCompatibility.popularityForRank(24), 1e-9)
+    }
+
+    @Test
+    fun aLowChartRankNeverLowersAScore() {
+        // Charting at the bottom of the pool is a small nudge up,
+        // never a dilution: the same fit with a rank-99 entry scores
+        // at least its uncharted score.
+        val chartedLow = AutoplayCompatibility.score(
+            chillSeed,
+            song("chill"),
+            AutoplayCandidateSignals(analysis = chill, chartRank = 99),
+        )
+        assertTrue(chartedLow.score >= scoredWith(chill).score)
+        assertEquals(scoredWith(chill).coverage, chartedLow.coverage, 1e-9)
     }
 
     @Test
